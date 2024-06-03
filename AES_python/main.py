@@ -8,7 +8,7 @@ sbox_type = ["sbox_aes",
              "sbox_ozkaynak_1"]
 
 for i in range(0,6):
-    file_name = "ciphertext_" + sbox_type[i] + ".txt"
+    file_name = "./results/ciphertext_" + sbox_type[i] + ".txt"
     with open(file_name,'w') as ciphertext_file:
         with open('./KAT_AES/ECBKeySbox128e.txt', 'r') as file:
             file_line = "KEY                             " + " " + "PLAINTEXT                       " + " " + "CIPHERTEXT                      "
