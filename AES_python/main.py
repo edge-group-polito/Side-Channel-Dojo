@@ -8,52 +8,67 @@ sbox_type = ["sbox_aes",
              "sbox_ozkaynak_1"]
 
 for i in range(0,6):
-    file_name = "./results/ciphertext_" + sbox_type[i] + ".txt"
+    file_name = "./results/ciphertext_" + sbox_type[i] + "_results" + ".txt"
+    file_name_2 = "./results/ciphertext_" + sbox_type[i] + ".txt"
     with open(file_name,'w') as ciphertext_file:
-        with open('./KAT_AES/ECBKeySbox128e.txt', 'r') as file:
-            file_line = "KEY                             " + " " + "PLAINTEXT                       " + " " + "CIPHERTEXT                      "
-            print(file_line, file=ciphertext_file)
-            lines = []
-            for line in file:
-                lines.append(line)
-                if len(lines) == 5:
-                    file_line = ""
-                    count = lines[0].split(' = ')
-                    key_matrix = lines[1].split(' = ')
-                    plaintext_matrix = lines[2].split(' = ')
-                    ciphertext = lines[3].split(' = ')
+        with open(file_name_2, 'w') as questa_file:
+            with open('./KAT_AES/ECBKeySbox128e.txt', 'r') as file:
+                file_line = "KEY                             " + " " + "PLAINTEXT                       " + " " + "CIPHERTEXT                      " 
+                if(sbox_type[i] == "sbox_aes"):
+                    file_line = file_line + " " + "Encryption    " + " " + "Decryption   "
+                else:
+                    file_line = file_line + " " + "Decryption   "
+                print(file_line, file=ciphertext_file)
+                lines = []
+                for line in file:
+                    lines.append(line)
+                    if len(lines) == 5:
+                        file_line = ""
+                        count = lines[0].split(' = ')
+                        key_matrix = lines[1].split(' = ')
+                        plaintext_matrix = lines[2].split(' = ')
+                        ciphertext_matrix = lines[3].split(' = ')
 
-                    key = key_matrix[1].replace('\n', '')
-                    file_line += key
-                    key = [key[i:i+2] for i in range(0, len(key), 2)]
-                    key = ['0x' + element for element in key]
-                    key = [int(s, 16) for s in key]
-                    plaintext_initial = plaintext_matrix[1].replace('\n', '')
-                    file_line = file_line + " " + plaintext_initial
-                    plaintext = [plaintext_initial[i:i+2] for i in range(0, len(plaintext_initial), 2)]
-                    plaintext = ['0x' + element for element in plaintext]
-                    plaintext = [int(s, 16) for s in plaintext]
+                        key = key_matrix[1].replace('\n', '')
+                        file_line += key
 
-                    ciphertext_sbox_aes = AES.encrypt(key,plaintext,sbox_type[i])
-                    plaintext_sbox_aes = AES.decrypt(key,ciphertext_sbox_aes,sbox_type[i])
+                        plaintext_initial = plaintext_matrix[1].replace('\n', '')
+                        file_line = file_line + " " + plaintext_initial
+                        plaintext = [plaintext_initial[i:i+2] for i in range(0, len(plaintext_initial), 2)]
+                        plaintext = ['0x' + element for element in plaintext]
+                        plaintext = [int(s, 16) for s in plaintext]
 
-                    ciphertext_sbox_aes = [hex(i) for i in ciphertext_sbox_aes]
-                    ciphertext_sbox_aes = [s.replace('0x', '') for s in ciphertext_sbox_aes]
-                    ciphertext_sbox_aes = [s.zfill(2) for s in ciphertext_sbox_aes]
-                    ciphertext_sbox_aes = ''.join(ciphertext_sbox_aes)
-                    file_line = file_line + " " + ciphertext_sbox_aes
+                        ciphertext = ciphertext_matrix[1].replace('\n', '')
 
-                    plaintext_sbox_aes = [hex(i) for i in plaintext_sbox_aes]
-                    plaintext_sbox_aes = [s.replace('0x', '') for s in plaintext_sbox_aes]
-                    plaintext_sbox_aes = [s.zfill(2) for s in plaintext_sbox_aes]
-                    plaintext_sbox_aes = ''.join(plaintext_sbox_aes)
+                        ciphertext_sbox_aes = AES.encrypt(key,plaintext,sbox_type[i])
+                        plaintext_sbox_aes = AES.decrypt(key,ciphertext_sbox_aes,sbox_type[i])
 
-                    if plaintext_sbox_aes != plaintext_initial:
-                        file_line = file_line + " " + "Decryption wrong"
-                        print(file_line)
-                    else:
-                        file_line = file_line + " " + "Decryption OK"
+                        ciphertext_sbox_aes = [hex(i) for i in ciphertext_sbox_aes]
+                        ciphertext_sbox_aes = [s.replace('0x', '') for s in ciphertext_sbox_aes]
+                        ciphertext_sbox_aes = [s.zfill(2) for s in ciphertext_sbox_aes]
+                        ciphertext_sbox_aes = ''.join(ciphertext_sbox_aes)
+                        file_line = file_line + " " + ciphertext_sbox_aes
 
-                    print(file_line, file=ciphertext_file)
+                        plaintext_sbox_aes = [hex(i) for i in plaintext_sbox_aes]
+                        plaintext_sbox_aes = [s.replace('0x', '') for s in plaintext_sbox_aes]
+                        plaintext_sbox_aes = [s.zfill(2) for s in plaintext_sbox_aes]
+                        plaintext_sbox_aes = ''.join(plaintext_sbox_aes)
 
-                    lines = []
+                        print(file_line, file=questa_file)
+
+                        if(sbox_type[i] == "sbox_aes"):
+                            if ciphertext_sbox_aes != ciphertext:
+                                file_line = file_line + " " + "Wrong         "
+                                print(file_line)
+                            else:
+                                file_line = file_line + " " + "OK            "
+
+                        if plaintext_sbox_aes != plaintext_initial:
+                            file_line = file_line + " " + "Wrong         "
+                            print(file_line)
+                        else:
+                            file_line = file_line + " " + "OK            "
+
+                        print(file_line, file=ciphertext_file)
+
+                        lines = []
