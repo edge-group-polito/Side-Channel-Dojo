@@ -8,7 +8,7 @@ mkdir work
 vlib work
 vlog -work ./work ../src/aes_ks.v
 vlog -work ./work ../src/aes_sbox.v
-vlog -work ./work ../src/aes_sbox_lut_hussain_6.v
+vlog -work ./work ../src/aes_sbox_lut_ozkaynak_1.v
 vlog -work ./work ../src/aes_core.v
 
 vlog -work ./work ../tb/clock_generator.sv
