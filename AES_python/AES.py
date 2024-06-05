@@ -18,17 +18,6 @@ class AES:
         plain_state = bytes2matrix(plaintext)
         round_keys = KeyExpansion(sbox_type,key)
 
-        #print("Keys:\n")
-        #for key in round_keys:
-        #    key_new = matrix2bytes(key)
-        #    key_new = [hex(i) for i in key_new]
-        #    key_new = [s.replace('0x', '') for s in key_new]
-        #    key_new = [s.zfill(2) for s in key_new]
-        #    key_new = ''.join(key_new)
-        #    
-        #    print(key_new)
-        #print("\n")
-
         #Initial round
         AddRoundKey(plain_state, round_keys[0])
 
