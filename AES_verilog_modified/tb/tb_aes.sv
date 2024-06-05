@@ -74,6 +74,7 @@ module tb_aes();
             wait (busy_o == 1);
             load_i = 1'b0;
             wait (busy_o == 0);
+            //Saving the results on the output_data.txt file
             $fdisplay(file_data_out, "%h %h %h", key_i, data_i, data_o);
         end
 
