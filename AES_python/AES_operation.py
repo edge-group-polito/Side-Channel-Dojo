@@ -124,8 +124,6 @@ def SubBytes(sbox_type, s):
         for j in range(4):
             s[i][j] = sbox[sbox_type][s[i][j]]
 
-    #print("sbb_o: " + print_hex(s))
-
 def InvSubBytes(sbox_type, s):
     inverse_sbox = [0] * len(sbox[sbox_type])
     for index, value in enumerate(sbox[sbox_type]):
@@ -146,8 +144,6 @@ def ShiftRows(s):
     shr_o.append(temp)
     temp = [s[3][0],s[0][1],s[1][2],s[2][3]]
     shr_o.append(temp)
-
-    #print("shr_o: " + print_hex(shr_o))
 
     return shr_o
 
@@ -206,8 +202,6 @@ def MixColumns(s):
         temp = s[i][0] ^ s[i][1] ^ s[i][2] ^ s[i][3]
         mxc_tmp.append(temp)
 
-    #print("mxc_tmp: " + print_hex(mxc_tmp))
-
     mxc_o = []
     for i in range(0,4):
         mxc = []
@@ -220,8 +214,6 @@ def MixColumns(s):
         temp = s[i][3] ^ xtime(s[i][3] ^ s[i][0]) ^ mxc_tmp[i]
         mxc.append(temp)
         mxc_o.append(mxc)
-
-    #print("mxc_o: " + print_hex(mxc_o))
 
     return mxc_o
 
@@ -246,9 +238,6 @@ def AddRoundKey(s, k):
     for i in range(4):
         for j in range(4):
             s[i][j] ^= k[i][j]
-
-    #print("ks_val: " + print_hex(k))
-    #print("state_new: " + print_hex(s))
 
 #KeyExpansion
 def SubWord(sbox_type, word):
@@ -320,26 +309,11 @@ def KeyExpansion(sbox_type, key):
 def split_blocks(message):
         return [message[i:i+16] for i in range(0, len(message), 16)]
 
-def print_hex(j):
-    lista_piatta = appiattisci(j)
-    str_hex = ''.join(format(valore, '02x') for valore in lista_piatta)
-    return str_hex
-
-def appiattisci(lista):
-    lista_piatta = []
-    for elemento in lista:
-        if isinstance(elemento, list):
-            lista_piatta.extend(appiattisci(elemento))
-        else:
-            lista_piatta.append(elemento)
-    return lista_piatta
-
 def bytes2matrix_key(text):
     text = text.zfill(32)
     hex_pairs = [text[i:i+2] for i in range(0, len(text), 2)]
     int_values = [int(hex_pair, 16) for hex_pair in hex_pairs]
     return [int_values[i:i+4] for i in range(0, len(int_values), 4)]
-
 
 def bytes2matrix(text):
     return [list(text[i:i+4]) for i in range(0, len(text), 4)]
