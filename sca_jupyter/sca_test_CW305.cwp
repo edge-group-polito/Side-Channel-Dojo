@@ -1,0 +1,10 @@
+[Trace Management]
+tracefile0 = sca_test_CW305_data/traces/config_2024.06.14-20.02.40_0.cfg
+enabled0 = True
+[ChipWhisperer]
+[[General Settings]]
+Project Name = Untitled
+Project File Version = 1.00
+Project Author = Unknown
+Program Name = ChipWhisperer
+Program Version = ""
