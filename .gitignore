@@ -1,0 +1,58 @@
+## files ##
+# temp tilde files
+*~
+
+## private folders ##
+private/
+build/
+
+## Visual Studio Code settings
+.vscode/
+
+## svlint configuration
+.svlint.toml
+
+## jekyll files ##
+# folder in which the processed site is put
+_site/
+# bundle config directory 
+.bundle/
+
+## modelsim ##
+[_@]*
+work/
+
+# ignore Modelsim compilation output
+*.mti
+*.dat
+*.dbs
+*.psm
+*.bak
+*.cmp
+*.jpg
+*.html
+*.bsf
+
+# Modelsim simulation output
+wlf*
+*.wlf
+*.vstf
+*.ucdb
+cov*/
+transcript*
+sc_dpiheader.h
+vsim.dbg
+
+# Compilation logs
+scripts/*.log
+
+# Verilator compilation output
+**/obj_dir
+
+# ignore reports
+reports
+results.txt
+build*
+*.jpg
+*.pdf
+*.csv
