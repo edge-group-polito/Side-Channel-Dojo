@@ -1,8 +1,9 @@
 First part of the documentation taken from [here](https://chipwhisperer.readthedocs.io/en/latest/linux-install.html#installing-chipwhisperer). 
 
-In terminal  
+The virtual environment recreation can be done running in the terminal  
+```bash
+# Run updates
 sudo apt update && sudo apt upgrade
-```
 # 1. python prereqs
 sudo apt-get install build-essential gdb lcov pkg-config \
     libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev \
@@ -41,7 +42,7 @@ cd jupyter
 python -m pip install nbstripout
 nbstripout --install
 ```
-lastly install the requirments from current directory 
+Lastly install the requirments from current directory 
 
 ```
 pip install -r requirements.txt
