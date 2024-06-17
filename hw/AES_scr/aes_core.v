@@ -15,24 +15,7 @@
    limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
-//
-// Create Date:    14:37:57 05/13/2014
-// Design Name:
-// Module Name:    aes_core
-// Project Name:
-// Target Devices:
-// Tool versions:
-// Description:
-//
-// Dependencies:
-//
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-//
-//////////////////////////////////////////////////////////////////////////////////
+
 module aes_core (
   input  wire         clk,
   input  wire         load_i,

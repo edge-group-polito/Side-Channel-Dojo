@@ -15,24 +15,7 @@
    limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
-//
-// Create Date:    00:50:45 02/08/2015
-// Design Name:
-// Module Name:    aes_sbox
-// Project Name:
-// Target Devices:
-// Tool versions:
-// Description:
-//
-// Dependencies:
-//
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-//
-//////////////////////////////////////////////////////////////////////////////////
+
 module aes_sbox (
   input  wire [7:0] U,
   input  wire       dec,

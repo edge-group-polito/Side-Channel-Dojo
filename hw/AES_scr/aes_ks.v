@@ -15,24 +15,7 @@
    limitations under the License.
 */
 //////////////////////////////////////////////////////////////////////////////////
-// Company:
-// Engineer:
-//
-// Create Date:    21:51:42 02/11/2015
-// Design Name:
-// Module Name:    aes_ks
-// Project Name:
-// Target Devices:
-// Tool versions:
-// Description:
-//
-// Dependencies:
-//
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-//
-//////////////////////////////////////////////////////////////////////////////////
+
 module aes_ks (
   input              clk,
   input              load_i,

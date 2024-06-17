@@ -11,6 +11,9 @@
 MAKE           	?= make
 BUILD_DIR	   	?= $(realpath .)/build
 
+# Sbox test
+SBOX 			?= rijandael
+
 # RTL simulation 
 MAX_CYCLES		?= 100000
 LOG_LEVEL		?= LOG_MEDIUM
@@ -20,7 +23,7 @@ DUMP_WAVES		?= true
 # ---------
 # RTL simulation files
 SIM_CORE_FILES 	:= $(shell find . -type f -name "*.core")
-SIM_HDL_FILES 	:= $(shell find rtl -type f -name "*.v" -o -name "*.sv" -o -name "*.svh")
+SIM_HDL_FILES 	:= $(shell find hw -type f -name "*.v" -o -name "*.sv" -o -name "*.svh")
 SIM_HDL_FILES 	+= $(shell find tb -type f -name "*.v" -o -name "*.sv" -o -name "*.svh")
 SIM_CPP_FILES	:= $(shell find tb/verilator -type f -name "*.cpp" -o -name "*.hh")
 
@@ -84,12 +87,7 @@ verilator-waves: $(BUILD_DIR)/sim-verilator/logs/waves.fst | .check-gtkwave
 .PHONY: vivado-fpga
 vivado-fpga: | .check-fusesoc .check-vivado $(BUILD_DIR)/
 	fusesoc run --no-export --target=cw305 $(FUSESOC_FLAGS) --build polito:aes_scr:aes_scr
-
-#Targets ==> all printing to work directory
-# 1) AES python results
-# 3) Compare AES python with AES verilog results
-# 4) Run AES SCAs 
-# 3) AES synthesis
+	cp $(BUILD_DIR)/polito_aes_scr_aes_scr_0.1.0/cw305/vivado/polito_aes_scr_aes_scr_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/cw305_top_$(SBOX).bit
 
 # Vivado synthesis
 # ----------------
