@@ -1,7 +1,7 @@
 # AES side channel resistance implementation 
-The Substituion-Box (S-Box) is the most vulnerable part to side channel attacks (SCA), the stadnard Rijndael S-box turns out to be very weak against power analysis attacks.
-Tested diffent S-Box to see which gives the best resistance against SCA. It is a lightweight countermeasure.
-The modified AES HW accelerator can be tested on the Chipwhisperer CW305 board, which integrates an Artix-7 FPGA. The AES accelerator is memory mapped and the control and status registers are driven through USB by a python API. An example could be found in `sca_jupyter/sca_test.ipynb` 
+The Substituion-Box (S-Box) is the most vulnerable part to side-channel attacks (SCA). The standard Rijndael S-box turns out to be very weak against power analysis attacks.
+Different S-Box ared to see which gives the best resistance against SCA. It is a lightweight countermeasure.
+The modified AES HW accelerator can be tested on the Chipwhisperer CW305 board, which integrates an Artix-7 FPGA. The AES accelerator is memory mapped, and a python API drives the control and status registers through USB. An example could be found in `sca_jupyter/sca_test.ipynb` 
 
 ## Getting started
 ### Prerequisites 
