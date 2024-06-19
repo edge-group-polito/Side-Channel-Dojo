@@ -56,3 +56,6 @@ build*
 *.jpg
 *.pdf
 *.csv
+
+# MacOS configuration settings 
+.DS_Store

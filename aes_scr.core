@@ -138,9 +138,11 @@ targets:
     filesets_append:
     - rtl-fpga
     - xdc-fpga-cw305
+    parameters:
+    - GOOGLE_VAULT_AES=true
     tools:
       vivado:
-        part: xc7a35tftg256-2
+        part: xc7a100tftg256-2
     toplevel: [cw305_top]
 
   # Format HDL with Verible
@@ -205,3 +207,7 @@ parameters:
     datatype: int
     description: Maximum number of simulation cycles (halt the simulation when reached).
     paramtype: cmdlinearg
+  GOOGLE_VAULT_AES:
+    datatype: bool
+    paramtype: vlogdefine
+    default: true

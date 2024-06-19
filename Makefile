@@ -11,7 +11,7 @@
 MAKE           	?= make
 BUILD_DIR	   	?= $(realpath .)/build
 
-# Sbox test
+# Sbox used
 SBOX 			?= rijandael
 
 # RTL simulation 
@@ -87,7 +87,7 @@ verilator-waves: $(BUILD_DIR)/sim-verilator/logs/waves.fst | .check-gtkwave
 .PHONY: vivado-fpga
 vivado-fpga: | .check-fusesoc .check-vivado $(BUILD_DIR)/
 	fusesoc run --no-export --target=cw305 $(FUSESOC_FLAGS) --build polito:aes_scr:aes_scr
-	cp $(BUILD_DIR)/polito_aes_scr_aes_scr_0.1.0/cw305/vivado/polito_aes_scr_aes_scr_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/cw305_top_$(SBOX).bit
+	cp $(BUILD_DIR)/polito_aes_scr_aes_scr_0.1.0/cw305-vivado/polito_aes_scr_aes_scr_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/cw305_top_$(SBOX).bit
 
 # Vivado synthesis
 # ----------------
