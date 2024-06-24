@@ -1,6 +1,10 @@
-from AES import AES as AES # type: ignore
+import os
+import sys
+# Add AES_python directory to the path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'AES_python'))
+from AES_golden import AES_golden_model 
 
-sbox_type = ["sbox_aes",
+sbox_type = ["sbox_rijandael",
              "sbox_freyre_1",
              "sbox_freyre_2",
              "sbox_freyre_3",
@@ -10,6 +14,8 @@ sbox_type = ["sbox_aes",
 for i in range(0,6):
     file_name = "./results/ciphertext_" + sbox_type[i] + "_results" + ".txt"
     file_name_2 = "./results/ciphertext_" + sbox_type[i] + ".txt"
+    cipher_golden = AES_golden_model()
+    
     with open(file_name,'w') as ciphertext_file:
         with open(file_name_2, 'w') as questa_file:
             with open('./KAT_AES/ECBKeySbox128e.txt', 'r') as file:
@@ -44,9 +50,9 @@ for i in range(0,6):
                         ciphertext = ciphertext_matrix[1].replace('\n', '')
 
                         #Encrypting the plaintext
-                        ciphertext_sbox_aes = AES.encrypt(key,plaintext,sbox_type[i])
+                        ciphertext_sbox_aes = cipher_golden.encrypt(key,plaintext,sbox_type[i])
                         #Decrypting the ciphertext obtained by the encryption
-                        plaintext_sbox_aes = AES.decrypt(key,ciphertext_sbox_aes,sbox_type[i])
+                        plaintext_sbox_aes = cipher_golden.decrypt(key,ciphertext_sbox_aes,sbox_type[i])
 
                         #Formatting the ciphertext obtained from the encryption in a more readable format
                         ciphertext_sbox_aes = [hex(i) for i in ciphertext_sbox_aes]

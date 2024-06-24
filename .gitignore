@@ -59,3 +59,8 @@ build*
 
 # MacOS configuration settings 
 .DS_Store
+
+# python cache files 
+__pycache__/
+# python test results
+sw/AES_python/validation_test/results/

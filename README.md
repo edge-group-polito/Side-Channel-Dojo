@@ -58,4 +58,8 @@ More information in Makefile
 - [ ] Fix verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
 - [ ] Automate side channel attack in Makefile 
 - [ ] Pyevn with activation file instead of recreating it 
+- [ ] Build directory in jupyter notebook got from makefile or deduced 
+- [ ] picoscope python api 
+- [ ] Vedere dall documentation il Results object dell'attacco
+- [ ] Aggiungere readme in `AES_python/validation_test\`
 

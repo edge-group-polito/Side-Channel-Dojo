@@ -1,17 +1,8 @@
-from AES_operation import SubBytes as SubBytes # type: ignore
-from AES_operation import InvSubBytes as InvSubBytes # type: ignore
-from AES_operation import ShiftRows as ShiftRows # type: ignore
-from AES_operation import InvShiftRows as InvShiftRows # type: ignore
-from AES_operation import MixColumns as MixColumns # type: ignore
-from AES_operation import InvMixColumns as InvMixColumns # type: ignore
-from AES_operation import AddRoundKey as AddRoundKey # type: ignore
-from AES_operation import KeyExpansion as KeyExpansion # type: ignore
-from AES_operation import bytes2matrix as bytes2matrix # type: ignore
-from AES_operation import matrix2bytes as matrix2bytes # type: ignore
-from AES_operation import split_blocks as split_blocks # type: ignore
-#from AES_operation import print_hex as print_hex # type: ignore
+from AES_operation import SubBytes, InvSubBytes, ShiftRows, InvShiftRows, MixColumns, InvMixColumns, AddRoundKey, KeyExpansion, bytes2matrix, matrix2bytes, split_blocks    
+class AES_golden_model:
 
-class AES:
+    def __init__(self):
+        pass
 
     def encrypt_block(key,plaintext,sbox_type):
 
@@ -56,22 +47,22 @@ class AES:
 
         return matrix2bytes(cipher_state)
     
-    def encrypt(key, plaintext, sbox_type):
+    def encrypt(self, key, plaintext, sbox_type):
 
         blocks = []
 
         for plaintext_block in split_blocks(plaintext):
-            block = AES.encrypt_block(key,plaintext_block,sbox_type)
+            block = AES_golden_model.encrypt_block(key,plaintext_block,sbox_type)
             blocks.append(block)
 
         return [element for row in blocks for element in row]
     
-    def decrypt(key, ciphertext, sbox_type):
+    def decrypt(self, key, ciphertext, sbox_type):
 
         blocks = []
 
         for ciphertext_block in split_blocks(ciphertext):
-            block = AES.decrypt_block(key,ciphertext_block,sbox_type)
+            block = AES_golden_model.decrypt_block(key,ciphertext_block,sbox_type)
             blocks.append(block)
 
         return [element for row in blocks for element in row]  
