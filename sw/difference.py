@@ -8,7 +8,7 @@ sbox_type = ["aes",
 
 for i in range(0,6):
     file_name_py = "./AES_python/results/ciphertext_sbox_" + sbox_type[i] + ".txt"
-    file_name_questa = "./AES_verilog_modified/tb/output_data_" + sbox_type[i] + ".txt"
+    file_name_questa = "../tb/common/output_data_" + sbox_type[i] + ".txt"
 
     k = 1
     with open(file_name_py, "r") as python_file:

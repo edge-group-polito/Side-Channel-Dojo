@@ -63,26 +63,110 @@ module aes_ks (
   end
 
   // NEWAE mod: GF or LUT sboxes
-`ifdef SBOX_GF
-  aes_sbox ks_inst0 (
-    .U  (w0_sub_i[7:0]),
-    .dec(1'b0),
-    .S  (w0_sub_o[7:0])
+`ifdef FREYRE_1
+  aes_sbox_lut_freyre_1 ks_inst0 (
+    .byte_in (w0_sub_i[7:0]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[7:0])
   );
-  aes_sbox ks_inst1 (
-    .U  (w0_sub_i[15:8]),
-    .dec(1'b0),
-    .S  (w0_sub_o[15:8])
+  aes_sbox_lut_freyre_1 ks_inst1 (
+    .byte_in (w0_sub_i[15:8]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[15:8])
   );
-  aes_sbox ks_inst2 (
-    .U  (w0_sub_i[23:16]),
-    .dec(1'b0),
-    .S  (w0_sub_o[23:16])
+  aes_sbox_lut_freyre_1 ks_inst2 (
+    .byte_in (w0_sub_i[23:16]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[23:16])
   );
-  aes_sbox ks_inst3 (
-    .U  (w0_sub_i[31:24]),
-    .dec(1'b0),
-    .S  (w0_sub_o[31:24])
+  aes_sbox_lut_freyre_1 ks_inst3 (
+    .byte_in (w0_sub_i[31:24]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[31:24])
+  );
+`elsif FREYRE_2
+  aes_sbox_lut_freyre_2 ks_inst0 (
+    .byte_in (w0_sub_i[7:0]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[7:0])
+  );
+  aes_sbox_lut_freyre_2 ks_inst1 (
+    .byte_in (w0_sub_i[15:8]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[15:8])
+  );
+  aes_sbox_lut_freyre_2 ks_inst2 (
+    .byte_in (w0_sub_i[23:16]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[23:16])
+  );
+  aes_sbox_lut_freyre_2 ks_inst3 (
+    .byte_in (w0_sub_i[31:24]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[31:24])
+  );
+`elsif FREYRE_3
+  aes_sbox_lut_freyre_3 ks_inst0 (
+    .byte_in (w0_sub_i[7:0]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[7:0])
+  );
+  aes_sbox_lut_freyre_3 ks_inst1 (
+    .byte_in (w0_sub_i[15:8]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[15:8])
+  );
+  aes_sbox_lut_freyre_3 ks_inst2 (
+    .byte_in (w0_sub_i[23:16]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[23:16])
+  );
+  aes_sbox_lut_freyre_3 ks_inst3 (
+    .byte_in (w0_sub_i[31:24]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[31:24])
+  );
+`elsif HUSSAIN_6
+  aes_sbox_lut_hussain_6 ks_inst0 (
+    .byte_in (w0_sub_i[7:0]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[7:0])
+  );
+  aes_sbox_lut_hussain_6 ks_inst1 (
+    .byte_in (w0_sub_i[15:8]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[15:8])
+  );
+  aes_sbox_lut_hussain_6 ks_inst2 (
+    .byte_in (w0_sub_i[23:16]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[23:16])
+  );
+  aes_sbox_lut_hussain_6 ks_inst3 (
+    .byte_in (w0_sub_i[31:24]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[31:24])
+  );
+`elsif OZKAYNAK_1
+  aes_sbox_lut_ozkaynak_1 ks_inst0 (
+    .byte_in (w0_sub_i[7:0]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[7:0])
+  );
+  aes_sbox_lut_ozkaynak_1 ks_inst1 (
+    .byte_in (w0_sub_i[15:8]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[15:8])
+  );
+  aes_sbox_lut_ozkaynak_1 ks_inst2 (
+    .byte_in (w0_sub_i[23:16]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[23:16])
+  );
+  aes_sbox_lut_ozkaynak_1 ks_inst3 (
+    .byte_in (w0_sub_i[31:24]),
+    .dec     (1'b0),
+    .byte_out(w0_sub_o[31:24])
   );
 `else
   aes_sbox_lut_rijandael ks_inst0 (

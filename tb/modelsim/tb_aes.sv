@@ -6,6 +6,8 @@ module tb_aes();
     int                 r;
     string              line_key;
     string              line_data;
+    string              temp;
+    string              temp_data;
 
     logic               clk_i;
     logic               load_i;
@@ -16,7 +18,7 @@ module tb_aes();
     logic [127:0]       data_o;
     logic               busy_o;
 
-    clock_generator CLK_GEN(
+    clock_gen CLK_GEN(
         .clk            (clk_i)
     );
 
@@ -32,18 +34,17 @@ module tb_aes();
     );
 
     initial size_i  =   2'b00;
-    initial dec_i   =   1'b0;
 
     initial begin
         //Opening the file input_data.txt in read mode
-        file_data_in = $fopen("../tb/misc/input_data.txt", "r");
+        file_data_in = $fopen("../../../tb/common/input_data.txt", "r");
         if (file_data_in == 0) begin
             $display("Error in the opening of the file input_data.txt.");
             $finish;
         end
 
         //Opening the file output_data.txt in write mode
-        file_data_out = $fopen("../tb/misc/output_data.txt", "w");
+        file_data_out = $fopen("../../../tb/common/output_data.txt", "w");
         if (file_data_out == 0) begin
             $display("Error in the opening of the file output_data.txt.");
             $finish;
@@ -51,6 +52,7 @@ module tb_aes();
 
         //Reading the file
         while (!$feof(file_data_in)) begin
+            $display("Encrypting");
             line_key = "";
             r = $fgets(line_key,file_data_in);
             $display("key: %s",line_key); 
@@ -66,16 +68,39 @@ module tb_aes();
             $display("data: %s",line_data);
             if (r > 0) begin
                 r = $sscanf(line_data, "%h", data_i);
+                temp_data = $sformatf("%h",data_i);
                 if (r != 1) begin
                     $display("Error while reading input data: %s", line_data);
                 end
             end
+
+            //Encrypting
+            dec_i = 1'b0;
             load_i = 1'b1;
             wait (busy_o == 1);
             load_i = 1'b0;
             wait (busy_o == 0);
+            $display("ciphertext: %h",data_o);
+
+            //Decrypting
+            temp = $sformatf("%h",data_o);
+            r = $sscanf(temp, "%h", data_i);
+            if (r != 1) begin
+                $display("Error while reading input data: %s", temp);
+            end
+            $display("Decrypting");
+            $display("key: %h",key_i); 
+            $display("data: %h",data_i);
+
+            dec_i = 1'b1;
+            load_i = 1'b1;
+            wait (busy_o == 1);
+            load_i = 1'b0;
+            wait (busy_o == 0);
+            $display("plaintext: %h",data_o);
+
             //Saving the results on the output_data.txt file
-            $fdisplay(file_data_out, "%h %h %h", key_i, data_i, data_o);
+            $fdisplay(file_data_out, "%h %h %h %h", key_i, temp_data, temp, data_o);
         end
 
         $fclose(file_data_in);
