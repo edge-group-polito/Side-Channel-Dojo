@@ -5,7 +5,16 @@ class AES_golden_model:
         pass
 
     def encrypt_block(key,plaintext,sbox_type):
+        """Perform AES encryption on a single block of data.
 
+        Args:
+            key (str): Key used for the encryption, size of 16 bytes.
+            plaintext (int): Plaintext block to encrypt, size of 16 bytes.
+            sbox_type (str): Type of Sbox to use.
+
+        Returns:
+            int: Encrypted block of data.
+        """
         plain_state = bytes2matrix(plaintext)
         round_keys = KeyExpansion(sbox_type,key)
 
@@ -14,12 +23,10 @@ class AES_golden_model:
 
         #Intermediate rounds
         for i in range(1,10):
-            #print("Round " + str(i))
             SubBytes(sbox_type,plain_state)
             plain_state = ShiftRows(plain_state)
             plain_state = MixColumns(plain_state)
             AddRoundKey(plain_state,round_keys[i])
-            #print()
 
         #Final round
         SubBytes(sbox_type,plain_state)
@@ -48,7 +55,15 @@ class AES_golden_model:
         return matrix2bytes(cipher_state)
     
     def encrypt(self, key, plaintext, sbox_type):
+        """Perform AES encryption 
+        Args:
+            key (str): Key used for the encryption, size of 16 bytes.
+            plaintext (int): Plaintext to encrypt as list of bytes.
+            sbox_type (str): Type of Sbox to use.
 
+        Returns:
+            int: Encrypted data returned as list of bytes.
+        """
         blocks = []
 
         for plaintext_block in split_blocks(plaintext):
@@ -58,7 +73,16 @@ class AES_golden_model:
         return [element for row in blocks for element in row]
     
     def decrypt(self, key, ciphertext, sbox_type):
+        """Perform AES decryption
 
+        Args:
+            key (str): Key used for the encryption, size of 16 bytes.
+            ciphertext (int): Ciphertext to decrypt as list of bytes.
+            sbox_type (str): Type of Sbox to use.
+
+        Returns:
+            int: Decrypted data returned as list of bytes.
+        """
         blocks = []
 
         for ciphertext_block in split_blocks(ciphertext):

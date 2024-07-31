@@ -45,21 +45,23 @@ More information in Makefile
         └── misc
 ```
 
-## Directories 
-- `hw` : design HDL source files, fpga specific files (CW305 board with Artix-7) and already generated bitstream
-- `tb` : testbench for the top level *aes_core*, supported modelsim and verilator 
-- `sw` : software model of the AES, used as golden module
-- `sca_jupyter` : jupyter notebook to run side channel attacks on the synthesized design within the CW305 boarda
-- `scripts` : utility scripts 
+| Folder | Description |
+|--------|-------------
+| `hw`              | design HDL source files, fpga specific files (CW305 board with Artix-7) and already generated bitstream
+| `tb`              | testbench for the top level *aes_core*, supported modelsim and verilator 
+| `sw`              | software model of the AES, used as golden model
+| `sca_jupyter`     | jupyter notebook to run side channel attacks on the synthesized design within the CW305 boarda
+| `scripts`         | utility scripts 
 
 
 ## TODO: 
-- [ ] Make sbox selection configurable in *aes_core.v* and test side-channel attacks 
-- [ ] Fix verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
-- [ ] Automate side channel attack in Makefile 
-- [ ] Pyevn with activation file instead of recreating it 
-- [ ] Build directory in jupyter notebook got from makefile or deduced 
-- [ ] picoscope python api 
-- [ ] Vedere dall documentation il Results object dell'attacco
+- [ ] Make sbox selection configurable in *aes_core.v* 
+- [ ] Complete verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
+- [ ] Makefile command to run python script to capture power traces
+- [ ] Makefile command to run python script to perform CPA attack  
+- [ ] Pyevn with activation file instead of recreating it (docker kind of?)
+- [ ] Bitstream directory path relative in jupyter notebook 
 - [ ] Aggiungere readme in `AES_python/validation_test\`
+- [ ] tree within table, description like the one used in scr1 of syntacore
+- [ ] What's the best way to organize to python repo to make it scalable and intuitive ? 
 

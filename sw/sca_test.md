@@ -43,13 +43,13 @@ cd jupyter
 python -m pip install nbstripout
 nbstripout --install
 ```
-Lastly install the requirments from current directory 
+Lastly install the requirments (from current directory) 
 
 ```
 pip install -r requirements.txt
 ```
 ## SCA STEPS
-1. Reference model 
+1. **Reference model** 
     The key is kept fix during the encrpytion tests
     ```python
     import chipwhisperer as cw
@@ -60,7 +60,7 @@ pip install -r requirements.txt
     ```
     ktp.fixed_key()
     ```
-2. Capture the traces (online) 
+2. **Capture power traces (online phase)** 
     The *project* object allows to store the traces collected in a organized way
     Capture example 
     ```python 
@@ -89,7 +89,7 @@ pip install -r requirements.txt
     - slicing
     interesting_traces = my_project.traces[4:10]
 
-3. Attack phase (offline)
+3. **Attack on captured traces (offline phase)**
 The analyzer is the class which provides a set of fucntions to analyze the captured traces and recover from leakeages the secret key. 
 The chipwhisperer analyzer comes with a preset of leakage models which exploit the correlation power analysis. 
 To check all the leakage model already present :
@@ -123,16 +123,17 @@ To get some more specific detail, like for the 4 subkey to get the first key gue
 ``` print(attack_results.find_maximums()[4][0][2])```
 
 
-
-A new leakge model can be defined as  
+As shown the CPA can take as input a own defined leakage model 
+#### New leakge model definition 
+With the help of AESLeakageHelper a new leakage model for AES can be defined as  
 ```python
+""" AES leakage model essential definition"""
 class LastroundStateDiff(AESLeakageHelper):
     name = 'HD: AES Last-Round State'
     c_model_enum_value = 2
     c_model_enum_name = 'LEAK_HD_LASTROUND_STATE'
     def leakage(self, pt, ct, key, bnum):
         # HD Leakage of AES State between 9th and 10th Round
-        # Used to break SASEBO-GII / SAKURA-G
         st10 = ct[self.INVSHIFT_undo[bnum]]
         st9 = inv_sbox(ct[bnum] ^ key[bnum])
         return (st9 ^ st10)
@@ -141,10 +142,7 @@ class LastroundStateDiff(AESLeakageHelper):
         return key_schedule_rounds(inpkey, 0, 10)
 ```
 ```python
-class SBox_output(AESLeakageHelper):
-    name = 'HW: AES SBox Output, First Round (Enc)'
-    c_model_enum_value = 1
-    c_model_enum_name = 'LEAK_HW_SBOXOUT_FIRSTROUND'
-    def leakage(self, pt, ct, key, bnum):
-        return self.sbox(pt[bnum] ^ key[bnum])
+""" New leakage model instantiation with wa.leakage_models.new_model()"""
+def LastroundStateDiff_model(self, sb_type):
+    return cwa.leakage_models.new_model(self.LastroundStateDiff_SBoxModified(sb_type))
 ```

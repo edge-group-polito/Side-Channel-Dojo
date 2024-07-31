@@ -192,13 +192,16 @@ def split_blocks(message):
         return [message[i:i+16] for i in range(0, len(message), 16)]
 
 def bytes2matrix_key(text):
+    """ Convert a string of hexadecimal values into a 4x4 matrix """
     text = text.zfill(32)
     hex_pairs = [text[i:i+2] for i in range(0, len(text), 2)]
     int_values = [int(hex_pair, 16) for hex_pair in hex_pairs]
     return [int_values[i:i+4] for i in range(0, len(int_values), 4)]
 
 def bytes2matrix(text):
+    """Convert a 16-byte array into a 4x4 matrix"""
     return [list(text[i:i+4]) for i in range(0, len(text), 4)]
 
 def matrix2bytes(matrix):
+    """Flatten the matrix into a list of bytes."""
     return [element for row in matrix for element in row]
