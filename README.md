@@ -45,15 +45,10 @@ More information in Makefile
 - [ ] Make sbox selection configurable in *aes_core.v* 
 - [ ] Complete verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
 - [ ] Add Makefile command and fusesoc target to run Questasim simulation
-- [ ] Readme in `AES_python/validation_test\` which explain the KAT tests used for AES 
-
-Me: 
+- [ ] Readme in `AES_python/validation_test\` which explain the KAT tests used for AES  
 - [ ] Finish plot script python
-- [ ] Finish sca_test readme
 
-
-*
-Optional :*
+*Optional :*
 - [ ] Makefile command which run python script to capture power traces
 - [ ] Makefile command which run python script to perform CPA attack  
 - [ ] Pyevn with activation file instead of recreating it (docker kind of?)
