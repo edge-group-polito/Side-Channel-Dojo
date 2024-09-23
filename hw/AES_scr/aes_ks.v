@@ -85,22 +85,22 @@ module aes_ks (
     .S  (w0_sub_o[31:24])
   );
 `else
-  aes_sbox_lut_rijandael ks_inst0 (
+  aes_sbox_lut_ozkaynak_1 ks_inst0 (
     .byte_in (w0_sub_i[7:0]),
     .dec     (1'b0),
     .byte_out(w0_sub_o[7:0])
   );
-  aes_sbox_lut_rijandael ks_inst1 (
+  aes_sbox_lut_ozkaynak_1 ks_inst1 (
     .byte_in (w0_sub_i[15:8]),
     .dec     (1'b0),
     .byte_out(w0_sub_o[15:8])
   );
-  aes_sbox_lut_rijandael ks_inst2 (
+  aes_sbox_lut_ozkaynak_1 ks_inst2 (
     .byte_in (w0_sub_i[23:16]),
     .dec     (1'b0),
     .byte_out(w0_sub_o[23:16])
   );
-  aes_sbox_lut_rijandael ks_inst3 (
+  aes_sbox_lut_ozkaynak_1 ks_inst3 (
     .byte_in (w0_sub_i[31:24]),
     .dec     (1'b0),
     .byte_out(w0_sub_o[31:24])

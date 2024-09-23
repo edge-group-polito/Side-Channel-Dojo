@@ -1,7 +1,7 @@
 # AES side channel resistance implementation 
-The Substituion-Box (S-Box) is the most vulnerable part to side-channel attacks (SCA). The standard Rijndael S-box turns out to be very weak against power analysis attacks.
-Different S-Box are tested to see which gives the best resistance against SCA. It is a lightweight countermeasure.
-The modified AES HW accelerator can be tested on the Chipwhisperer CW305 board, which integrates an Artix-7 FPGA. The AES accelerator is memory mapped, and a python API drives the control and status registers through USB. An example could be found in `sca_jupyter/sca_test.ipynb` 
+The AES standard Substituion-Box (S-Box), known as Rijndael S-Box, is vulnerable against power analysis attacks. Tested new power-resistant S-Box. 
+The modified AES HW accelerator can be tested on the Chipwhisperer CW305 board, which integrates the Artix-7 FPGA. 
+The AES accelerator is memory mapped and the control and status registers are driven through USB by a python API. An example could be found in `sw/sca_jupyter/sca_test.ipynb` 
 
 ## Getting started
 ### Prerequisites 
@@ -10,7 +10,7 @@ The modified AES HW accelerator can be tested on the Chipwhisperer CW305 board, 
 3. Rely on open source [Verible](https://opentitan.org/guides/getting_started/index.html#step-7a-install-verible-optional) to format files 
 4. Rely on Vivado to synthetisize desing on FPGA
 5. The SCA attacks are run on the chipwhisperer board CW305 while the power traces are captured with picoscope 5000a 
-   Needed chipwhisperer virtual envirnoment to run the attacks, to recreate the pyenv the requirements can be found in `sca_jupyter` directory
+   Chipwhisperer python virtual envirnoment requirements can be found in `sw` directory
 ### Building RTL simulation platform 
 To run the RTL simulation on Verilator 
 ```
@@ -23,39 +23,34 @@ make vivado-fpga
 ```
 More information in Makefile
 ## Repository folder structure 
-```
-.
-├── hw
-│   ├── AES_scr
-│   └── fpga
-│       └── bitstream
-├── sca_jupyter
-│   └── sca_test_CW305_data
-│       ├── analysis
-│       ├── glitchresults
-│       └── traces
-├── scripts
-├── sw
-│   └── AES_python
-└── tb
-    ├── common
-    ├── modelsim
-    └── verilator
-        ├── common
-        └── misc
-```
+|Folder                         | Description
+|------ | -----------
+|hw                           | **HDL source files, fpga specific files and already generated bitstream**
+|  ├── AES_scr                | Verilog source files AES            
+|  └── fpga                   | Artix-7 fpga specific files 
+|      └── bitstream          | Bitstream generated for all S-Box variants
+|pics                         | **Block diagrams**
+|scripts                      | **Utility scripts**   
+|sw                           | **Golden AES software model, sca-attack jupyter notebook, python sca-functions**
+|  ├── AES_python             | Golden AES software model                   
+|  │   └── validation_test    | Validation KAT test                  
+|  ├── notebook               | SCA-attack jupyter notebook              
+|  └── sca_python             | Setup API, utility functions for plot, sca-attack functions                        
+|tb                           | Testbench top level *aes_core*, supported modelsim and verilator 
 
-## Directories 
-- `hw` : design HDL source files, fpga specific files (CW305 board with Artix-7) and already generated bitstream
-- `tb` : testbench for the top level *aes_core*, supported modelsim and verilator 
-- `sw` : software model of the AES, used as golden module
-- `sca_jupyter` : jupyter notebook to run side channel attacks on the synthesized design within the CW305 boarda
-- `scripts` : utility scripts 
+
 
 
 ## TODO: 
-- [ ] Make sbox selection configurable in *aes_core.v* and test side-channel attacks 
-- [ ] Fix verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
-- [ ] Automate side channel attack in Makefile 
-- [ ] Pyevn with activation file instead of recreating it 
+- [ ] Make sbox selection configurable in *aes_core.v* 
+- [ ] Complete verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
+- [ ] Add Makefile command and fusesoc target to run Questasim simulation
+- [ ] Readme in `AES_python/validation_test\` which explain the KAT tests used for AES  
+- [ ] Finish plot script python
+
+*Optional :*
+- [ ] Makefile command which run python script to capture power traces
+- [ ] Makefile command which run python script to perform CPA attack  
+- [ ] Pyevn with activation file instead of recreating it (docker kind of?)
+- [ ] Define the best way to organize to python repo, should be scalable (easy to add new attacks and targets) and intuitive  
 
