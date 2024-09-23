@@ -64,6 +64,8 @@ class CW305Wrapper:
             self.CW305.pll.pll_outenable_set(True, 1)       # enable PLL 1
             self.CW305.pll.pll_outenable_set(False, 2)      # disable PLL 2
             self.CW305.pll.pll_outfreq_set(10E6, 1)         # PLL1 frequency set to 10 MHz
+            # Disable usb_clock. Optional, but reduces power trace noise
+            self.CW305.clkusbautooff = True
             # 1 ms is plenty idling time 
             self.CW305.clksleeptime = 1 
         pass

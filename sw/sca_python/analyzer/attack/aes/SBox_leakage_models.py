@@ -11,7 +11,7 @@ class AES128SboxResistantLeakageModels():
     
     class LastroundStateDiff_SBoxModified(cwa.AESLeakageHelper):
         """Leakage model for the last round state difference with modified SBox"""
-        name = 'HD: AES Last-Round State Diff with SBox Freyre1'
+        name = 'HD: AES Last-Round State Diff with SBox Modified'    
 
         def __init__(self, sbox):
             self.sb_type = sbox
@@ -28,3 +28,22 @@ class AES128SboxResistantLeakageModels():
     def LastroundStateDiff_ModifiedSbox(self, sb_type):
         """Hamming distance between rounds 9 and 10 with modified SBox"""
         return cwa.leakage_models.new_model(self.LastroundStateDiff_SBoxModified(sb_type))
+    
+    class FirstRound_SBoxModified_output(cwa.AESLeakageHelper):
+        """Leakage model for the first round state difference with modified SBox"""
+        name = 'HW: AES SBox_modified Output, First Round (Enc)'
+        c_model_enum_value = 1
+        c_model_enum_name = 'LEAK_HW_SBOXOUT_MODIFIED_FIRSTROUND'
+
+        def __init__(self, sbox):
+            self.sb_type = sbox
+            
+        def leakage(self, pt, ct, key, bnum):
+            # HD Leakage of AES First round State
+            return smf.sbox_lut(pt[bnum] ^ key[bnum], self.sb_type)
+    
+    def FirstRound_ModifiedSbox_Output(self, sb_type):
+        """Hamming distance first round with modified SBox"""
+        return cwa.leakage_models.new_model(self.FirstRound_SBoxModified_output(sb_type))
+
+    

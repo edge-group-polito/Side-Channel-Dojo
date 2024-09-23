@@ -1,7 +1,4 @@
-## Prerequisites
-First part of the documentation taken from [here](https://chipwhisperer.readthedocs.io/en/latest/linux-install.html#installing-chipwhisperer). 
-
-The virtual environment recreation can be done running in the terminal  
+### Prerequisites 
 ```bash
 # Run updates
 sudo apt update && sudo apt upgrade
@@ -43,12 +40,13 @@ cd jupyter
 python -m pip install nbstripout
 nbstripout --install
 ```
-Lastly install the requirments (from current directory) 
+Install the required python packages (from current directory) 
 
 ```
 pip install -r requirements.txt
 ```
-## SCA STEPS
+Lastly activate the environment 
+## SCA attack overview
 1. **Reference model** 
     The key is kept fix during the encrpytion tests
     ```python
@@ -90,14 +88,14 @@ pip install -r requirements.txt
     interesting_traces = my_project.traces[4:10]
 
 3. **Attack on captured traces (offline phase)**
-The analyzer is the class which provides a set of fucntions to analyze the captured traces and recover from leakeages the secret key. 
-The chipwhisperer analyzer comes with a preset of leakage models which exploit the correlation power analysis. 
-To check all the leakage model already present :
+The analyzer is a class that provides a set of functions to analyze the captured traces and recover from the secret key. 
+The chipwhisperer analyzer comes with a preset of leakage models. The secret key is recovered by the leakages through a correlation power analysis algorithm. 
 ```python
 import chipwhisperer.analyzer as cwa
+# Leakage models already present 
 print(cwa.leakage_models)    
 ```
-Example : running the cpa attack on the last round of AES (hamming distance between round 9 and 10)
+**Example :** running the cpa attack on the last round of AES (hamming distance between round 9 and 10)
 ```python
 import chipwhisperer.analyzer as cwa
 import chipwhisperer as cw
@@ -107,10 +105,13 @@ results = attack.run()
 print(results)
 
 ```
-The cpa object takes as input the traces to analyze and the leakge model to use. 
-The attack is run calling the cpa.run() method which returns the *Results* object.
-The attack is progressive, by default updates each 25 traces. 
-Optionally takes as input a callback function, called at the update
+The cpa object takes as input 
+- the traces to analyze 
+- the leakge model 
+
+The attack is run calling the `cpa.run()` method which returns the *Results* object. 
+The attack is progressive, by default updates each 25 traces. Optionally takes as input a callback function, called at the update
+
 To get each best subkey guess with the correspetive correlation value
 ```python
 results.best_guesses()
@@ -121,13 +122,11 @@ results.find_maximum()
 ```
 To get some more specific detail, like for the 4 subkey to get the first key guess and its  correlation value
 ``` print(attack_results.find_maximums()[4][0][2])```
-
-
-As shown the CPA can take as input a own defined leakage model 
-#### New leakge model definition 
-With the help of AESLeakageHelper a new leakage model for AES can be defined as  
+ 
+### New leakge model definition 
+The CPA can take as input a own defined leakage model. The new leakage model can defined with `AESLeakageHelper` 
 ```python
-""" AES leakage model essential definition"""
+""" AES leakage model essential definition """
 class LastroundStateDiff(AESLeakageHelper):
     name = 'HD: AES Last-Round State'
     c_model_enum_value = 2
@@ -142,7 +141,7 @@ class LastroundStateDiff(AESLeakageHelper):
         return key_schedule_rounds(inpkey, 0, 10)
 ```
 ```python
-""" New leakage model instantiation with wa.leakage_models.new_model()"""
+""" New leakage model instantiation with cwa.leakage_models.new_model()"""
 def LastroundStateDiff_model(self, sb_type):
     return cwa.leakage_models.new_model(self.LastroundStateDiff_SBoxModified(sb_type))
 ```
