@@ -29,7 +29,7 @@ of the authors and should not be interpreted as representing official policies,
 either expressed or implied, of NewAE Technology Inc.
 */
 
-module aes_pipeline_top #(
+module aes_core #(
     parameter pROUNDS = 10,
     parameter pFIFO_DEPTH = 512
 )(

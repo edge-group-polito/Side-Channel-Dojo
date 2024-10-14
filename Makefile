@@ -65,7 +65,7 @@ questasim-sim: | .check-fusesoc $(BUILD_DIR)/
 verilator-build: $(BUILD_DIR)/.verilator.lock
 $(BUILD_DIR)/.verilator.lock: $(SIM_CORE_FILES) $(SIM_HDL_FILES) $(SIM_CPP_FILES) | .check-fusesoc $(BUILD_DIR)/
 	@echo "\e[1;37;44m## Building simulation model with Verilator...\e[0m"
-	fusesoc run --no-export --target sim --tool verilator --AES_pipeline=$(AES_pipeline) $(FUSESOC_FLAGS) --build polito:aes_scr:aes_scr
+	fusesoc run --no-export --target sim --tool verilator --flag=$(AES_pipeline) $(FUSESOC_FLAGS) --build polito:aes_scr:aes_scr
 	touch $@
 
 # Run Verilator simulation
