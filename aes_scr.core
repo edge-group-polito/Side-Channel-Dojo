@@ -20,14 +20,14 @@ description: "AES implentation resistant to side channel attacks"
 filesets: 
   rtl-bare:
     files:
-    - hw/AES_scr/aes_ks.v
-    - hw/AES_scr/aes_sbox.v
-    - hw/AES_scr/aes_sbox_lut_rijandael.v
-    - hw/AES_scr/aes_sbox_lut_freyre_1.v
-    - hw/AES_scr/aes_sbox_lut_freyre_2.v
-    - hw/AES_scr/aes_sbox_lut_freyre_3.v
-    - hw/AES_scr/aes_sbox_lut_hussain_6.v
-    - hw/AES_scr/aes_sbox_lut_ozkaynak_1.v
+    - hw/AES_common/aes_ks.v
+    - hw/AES_common/Sbox/aes_sbox_common.v
+    - hw/AES_common/Sbox/aes_sbox_lut_rijandael.v
+    - hw/AES_common/Sbox/aes_sbox_lut_freyre_1.v
+    - hw/AES_common/Sbox/aes_sbox_lut_freyre_2.v
+    - hw/AES_common/Sbox/aes_sbox_lut_freyre_3.v
+    - hw/AES_common/Sbox/aes_sbox_lut_hussain_6.v
+    - hw/AES_common/Sboxaes_sbox_lut_ozkaynak_1.v
     - hw/AES_scr/aes_core.v
     file_type: verilogSource
 
