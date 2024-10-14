@@ -1,0 +1,141 @@
+m255
+K4
+z2
+!s11f vlog 2020.4 2020.10, Oct 13 2020
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+Z0 d/home/thesis/mattia.castagno/AES_scr/hw/AES_scr/sim
+T_opt
+!s110 1721122463
+V>>=40z9SDG=>8O>3R=KZ:0
+04 6 4 work tb_aes fast 0
+=1-00163e987b81-66963e9f-99dfc-404d2
+o-quiet -auto_acc_if_foreign -work work +acc
+Z1 tCvgOpt 0
+n@_opt
+OL;O;2020.4;71
+vaes_core
+Z2 !s110 1721122462
+!i10b 1
+!s100 [FX;K>TlK7HJa9m1`?CZZ3
+Z3 !s11b Dg1SIo80bB@j0V0VzS_@n1
+I3?1NZF86@mdWmmmz>:cOM0
+R0
+w1721122172
+8../aes_core.v
+F../aes_core.v
+!i122 2
+L0 19 761
+Z4 VDg1SIo80bB@j0V0VzS_@n1
+Z5 OL;L;2020.4;71
+r1
+!s85 0
+31
+Z6 !s108 1721122462.000000
+!s107 ../aes_core.v|
+!s90 -work|./work|+define+OZKAYNAK_1|../aes_core.v|
+!i113 0
+Z7 o-work ./work -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+Z8 !s92 -work ./work +define+OZKAYNAK_1 -L mtiAvm -L mtiRnm -L mtiOvm -L mtiUvm -L mtiUPF -L infact
+R1
+vaes_ks
+R2
+!i10b 1
+!s100 zjgPU25GIzVDaDC3O?m2[0
+R3
+Ii5EMYgFaQDXZU0lS5DDWh3
+R0
+w1721122006
+8../aes_ks.v
+F../aes_ks.v
+!i122 0
+L0 19 235
+R4
+R5
+r1
+!s85 0
+31
+R6
+!s107 ../aes_ks.v|
+!s90 -work|./work|+define+OZKAYNAK_1|../aes_ks.v|
+!i113 0
+R7
+R8
+R1
+vaes_sbox_lut_ozkaynak_1
+R2
+!i10b 1
+!s100 mZVB9Fzk0gUDDmOjPSZ5d3
+R3
+I3TcXYGh2f`oWYc7[8]10Q3
+R0
+w1721120887
+8../aes_sbox_lut_ozkaynak_1.v
+F../aes_sbox_lut_ozkaynak_1.v
+!i122 1
+L0 31 529
+R4
+R5
+r1
+!s85 0
+31
+R6
+!s107 ../aes_sbox_lut_ozkaynak_1.v|
+!s90 -work|./work|../aes_sbox_lut_ozkaynak_1.v|
+!i113 0
+R7
+R1
+vclock_gen
+Z9 DXx6 sv_std 3 std 0 22 9oUSJO;AeEaW`l:M@^WG92
+R2
+!i10b 1
+!s100 WdUJhhYZjR6ZfW^_JPPP<2
+R3
+IaRaJPU4^Qf_;`zh;ELYHZ1
+S1
+R0
+w1721041638
+8../../../tb/modelsim/clock_gen.sv
+F../../../tb/modelsim/clock_gen.sv
+!i122 3
+L0 2 11
+R4
+R5
+r1
+!s85 0
+31
+R6
+!s107 ../../../tb/modelsim/clock_gen.sv|
+!s90 -work|./work|../../../tb/modelsim/clock_gen.sv|
+!i113 0
+R7
+R1
+vtb_aes
+R9
+R2
+!i10b 1
+!s100 2eN01N`Mi;B>jO`J30E^52
+R3
+I3:X0@^:R^9_8V^[_Na=S`1
+S1
+R0
+w1721122398
+8../../../tb/modelsim/tb_aes.sv
+F../../../tb/modelsim/tb_aes.sv
+!i122 4
+L0 2 112
+R4
+R5
+r1
+!s85 0
+31
+R6
+!s107 ../../../tb/modelsim/tb_aes.sv|
+!s90 -work|./work|../../../tb/modelsim/tb_aes.sv|
+!i113 0
+R7
+R1
