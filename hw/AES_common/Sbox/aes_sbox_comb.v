@@ -16,7 +16,7 @@
 */
 //////////////////////////////////////////////////////////////////////////////////
 
-module aes_sbox (
+module aes_sbox_comb (
   input  wire [7:0] U,
   input  wire       dec,
   output reg  [7:0] S
