@@ -1,0 +1,104 @@
+Round keys:
+2b7e151628aed2a6abf7158809cf4f3c
+659287e64d3c5540e6cb40c8ef040ff4
+e5c393baa8ffc6fa4e348632a13089c6
+2cf0b62d840f70d7ca3bf6e56b0b7f23
+0cb0b7f888bfc72f428431ca298f4ee9
+981373cc10acb4e3522885297ba7cbc0
+4eecf8a95e404c4a0c68c96377cf02a3
+4173d7b51f339bff135b529c6494503f
+4f8d7e5a50bee5a543e5b7392771e706
+bc6d9412ecd371b7af36c68e88472188
+20ebec6acc389ddd630e5b53eb497adb
+
+Initial round:
+Add Round Key. Plain state  21b84df724a52861868b4df8b44598b3
+
+Round 1
+Sub Bytes. Plain state  86dbc650028fe547e7c0c65f9d033cae
+
+Shift Rows. Plain state  868fc6ae02c03c50e703c6479ddbe55f
+
+Mix Columns. Plain state  f57c779f338d4a5a51f7ba79ed5b763c
+
+Add Round Key. Plain state  90eef0797eb11f1ab73cfab1025f79c8
+
+Round 2
+Sub Bytes. Plain state  3fe9ad72d118da530e9275189f6672b6
+
+Shift Rows. Plain state  3f1875b6d19272720e66ad539fe9da18
+
+Mix Columns. Plain state  95260c5b140a316c487ddc7fc73bf1b9
+
+Add Round Key. Plain state  70e59fe1bcf5f79606495a4d660b787f
+
+Round 3
+Sub Bytes. Plain state  d9b01e4d16cf50c1ea0544c6d3287f40
+
+Shift Rows. Plain state  d9cf444016057f4dea281ec1d3b050c6
+
+Mix Columns. Plain state  e7d05e7b11d03ada6859a68ae09e9219
+
+Add Round Key. Plain state  cb20e85695df4a0da262506f8b95ed3a
+
+Round 4
+Sub Bytes. Plain state  fff9cbde362ea5ccb5d7fe9ec036c9af
+
+Shift Rows. Plain state  ff2efeaf36d7c9deb536cbccc0f9a59e
+
+Mix Columns. Plain state  c615dc8f191d11e32c5341bab043d120
+
+Add Round Key. Plain state  caa56b7791a2d6cc6ed7707099cc9fc9
+
+Round 5
+Sub Bytes. Plain state  798fd51c96b5a6d8e4b2d9d9b9d81ebf
+
+Shift Rows. Plain state  79b5d9bf96b21e1ce4d8d5d8b98fa6d9
+
+Mix Columns. Plain state  50c7bf82f8d73c35adf3fe919c941150
+
+Add Round Key. Plain state  c8d4cc4ee87b88d6ffdb7bb8e733da90
+
+Round 6
+Sub Bytes. Plain state  b668d8a3cb6578a6263865dbe0204e3f
+
+Shift Rows. Plain state  b665653fcb384ea32620d8a6e06878db
+
+Mix Columns. Plain state  82ec58bf28ca916d52b35cc5c0630e86
+
+Add Round Key. Plain state  cc00a016768add275edb95a6b7ac0c25
+
+Round 7
+Sub Bytes. Plain state  d863ed3793dcbe48813836a00eb455e3
+
+Shift Rows. Plain state  d8dc36e39338553781b4ed480e63bea0
+
+Mix Columns. Plain state  01c25644172b58ad7b962c51a7b1f194
+
+Add Round Key. Plain state  40b181f10818c35268cd7ecdc325a1ab
+
+Round 8
+Sub Bytes. Plain state  c818fd10fc74a45b6db1d1b1a4e39794
+
+Shift Rows. Plain state  c874d194fcb197106de3fd5ba418a4b1
+
+Mix Columns. Plain state  52dca2d5ac37481942f7821f6ed22732
+
+Add Round Key. Plain state  1d51dc8ffc89adbc0112352649a3c034
+
+Round 9
+Sub Bytes. Plain state  876183849933bd16a1d60a2c052f8bbb
+
+Shift Rows. Plain state  87330abb99d68b84a12f83160561bd2c
+
+Mix Columns. Plain state  f14476c6472cd5febd77a9783837718b
+
+Add Round Key. Plain state  4d29e2d4abffa44912416ff6b0705003
+
+Round 10
+Sub bytes. Plain state  c634b36894267305d6239e066ad9fe98
+
+Shift Rows. Plain state  c6269e989423fe68d6d9b3056a347306
+
+Add Round Key. Plain state  e6cd72f2581b63b5b5d7e856817d09dd
+
