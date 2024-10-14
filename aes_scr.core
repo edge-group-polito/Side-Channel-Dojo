@@ -20,15 +20,25 @@ description: "AES implentation resistant to side channel attacks"
 filesets: 
   rtl-bare:
     files:
-    - hw/AES_scr/aes_ks.v
-    - hw/AES_scr/aes_sbox.v
-    - hw/AES_scr/aes_sbox_lut_rijandael.v
-    - hw/AES_scr/aes_sbox_lut_freyre_1.v
-    - hw/AES_scr/aes_sbox_lut_freyre_2.v
-    - hw/AES_scr/aes_sbox_lut_freyre_3.v
-    - hw/AES_scr/aes_sbox_lut_hussain_6.v
-    - hw/AES_scr/aes_sbox_lut_ozkaynak_1.v
-    - hw/AES_scr/aes_core.v
+    - hw/AES_common/aes_ks.v
+    - hw/AES_common/Sbox/aes_sbox_comb.v
+    - hw/AES_common/Sbox/aes_sbox_lut_rijandael.v
+    - hw/AES_common/Sbox/aes_sbox_lut_freyre_1.v
+    - hw/AES_common/Sbox/aes_sbox_lut_freyre_2.v
+    - hw/AES_common/Sbox/aes_sbox_lut_freyre_3.v
+    - hw/AES_common/Sbox/aes_sbox_lut_hussain_6.v
+    - hw/AES_common/Sbox/aes_sbox_lut_ozkaynak_1.v
+    file_type: verilogSource
+
+  rtl-single-round:
+    files:
+    - hw//aes_core.v
+    file_type: verilogSource
+
+  rtl-pipeline:
+    files:
+    - hw/AES_pipeline/aes_pipeline_top.v
+    - hw/AES_pipeline/aes_round.v
     file_type: verilogSource
 
   questasim-bare-tb:
@@ -86,8 +96,12 @@ targets:
   default: &default
     filesets:
     - rtl-bare
+    - "!AES_pipeline ? (rtl-single-round)"
+    - AES_pipeline ? (rtl-pipeline)
     - tool_verilator ? (verilator-waivers)
-    toplevel: aes_core
+    toplevel: 
+    - AES_pipeline ? (aes_pipeline_top)
+    - "!AES_pipeline ? (aes_core)"
    
    # RTL simulation
   sim: 
@@ -187,6 +201,11 @@ targets:
 
 # Parameters
 parameters:
+  AES_pipeline:
+    datatype: bool
+    description: If 'true', use the pipelined version of the AES core
+    default: "false"
+    paramtype: cmdlinearg
   log_level:
     datatype: str
     description: |
