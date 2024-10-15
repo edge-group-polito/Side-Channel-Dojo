@@ -63,4 +63,6 @@ build*
 # python cache files 
 __pycache__/
 # python test results
-sw/AES_python/validation_test/results/
+sw/AES_python/validation_test/results
+# python generated graphs
+graphs/

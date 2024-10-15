@@ -14,7 +14,10 @@ sbox_type = ["sbox_rijandael",
              "sbox_freyre_2",
              "sbox_freyre_3",
              "sbox_hussain_6",
-             "sbox_ozkaynak_1"]
+             "sbox_ozkaynak_1",
+             "sbox_azam_1",
+             "sbox_azam_2",
+             "sbox_azam_3"]
 
 for i in range(0,6):
     file_name = "./results/ciphertext_" + sbox_type[i] + "_results" + ".txt"

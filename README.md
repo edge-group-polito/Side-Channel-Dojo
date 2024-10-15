@@ -28,12 +28,12 @@ More information in Makefile
 |hw                           | **HDL source files, fpga specific files and already generated bitstream**
 |  ├── AES_scr                | Verilog source files AES            
 |  └── fpga                   | Artix-7 fpga specific files 
-|      └── bitstream          | Bitstream generated for all S-Box variants
+        └── bitstream          | Bitstream generated for all S-Box variants
 |pics                         | **Block diagrams**
 |scripts                      | **Utility scripts**   
 |sw                           | **Golden AES software model, sca-attack jupyter notebook, python sca-functions**
 |  ├── AES_python             | Golden AES software model                   
-|  │   └── validation_test    | Validation KAT test                  
+|  └── validation_test           | Validation KAT test                  
 |  ├── notebook               | SCA-attack jupyter notebook              
 |  └── sca_python             | Setup API, utility functions for plot, sca-attack functions                        
 |tb                           | Testbench top level *aes_core*, supported modelsim and verilator 
@@ -47,6 +47,7 @@ More information in Makefile
 - [ ] Add Makefile command and fusesoc target to run Questasim simulation
 - [ ] Readme in `AES_python/validation_test\` which explain the KAT tests used for AES  
 - [ ] Finish plot script python
+- [ ] Simulate and synthesize the AES pipeline version
 
 *Optional :*
 - [ ] Makefile command which run python script to capture power traces

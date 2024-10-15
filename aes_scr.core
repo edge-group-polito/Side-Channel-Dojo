@@ -28,7 +28,17 @@ filesets:
     - hw/AES_common/Sbox/aes_sbox_lut_freyre_3.v
     - hw/AES_common/Sbox/aes_sbox_lut_hussain_6.v
     - hw/AES_common/Sbox/aes_sbox_lut_ozkaynak_1.v
+    file_type: verilogSource
+
+  rtl-single-round:
+    files:
     - hw/AES_single_round/aes_core.v
+    file_type: verilogSource
+
+  rtl-pipeline:
+    files:
+    - hw/AES_pipeline/aes_core.v
+    - hw/AES_pipeline/aes_round.v
     file_type: verilogSource
 
   questasim-bare-tb:
@@ -86,6 +96,8 @@ targets:
   default: &default
     filesets:
     - rtl-bare
+    - "!AES_pipeline ? (rtl-single-round)"
+    - AES_pipeline ? (rtl-pipeline)
     - tool_verilator ? (verilator-waivers)
     toplevel: aes_core
    
