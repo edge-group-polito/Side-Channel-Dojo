@@ -1,3 +1,4 @@
+## Virtual environment creation for side channel analysis
 ### Prerequisites 
 ```bash
 # Run updates
@@ -12,40 +13,27 @@ sudo apt install libusb-dev make git avr-libc gcc-avr \
     gcc-arm-none-eabi libusb-1.0-0-dev usbutils
 
 # install pyenv - skip if already done
-    curl https://pyenv.run | bash
-    echo 'export PATH="~/.pyenv/bin:$PATH"' >> ~/.bashrc
-    echo 'export PATH="~/.pyenv/shims:$PATH"' >> ~/.bashrc
-    echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-    echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-
+curl https://pyenv.run | bash
+echo 'export PATH="~/.pyenv/bin:$PATH"' >> ~/.bashrc
+echo 'export PATH="~/.pyenv/shims:$PATH"' >> ~/.bashrc
+echo 'eval "$(pyenv init -)"' >> ~/.bashrc
+echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
 source ~/.bashrc
-
+```
+### Python virtual environment creation
+```bash
 pyenv install 3.9.5
 pyenv virtualenv 3.9.5 cw
 pyenv activate cw
-
-cd ~/
-git clone https://github.com/newaetech/chipwhisperer
-cd chipwhisperer
+# rules for the connection to board
 sudo cp hardware/50-newae.rules /etc/udev/rules.d/50-newae.rules
 sudo udevadm control --reload-rules
 sudo groupadd -f chipwhisperer
 sudo usermod -aG chipwhisperer $USER
 sudo usermod -aG plugdev $USER
-git submodule update --init jupyter
-
-python -m pip install -e .
-python -m pip install -r jupyter/requirements.txt
-cd jupyter
-python -m pip install nbstripout
-nbstripout --install
+# python packages installation
+python -m pip install -r requirements.txt
 ```
-Install the required python packages (from current directory) 
-
-```
-pip install -r requirements.txt
-```
-Lastly activate the environment 
 ## SCA attack overview
 1. **Reference model** 
     The key is kept fix during the encrpytion tests

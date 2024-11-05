@@ -44,10 +44,14 @@ More information in Makefile
 ## TODO: 
 - [ ] Make sbox selection configurable in *aes_core.v* 
 - [ ] Complete verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
-- [ ] Add Makefile command and fusesoc target to run Questasim simulation
-- [ ] Readme in `AES_python/validation_test\` which explain the KAT tests used for AES  
-- [ ] Finish plot script python
+- [ ] Add Makefile command and fusesoc target for the Questasim simulation
+- [ ] Readme in `AES_python/validation_test/` which explain the KAT tests used for AES  
+- [ ] Finish python library for the interesting plots 
 - [ ] Simulate and synthesize the AES pipeline version
+- [ ] Fix instruction readme file to recreate venv in sw directory
+- [ ] Fix aes core configuration as it is done with ascon 
+- [ ] Add ascon rtl and all from Mattia Castagno repo
+- [ ] add the python version of the notebook in the folder "sw/sca_python/tests/aes/"
 
 *Optional :*
 - [ ] Makefile command which run python script to capture power traces
@@ -55,3 +59,16 @@ More information in Makefile
 - [ ] Pyevn with activation file instead of recreating it (docker kind of?)
 - [ ] Define the best way to organize to python repo, should be scalable (easy to add new attacks and targets) and intuitive  
 
+## Ascon integration
+1. Create directory in hw/ascon to contain all hdl files and associate .core files
+2. Create fpga wrapper and relative register associate files, put them inside custom directory in hw/fpga
+3. Create fileset and target of added files in aes_scr.core 
+
+to check : 
+[?] a lot of registers in cw305_reg_ascon.sv are unused and semms uselessù
+to do (asap):
+- fix core files organization 
+  - add in core file of each crypto target the target to run simulation and synthesis 
+- if wanted configurable simulation needed crypto_target as top module name.. boh
+- comunque aggiungere la roba di ascon di mattia castagno
+- Chiedere a gigi se apprezza il core file opppure asosulatemente no
