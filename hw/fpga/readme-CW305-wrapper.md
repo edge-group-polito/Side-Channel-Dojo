@@ -1,4 +1,7 @@
-# CW305-AES-standalone
+# CW305 fpga wrapper
+readme file that describes the blocks of the CW305 wrapper taking as example the AES crypto target  
+
+## CW305-AES-standalone
 
 The target is an AES hardware accelerator implemented as a 1-round per cycle, it is memory mapped and its register file is driven by the SAM3U microcontroller via parallel USB interface. It is synthesized on the CW305 board which mounts a Artix-7 FPGA (*part number : xc7a35tftg256-2*)  
 

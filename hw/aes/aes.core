@@ -1,0 +1,48 @@
+CAPI=2:
+
+# Copyright 2024 POLITO
+# Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# File: aes.core
+# Author: Mattia Mirigaldi
+# Date: 06/06/2024
+# Description: AES side channel resistant implementation core file
+
+name: "vlsi:polito:aes:0.1.0"
+description: "Advanced Encryption Standard HDL with power resistant Sbox"
+
+
+filesets: 
+  rtl-bare:
+    files:
+    - AES_common/aes_ks.v
+    - AES_common/Sbox/aes_sbox_comb.v
+    - AES_common/Sbox/aes_sbox_lut_rijandael.v
+    - AES_common/Sbox/aes_sbox_lut_freyre_1.v
+    - AES_common/Sbox/aes_sbox_lut_freyre_2.v
+    - AES_common/Sbox/aes_sbox_lut_freyre_3.v
+    - AES_common/Sbox/aes_sbox_lut_hussain_6.v
+    - AES_common/Sbox/aes_sbox_lut_ozkaynak_1.v
+    - AES_common/Sbox/aes_sbox_lut_azam_1.v
+    - AES_common/Sbox/aes_sbox_lut_azam_2.v
+    - AES_common/Sbox/aes_sbox_lut_azam_3.v
+    file_type: verilogSource
+
+  rtl-single-round:
+    files:
+    - AES_single_round/aes_core.v
+    file_type: verilogSource
+
+  rtl-pipeline:
+    files:
+    - AES_pipeline/aes_pipeline_top.v
+    - AES_pipeline/aes_round.v
+    file_type: verilogSource
+  
+targets:
+  default:
+    filesets:
+    - rtl-bare
+    - "!AES_pipeline ? (rtl-single-round)"
+    - AES_pipeline ? (rtl-pipeline)
