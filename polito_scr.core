@@ -160,7 +160,7 @@ targets:
     - rtl-fpga-ascon
     - xdc-fpga-cw305
     parameters:
-    - ASIP_IMPL=true
+    - ASIP_IMPL=false
     tools:
       vivado:
         part: xc7a100tftg256-2
@@ -232,4 +232,4 @@ parameters:
     datatype: bool
     paramtype: vlogdefine
     description: Select ASIP implementation of crypto target
-    default: true
+    default: false

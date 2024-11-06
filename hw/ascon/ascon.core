@@ -26,9 +26,24 @@ filesets:
     files:
     - ASCON_asip/ascon_cu.sv
     file_type: systemVerilogSource   
+  
+  ascon-init-rtl:
+    files:
+    - ascon_common/Sbox/sbox_ascon.v
+    - ascon_common/Sbox/sbox_allouzi.v
+    - ascon_common/Sbox/sbox_bilgin.v
+    - ascon_common/Sbox/sbox_lu_4.v
+    - ascon_common/Sbox/sbox_lu_5.v
+    - ascon_common/Sbox/sbox_lu_6.v
+    - ascon_common/Sbox/sbox_lu_7.v
+    - ASCON_init/primitives.v
+    - ASCON_init/reg_S.v
+    - ASCON_init/ascon_init.v
+    file_type: verilogSource
     
 targets:
   default:
     filesets:
     - asip_impl ? (ascon-asip-vhdl)
     - asip_impl ? (ascon-asip-sv)
+    - "!asip_impl ? (ascon-init-rtl)"

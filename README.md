@@ -1,8 +1,11 @@
-# AES side channel resistance implementation 
-The AES standard Substituion-Box (S-Box), known as Rijndael S-Box, is vulnerable against power analysis attacks. Tested new power-resistant S-Box. 
-The modified AES HW accelerator can be tested on the Chipwhisperer CW305 board, which integrates the Artix-7 FPGA. 
-The AES accelerator is memory mapped and the control and status registers are driven through USB by a python API. An example could be found in `sw/sca_jupyter/sca_test.ipynb` 
-
+# Side channel dojo
+This repository provides an environment to facilitate the testing of cryptographic implementations against power-based side-channel attacks. 
+The environment supports the use of the Chipwhisperer CW305 board and the Picoscope 5000a for capturing power traces.
+- It includes tools and scripts for simulating and synthesizing cryptographic hardware designs on the Chipwhisperer CW305 board (mounts Artix-7 FPGA)
+- Used Fusesoc for dependency management. 
+- It leverages open-source Verilator for simulation.
+- Vivado for FPGA synthesis. 
+- The repository Jupyter notebooks for conducting side-channel analysis and attacks.
 ## Getting started
 ### Prerequisites 
 1. Rely on open source [Verilator](https://opentitan.org/guides/getting_started/setup_verilator.html) to simulate the design 
@@ -11,15 +14,22 @@ The AES accelerator is memory mapped and the control and status registers are dr
 4. Rely on Vivado to synthetisize desing on FPGA
 5. The SCA attacks are run on the chipwhisperer board CW305 while the power traces are captured with picoscope 5000a 
    Chipwhisperer python virtual envirnoment requirements can be found in `sw` directory
+## Examples of Cryptographic module 
+The cryptographic implementation is memory mapped and the control and status registers are driven through USB by a python API. An example could be found in `sw/sca_jupyter/sca_test.ipynb` 
+The repo includes two examples: 
+#### The Advanced Encryption Standard (AES)
+The AES standard Substitution-Box (S-Box), known as the Rijndael S-Box, is vulnerable to power analysis attacks. This repository contains a power-resistant S-Boxes that can be easily tested against such attacks.
+#### ASCON
+The repository provides two ASCON designs: one generated with ASIP and another that includes only the first round of ASCON, which is sufficient to perform power side-channel attacks.
 ### Building RTL simulation platform 
-To run the RTL simulation on Verilator 
+Taking as example the AES implementation, to run the RTL simulation on Verilator 
 ```
-make verilator-build
-make verilator-sim
+make aes-verilator-build
+make aes-verilator-sim
 ```
 To build and program the bitstream for the CW305 board
 ```
-make vivado-fpga
+make vivado-fpga-aes
 ```
 More information in Makefile
 ## Repository folder structure 
@@ -42,33 +52,21 @@ More information in Makefile
 
 
 ## TODO: 
-- [ ] Make sbox selection configurable in *aes_core.v* 
-- [ ] Complete verilator simulation ( input/output from/to file, use as golden model the *AES.py* )
-- [ ] Add Makefile command and fusesoc target for the Questasim simulation
-- [ ] Readme in `AES_python/validation_test/` which explain the KAT tests used for AES  
-- [ ] Finish python library for the interesting plots 
+- [ ] Update readme file to includes the changes associated with ascon integration
+- [ ] Sbox selection configurable with vlog define in `aes_core.v`
+- [ ] Complete verilator simulation ( input/output from/to file, use as golden model the *AES_golden.py* )
+- [ ] Add support for the Questasim simulation
+- [ ] Readme missing in `AES_python/validation_test/` which explain the KAT tests used for AES  
+- [ ] Python library for the side channel related plots in `sw/sca_python/analyzer/utils`
 - [ ] Simulate and synthesize the AES pipeline version
-- [ ] Fix instruction readme file to recreate venv in sw directory
-- [ ] Fix aes core configuration as it is done with ascon 
-- [ ] Add ascon rtl and all from Mattia Castagno repo
-- [ ] add the python version of the notebook in the folder "sw/sca_python/tests/aes/"
+- [ ] Test readme file in `sw` to recreate the environment
+- [ ] Python version of the notebook in the folder "sw/sca_python/tests/aes/"
 
 *Optional :*
 - [ ] Makefile command which run python script to capture power traces
 - [ ] Makefile command which run python script to perform CPA attack  
-- [ ] Pyevn with activation file instead of recreating it (docker kind of?)
-- [ ] Define the best way to organize to python repo, should be scalable (easy to add new attacks and targets) and intuitive  
+- [ ] Docker of the environment
 
-## Ascon integration
-1. Create directory in hw/ascon to contain all hdl files and associate .core files
-2. Create fpga wrapper and relative register associate files, put them inside custom directory in hw/fpga
-3. Create fileset and target of added files in aes_scr.core 
-
-to check : 
-[?] a lot of registers in cw305_reg_ascon.sv are unused and semms uselessù
+## TO CHECK: 
+- a lot of registers in cw305_reg_ascon.sv are unused and semms useless
 to do (asap):
-- fix core files organization 
-  - add in core file of each crypto target the target to run simulation and synthesis 
-- if wanted configurable simulation needed crypto_target as top module name.. boh
-- comunque aggiungere la roba di ascon di mattia castagno
-- Chiedere a gigi se apprezza il core file opppure asosulatemente no
