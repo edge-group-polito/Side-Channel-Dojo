@@ -11,10 +11,21 @@
 MAKE           	?= make
 BUILD_DIR	   	?= $(realpath .)/build
 
-# Crypto target configuration
-SBOX 			?= rijandael
-# set from command line --flag=asip_impl to use the ascon asip implementation
-ascon_flag		?= --flag=			
+## AES RTL configurations
+AES_SBOX 				?= rijandael					#todo : use to select AES sbou
+
+## ASCON RTL configurations
+ASCON_IMPL 				?= ascon_init					# set to "ascon_asip" to use the ascon asip implementations	
+ASCON_SBOX_TYPE			?= ascon_lut					# set to "ASCON_HW" to use the HW-based sbox
+ASCON_SBOX 				?= sbox_ascon				# set to one of the possible supported sboxes
+# Remove the possible trailing whitespaces	
+ASCON_IMPL := $(strip $(ASCON_IMPL))
+ASCON_SBOX_TYPE := $(strip $(ASCON_SBOX_TYPE))
+ASCON_SBOX := $(strip $(ASCON_SBOX))
+# Flags passed to fusesoc
+ascon_impl_flag			?= --flag=$(ASCON_IMPL)  			
+ascon_sbox_type_flag	?= --flag=$(strip $(ASCON_SBOX_TYPE))	
+ascon_sub_layer_flag	?= --flag=$(strip $(ASCON_SBOX))
 
 # RTL simulation configs
 MAX_CYCLES		?= 100000
@@ -76,12 +87,7 @@ aes-verilator-sim: $(BUILD_DIR)/.verilator.lock | .check-fusesoc
 	fusesoc run --no-export --target aes-sim --tool verilator --run $(FUSESOC_FLAGS) vlsi:polito:crypto_targets:0.1.0 \
 		--log_level=$(LOG_LEVEL) \
 		--max_cycles=$(MAX_CYCLES) \
-		--dump_trace=$(DUMP_TRACE) \
-		--dump_waves=$(DUMP_WAVES) \
-		$(FUSESOC_ARGS)
-
-#todo: add the ascon simulation with verilator makefile command
-
+		--dump_trace=$(DUMP_TRACE) \cw305_top_ascon_hw_sbox_ascon .bit
 # Open dumped waveform with GTKWave
 .PHONY: verilator-waves
 verilator-waves: $(BUILD_DIR)/sim-verilator/logs/waves.fst | .check-gtkwave
@@ -95,15 +101,26 @@ verilator-waves: $(BUILD_DIR)/sim-verilator/logs/waves.fst | .check-gtkwave
 .PHONY: vivado-fpga-aes
 vivado-fpga-aes: | .check-fusesoc .check-vivado $(BUILD_DIR)/
 	fusesoc run --no-export --target=cw305-aes $(FUSESOC_FLAGS) --build vlsi:polito:crypto_targets:0.1.0
-	cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-aes-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit  hw/fpga/bitstream/aes/cw305_top_$(SBOX).bit
+	cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-aes-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit  hw/fpga/bitstream/aes/cw305_top_$(AES_SBOX).bit
 
 .PHONY: vivado-fpga-ascon
 vivado-fpga-ascon: | .check-fusesoc .check-vivado $(BUILD_DIR)/
-	fusesoc run --no-export --target=cw305-ascon $(FUSESOC_FLAGS) --build vlsi:polito:crypto_targets:0.1.0
-	@if [ "$(ascon_flag)" = "--flag=asip_impl" ]; then \
-	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_asip/cw305_top.bit; \
+	fusesoc run --no-export --target=cw305-ascon $(ascon_impl_flag) $(ascon_sbox_type_flag) $(ascon_sub_layer_flag) $(FUSESOC_FLAGS) --build vlsi:polito:crypto_targets:0.1.0
+	@if [ "$(ASCON_IMPL)" = "ascon_asip" ]; then \
+	    echo cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_asip/cw305_top_asip.bit; \
+	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_asip/cw305_top_asip.bit; \
 	else \
-	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_init/cw305_top.bit; \
+	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_init/cw305_top_$(ASCON_SBOX_TYPE)_$(ASCON_SBOX).bit; \
+	    echo cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_init/cw305_top_$(ASCON_SBOX_TYPE)_$(ASCON_SBOX).bit; \
+	fi	
+
+test-cp:
+	@if [ "$(ASCON_IMPL)" = "ascon_asip" ]; then \
+	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_asip/cw305_top_asip.bit; \
+	    echo cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_init/cw305_top_$(ASCON_SBOX_TYPE)_$(ASCON_SBOX).bit; \
+	else \
+	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_init/cw305_top_$(ASCON_SBOX_TYPE)_$(ASCON_SBOX).bit; \
+	    echo cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_init/cw305_top_$(ASCON_SBOX_TYPE)_$(ASCON_SBOX).bit; \
 	fi	
 
 # Utilities

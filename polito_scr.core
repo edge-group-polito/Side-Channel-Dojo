@@ -161,6 +161,17 @@ targets:
     - xdc-fpga-cw305
     parameters:
     - asip_impl ? (ASIP_IMPL=true)
+    - ascon_init ? (ASCON_INIT=true)
+    - ascon_lut ? (ASCON_LUT=true)
+    - ascon_hw ? (ASCON_HW=true)
+    - sbox_ascon ? (SBOX_ASCON=true)
+    - sbox_bilgin ? (SBOX_BILGIN=true)
+    - sbox_allouzi ? (SBOX_ALLOUZI=true)
+    - sbox_lu_4 ? (SBOX_LU_4=true)
+    - sbox_lu_5 ? (SBOX_LU_5=true)
+    - sbox_lu_6 ? (SBOX_LU_6=true)
+    - sbox_lu_7 ? (SBOX_LU_7=true)
+    - sbox_lu_8 ? (SBOX_LU_8=true)
     tools:
       vivado:
         part: xc7a100tftg256-2
@@ -228,8 +239,65 @@ parameters:
     datatype: int
     description: Maximum number of simulation cycles (halt the simulation when reached).
     paramtype: cmdlinearg
+  #todo : move all these parameters and cw305-ascon target to ascon.core
   ASIP_IMPL:
     datatype: bool
     paramtype: vlogdefine
     description: Select ASIP implementation of crypto target
     default: false
+  ASCON_INIT:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select implementation of only intial round of ASCON
+    default: false
+  ASCON_LUT:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select LUT implementation of ASCON SBOX
+    default: false
+  ASCON_HW:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select hardware implementation of ASCON SBOX
+    default: false
+  SBOX_ASCON:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select standard SBOX implementation of ASCON
+    default: false
+  SBOX_BILGIN:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Bilgin's SBOX implementation
+    default: false
+  SBOX_ALLOUZI:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Allouzi's SBOX implementation
+    default: false
+  SBOX_LU_4:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select LUT implementation of SBOX
+    default: false
+  SBOX_LU_5:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select LUT implementation of SBOX
+    default: false
+  SBOX_LU_6:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select LUT implementation of SBOX
+    default: false
+  SBOX_LU_7:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select LUT implementation of SBOX
+    default: false
+  SBOX_LU_8:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select LUT implementation of SBOX
+    default: false
+  
