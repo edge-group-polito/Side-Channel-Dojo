@@ -13,6 +13,8 @@ BUILD_DIR	   	?= $(realpath .)/build
 
 # Crypto target configuration
 SBOX 			?= rijandael
+# set from command line --flag=asip_impl to use the ascon asip implementation
+ascon_flag		?= --flag=			
 
 # RTL simulation configs
 MAX_CYCLES		?= 100000
@@ -97,9 +99,12 @@ vivado-fpga-aes: | .check-fusesoc .check-vivado $(BUILD_DIR)/
 
 .PHONY: vivado-fpga-ascon
 vivado-fpga-ascon: | .check-fusesoc .check-vivado $(BUILD_DIR)/
-	fusesoc run --no-export --target=cw305-ascon --flag "asip_impl" $(FUSESOC_FLAGS) --build vlsi:polito:crypto_targets:0.1.0
-	cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/cw305_top.bit
-
+	fusesoc run --no-export --target=cw305-ascon $(FUSESOC_FLAGS) --build vlsi:polito:crypto_targets:0.1.0
+	@if [ "$(ascon_flag)" = "--flag=asip_impl" ]; then \
+	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_asip/cw305_top.bit; \
+	else \
+	    cp $(BUILD_DIR)/vlsi_polito_crypto_targets_0.1.0/cw305-ascon-vivado/vlsi_polito_crypto_targets_0.1.0.runs/impl_1/cw305_top.bit hw/fpga/bitstream/ascon/ascon_init/cw305_top.bit; \
+	fi	
 
 # Utilities
 # ---------

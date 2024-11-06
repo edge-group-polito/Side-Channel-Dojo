@@ -38,6 +38,9 @@ filesets:
     - ascon_common/Sbox/sbox_lu_7.v
     - ASCON_init/primitives.v
     - ASCON_init/reg_S.v
+    - ASCON_init/asconp.sv
+    - ASCON_init/sub_layer_hw.sv
+    - ASCON_init/sub_layer_lut.sv
     - ASCON_init/ascon_init.v
     file_type: verilogSource
     

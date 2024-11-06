@@ -160,7 +160,7 @@ targets:
     - rtl-fpga-ascon
     - xdc-fpga-cw305
     parameters:
-    - ASIP_IMPL=false
+    - asip_impl ? (ASIP_IMPL=true)
     tools:
       vivado:
         part: xc7a100tftg256-2
