@@ -1,4 +1,4 @@
-# Side channel dojo
+# Side Channel Dojo
 This repository provides an environment to facilitate the testing of cryptographic implementations against power-based side-channel attacks. 
 The environment supports the use of the Chipwhisperer CW305 board and the Picoscope 5000a for capturing power traces.
 - It includes tools and scripts for simulating and synthesizing cryptographic hardware designs on the Chipwhisperer CW305 board (mounts Artix-7 FPGA)
@@ -19,8 +19,18 @@ The cryptographic implementation is memory mapped and the control and status reg
 The repo includes two examples: 
 #### The Advanced Encryption Standard (AES)
 The AES standard Substitution-Box (S-Box), known as the Rijndael S-Box, is vulnerable to power analysis attacks. This repository contains a power-resistant S-Boxes that can be easily tested against such attacks.
+
+##### Makefile configuration for AES (NOT WORKING! needs to be implemented):
+- **AES_SBOX** : defualt value is "rijandael". The whole list of supported Sbox can be found in `hw/aes/rtl/AES_common/Sbox`)
+- **AES_ARCH** : defualt value is "single_round". Selec the AES architectue to use, supported only the single round implementation *(NEEDED to support the configuration with an arbitrary length of rounds)*
 #### ASCON
 The repository provides two ASCON designs: one generated with ASIP and another that includes only the first round of ASCON, which is sufficient to perform power side-channel attacks.
+##### Makefile configuration for ASCON:
+**ASCON_ARCH** : default value is "ascon_init". Select which architecture of ASCON to use, at the moment supported "ascon_init" which implements only the first round of Ascon and "ascon_asip" which is the architecture of Ascon generated with ASIP designer (https://www.synopsys.com/dw/ipdir.php?ds=asip-designer).  			
+If selected `ASCON_ARCH=ascon_init` then the rtl can be configured with:
+**ASCON_SBOX_MODE** : default value is "lut". Select the implementation of the SBox to use, if the "lut" implemntation or the "comb" one. If selected combinational Sbox the only supported one is the standard. 
+**ASCON_SBOX** : default value is "sbox_standard". The whole list of supported Sbox (only lut implementation) can be found in `hw/aes/rtl/AES_common/Sbox` and how the verilog defines are use in `sub_layer_lut.sv`
+
 ### Building RTL simulation platform 
 Taking as example the AES implementation, to run the RTL simulation on Verilator 
 ```
