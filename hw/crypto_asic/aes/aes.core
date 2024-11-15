@@ -14,21 +14,34 @@ description: "Advanced Encryption Standard HDL with power resistant Sbox"
 filesets: 
   rtl-bare:
     files:
+    - rtl/AES_common/ks_sub_layer_lut.sv
+    - rtl/AES_common/ks_sub_layer_hw.sv
     - rtl/AES_common/aes_ks.v
-    - rtl/AES_common/Sbox/aes_sbox_comb.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_rijandael.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_freyre_1.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_freyre_2.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_freyre_3.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_hussain_6.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_ozkaynak_1.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_azam_1.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_azam_2.v
-    - rtl/AES_common/Sbox/aes_sbox_lut_azam_3.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_comb.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_rijandael.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_freyre_1.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_freyre_2.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_freyre_3.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_hussain_6.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_ozkaynak_1.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_azam_1.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_azam_2.v
+    - rtl/AES_common/Sbox/single_byte_impl/aes_sbox_lut_azam_3.v
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_azam_1_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_azam_2_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_azam_3_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_freyre_1_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_freyre_2_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_freyre_3_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_hussain_6_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_ozkaynak_1_lut.sv
+    - rtl/AES_common/Sbox/16_byte_impl/aes_sbox_16way_rijandael_lut.sv
     file_type: verilogSource
 
   rtl-single-round:
     files:
+    - rtl/AES_single_round/aes_sub_layer_hw.sv
+    - rtl/AES_single_round/aes_sub_layer_lut.sv
     - rtl/AES_single_round/aes_core.v
     file_type: verilogSource
 
@@ -72,9 +85,78 @@ targets:
     - rtl-fpga-common
     - rtl-fpga-aes
     - xdc-fpga-cw305
+    parameters:
+    - aes_lut ? (SBOX_LUT=true)
+    - aes_comb ? (SBOX_COMB=true)
+    - sbox_rijandael ? (SBOX_RIJANDAEL=true)
+    - sbox_azam_1 ? (SBOX_AZAM_1=true)
+    - sbox_azam_2 ? (SBOX_AZAM_2=true)
+    - sbox_azam_3 ? (SBOX_AZAM_3=true)
+    - sbox_freyre_1 ? (SBOX_FREYRE_1=true)
+    - sbox_freyre_2 ? (SBOX_FREYRE_2=true)
+    - sbox_freyre_3 ? (SBOX_FREYRE_3=true)
+    - sbox_hussain_6 ? (SBOX_HUSSAIN_6=true)
+    - sbox_ozkaynak_1 ? (SBOX_OZKAYNAK_1=true)
     tools:
       vivado:
         part: xc7a100tftg256-2
     toplevel: [cw305_top]
 
-
+# Parameters
+parameters:
+  SBOX_COMB:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select hardware implementation of AES SBOX
+    default: false
+  SBOX_LUT:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select LUT implementation of AES SBOX
+    default: false
+  SBOX_RIJANDAEL:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select standard SBOX implementation of AES
+    default: false
+  SBOX_AZAM_1:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Azam 1 LUT SBOX implementation
+    default: false
+  SBOX_AZAM_2:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Azam 2 LUT SBOX implementation
+    default: false
+  SBOX_AZAM_3:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Azam 3 LUT implementation of SBOX
+    default: false
+  SBOX_FREYRE_1:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Freyre 1 LUT implementation of SBOX
+    default: false
+  SBOX_FREYRE_2:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Freyre 2 LUT implementation of SBOX
+    default: false
+  SBOX_FREYRE_3:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Freyre 3 LUT implementation of SBOX
+    default: false
+  SBOX_HUSSAIN_6:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Hussain 6 LUT implementation of SBOX
+    default: false
+  SBOX_OZKAYNAK_1:
+    datatype: bool
+    paramtype: vlogdefine
+    description: Select Ozkaynak 1 LUT implementation of SBOX
+    default: false
+  

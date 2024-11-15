@@ -19,7 +19,7 @@ $(info $$You are executing from: $(mkfile_path))
 ## ASCON RTL configurations
 ASCON_ARCH 				?= ascon_init				# set to "ascon_asip" to use the ascon asip implementations	
 ASCON_SBOX_MODE			?= lut						# set to "comb" to use the HW-based (combinational) Sbox
-ASCON_SBOX 				?= standard					# set to one of the possible supported sboxes
+ASCON_SBOX 				?= standard					# set to one of the possible supported sboxes (e.g. allouzi)
 # Remove the trailing whitespaces	
 ASCON_ARCH := $(strip $(ASCON_ARCH))
 ASCON_SBOX_MODE := $(strip $(ASCON_SBOX_MODE))
@@ -28,7 +28,7 @@ ASCON_SBOX := $(strip $(ASCON_SBOX))
 # Verilog defines passed as flags to fusesoc 
 ascon_arch_flag			?= --flag=$(ASCON_ARCH)  			
 ascon_sbox_mode_flag	?= --flag=ascon_$(ASCON_SBOX_MODE)	
-ascon_sub_layer_flag	?= --flag=$(ASCON_SBOX)
+ascon_sub_layer_flag	?= --flag=sbox_$(ASCON_SBOX)
 
 # ---------
 # RTL simulation files

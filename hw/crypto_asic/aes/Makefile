@@ -17,8 +17,18 @@ mkfile_path := $(shell dirname "$(realpath $(firstword $(MAKEFILE_LIST)))")
 $(info $$You are executing from: $(mkfile_path))
 
 ## AES RTL configurations
-AES_SBOX 				?= rijandael					#todo : use to select AES sbox
-AES_ARCH 				?= aes_single_round				#todo : only implementation available is single round
+AES_SBOX 				?= rijandael			# set to one of the possible supported sboxes (e.g. azam_1)
+AES_SBOX_MODE			?= lut					# set to "comb" to use the HW-based (combinational) Sbox
+AES_ARCH 				?= single_round			#todo : only implementation available is single round
+# Remove the trailing whitespaces	
+AES_SBOX := $(strip $(AES_SBOX))
+AES_SBOX_MODE := $(strip $(AES_SBOX_MODE))
+AES_ARCH := $(strip $(AES_ARCH))
+
+# Verilog defines passed as flags to fusesoc 			
+aes_sbox_mode_flag	?= --flag=aes_$(AES_SBOX_MODE)	
+aes_sub_layer_flag	?= --flag=sbox_$(AES_SBOX)
+
 # ---------
 # RTL simulation files
 SIM_CORE_FILES 	:= $(shell find . -type f -name "*.core")
@@ -33,7 +43,7 @@ SIM_HDL_FILES 	:= $(shell find rtl -type f -name "*.v" -o -name "*.sv" -o -name 
 ## Builds (synthesis and implementation) the bitstream of AES for the FPGA version using Vivado
 .PHONY: vivado-fpga-aes
 vivado-fpga-aes: | .check-fusesoc .check-vivado $(BUILD_DIR)/
-	fusesoc --cores-root . run --no-export --target=cw305-aes $(FUSESOC_FLAGS) --build vlsi:polito:aes:0.1.0
+	fusesoc --cores-root . run --no-export --target=cw305-aes $(aes_sbox_mode_flag) $(aes_sub_layer_flag) $(FUSESOC_FLAGS) --build vlsi:polito:aes:0.1.0
 
 # Utilities
 # ---------

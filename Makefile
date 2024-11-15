@@ -11,33 +11,37 @@
 MAKE           	?= make
 BUILD_DIR	   	?= $(realpath .)/build
 
-## AES RTL configurations
-AES_SBOX 				?= rijandael				#todo : use to select AES sbox
-AES_ARCH 				?= single_round				#todo : only implementation available is single round
-# remove the trailing whitespaces
-aes_sbox_strip		 	:= $(strip $(AES_SBOX))
-aes_arch_strip		 	:= $(strip $(AES_ARCH))
+# --------- AES
+## AES RTL configuration
+AES_SBOX 				?= rijandael			# set to one of the possible supported sboxes (e.g. azam_1)
+AES_SBOX_MODE			?= lut					# set to "comb" to use the HW-based (combinational) Sbox
+AES_ARCH 				?= single_round			#todo : only implementation available is single round
+# Remove the trailing whitespaces	
+AES_SBOX := $(strip $(AES_SBOX))
+AES_SBOX_MODE := $(strip $(AES_SBOX_MODE))
+AES_ARCH := $(strip $(AES_ARCH))
 # AES bitstream path
 AES_bitstream_path 		?= hw/crypto_asic/aes/build/vlsi_polito_aes_0.1.0/cw305-aes-vivado/vlsi_polito_aes_0.1.0.bit
 
-## ASCON RTL configurations
+# --------- ASCON
+## ASCON RTL configuration
 ASCON_ARCH 				?= ascon_init			# set to "ascon_asip" to use the ascon asip implementations	
 ASCON_SBOX_MODE			?= lut					# set to "comb" to use the HW-based (combinational) Sbox
-ASCON_SBOX 				?= standard				# set to one of the possible supported sboxes
+ASCON_SBOX 				?= standard				# set to one of the possible supported sboxes (e.g. allouzi)
 # Remove the trailing whitespaces	
 ASCON_ARCH := $(strip $(ASCON_ARCH))
 ASCON_SBOX_MODE := $(strip $(ASCON_SBOX_MODE))
 ASCON_SBOX := $(strip $(ASCON_SBOX))
 # ASCON bitstream path
-#ASCON_bitstream_path 	?= hw/crypto_asic/ascon/build/vlsi_polito_ascon_0.1.0/cw305-ascon-vivado/vlsi:polito:ascon:0.1.0.runs/impl_1/vlsi_polito_ascon_0.1.0.bit 
 ASCON_bitstream_path 	?= hw/crypto_asic/ascon/build/vlsi_polito_ascon_0.1.0/cw305-ascon-vivado/vlsi_polito_ascon_0.1.0.bit
+
+# --------- RTL
 # RTL simulation configs
 MAX_CYCLES		?= 100000
 LOG_LEVEL		?= LOG_MEDIUM
 DUMP_TRACE		?= true
 DUMP_WAVES		?= true
 
-# ---------
 # RTL simulation files
 SIM_CORE_FILES 	:= $(shell find . -type f -name "*.core")
 SIM_HDL_FILES 	:= $(shell find hw -type f -name "*.v" -o -name "*.sv" -o -name "*.svh")
@@ -63,10 +67,11 @@ lint: | .check-fusesoc
 
 # Vivado synthesis
 # ----------------
+#todo: once implemented support for AES with configurable number of rounds, customize this target
 .PHONY: vivado-fpga-aes
-vivado-fpga-aes: ./hw/fpga/bitstream/aes/$(aes_arch_strip)/
-	$(MAKE) -C hw/crypto_asic/aes vivado-fpga-aes AES_SBOX=$(AES_SBOX)
-	cp $(AES_bitstream_path) hw/fpga/bitstream/aes/cw305_top_$(aes_sbox_strip).bit	
+vivado-fpga-aes: ./hw/fpga/bitstream/aes/$(AES_ARCH)/
+	$(MAKE) -C hw/crypto_asic/aes vivado-fpga-aes AES_SBOX=$(AES_SBOX) AES_SBOX_MODE=$(AES_SBOX_MODE)
+	cp $(AES_bitstream_path) hw/fpga/bitstream/aes/aes_single_round/cw305_top_$(AES_SBOX)_$(AES_SBOX_MODE).bit	
 
 .PHONY: vivado-fpga-ascon
 vivado-fpga-ascon: ./hw/fpga/bitstream/ascon/$(ASCON_ARCH)/

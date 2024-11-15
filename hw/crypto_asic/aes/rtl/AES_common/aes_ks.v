@@ -62,50 +62,17 @@ module aes_ks (
     w0_sub_i = (fsm == KEYSCHED_TYPE_2) ? wN : {wN[23:0], wN[31:24]};
   end
 
-  // NEWAE mod: GF or LUT sboxes
-`ifdef SBOX_GF
-  aes_sbox ks_inst0 (
-    .U  (w0_sub_i[7:0]),
-    .dec(1'b0),
-    .S  (w0_sub_o[7:0])
+`ifdef SBOX_COMB
+  ks_sub_layer_hw ks_sub_layer_inst(
+    .state_i (w0_sub_i[31:0]),
+    .state_o (w0_sub_o[31:0])
   );
-  aes_sbox ks_inst1 (
-    .U  (w0_sub_i[15:8]),
-    .dec(1'b0),
-    .S  (w0_sub_o[15:8])
-  );
-  aes_sbox ks_inst2 (
-    .U  (w0_sub_i[23:16]),
-    .dec(1'b0),
-    .S  (w0_sub_o[23:16])
-  );
-  aes_sbox ks_inst3 (
-    .U  (w0_sub_i[31:24]),
-    .dec(1'b0),
-    .S  (w0_sub_o[31:24])
-  );
-`else
-  aes_sbox_lut_ozkaynak_1 ks_inst0 (
-    .byte_in (w0_sub_i[7:0]),
-    .dec     (1'b0),
-    .byte_out(w0_sub_o[7:0])
-  );
-  aes_sbox_lut_ozkaynak_1 ks_inst1 (
-    .byte_in (w0_sub_i[15:8]),
-    .dec     (1'b0),
-    .byte_out(w0_sub_o[15:8])
-  );
-  aes_sbox_lut_ozkaynak_1 ks_inst2 (
-    .byte_in (w0_sub_i[23:16]),
-    .dec     (1'b0),
-    .byte_out(w0_sub_o[23:16])
-  );
-  aes_sbox_lut_ozkaynak_1 ks_inst3 (
-    .byte_in (w0_sub_i[31:24]),
-    .dec     (1'b0),
-    .byte_out(w0_sub_o[31:24])
-  );
-`endif
+  `else // SBOX_LUT
+    ks_sub_layer_lut ks_sub_layer_inst(
+      .state_i (w0_sub_i[31:0]),
+      .state_o (w0_sub_o[31:0])
+    );
+  `endif
 
   assign w0_temp = (fsm == KEYSCHED_TYPE_2) ? w0_sub_o : {w0_sub_o[31:24] ^ Rcon, w0_sub_o[23:0]};
 
