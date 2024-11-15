@@ -58,28 +58,30 @@ More information in Makefile
 An example could be found in `sw/sca_jupyter/sca_test.ipynb` 
 ## Repository folder structure 
 |Folder                         | Description
-|------ | -----------
-|hw                           | **HDL source files, fpga specific files and already generated bitstream**
-|  ├── AES_scr                | Verilog source files AES            
-|  └── fpga                   | Artix-7 fpga specific files 
-        └── bitstream          | Bitstream generated for all S-Box variants
-|pics                         | **Block diagrams**
-|scripts                      | **Utility scripts**   
-|sw                           | **Golden AES software model, sca-attack jupyter notebook, python sca-functions**
-|  ├── AES_python             | Golden AES software model                   
-|  └── validation_test           | Validation KAT test                  
-|  ├── notebook               | SCA-attack jupyter notebook              
-|  └── sca_python             | Setup API, utility functions for plot, sca-attack functions                        
-|tb                           | Testbench top level *aes_core*, supported modelsim and verilator 
+|------                         | -----------
+|hw                             | **HDL source files, fpga specific files and already generated bitstream**
+|  ├── crypto_asic              | **Verilog source files of crypto ASIC** 
+| │   └── aes              | Source files and targets for AES Asic implementation
+ │└── ascon               | Source files and targets for Ascon Asic implementation
+|  └── fpga                     | Artix-7 fpga specific files 
+        └── bitstream           | Bitstream generated 
+|pics                           | **Block diagrams**
+|scripts                        | **Utility scripts**   
+|sw                             | **Golden AES software model, sca-attack jupyter notebook, python sca-functions**
+|  ├── AES_python               | Golden AES software model                   
+|  └── validation_test          | Validation KAT test                  
+|  ├── notebook                 | SCA-attack jupyter notebook              
+|  └── sca_python               | Setup API, utility functions for plot, sca-attack functions                        
+|tb                             | Testbench top level *aes_core*, supported modelsim and verilator 
 
 
 
 
 ## TODO: 
-- [ ] Complete verilator simulation ( input/output from/to file, use as golden model the *AES_golden.py* )
+- [ ] Finiah verilator simulation ( input/output from/to file, use as golden model the *AES_golden.py* )
 - [ ] Add support for the Questasim simulation
 - [ ] Readme missing in `AES_python/validation_test/` which explain the KAT tests used for AES  
-- [ ] Python library for the side channel related plots in `sw/sca_python/analyzer/utils`
+- [ ] Library for common plots in `sw/sca_python/analyzer/utils`
 - [ ] Simulate and synthesize the AES pipeline version
 - [ ] Test readme file in `sw` to recreate the environment
 - [ ] Python version of the notebook in the folder "sw/sca_python/tests/aes/"
@@ -90,5 +92,4 @@ An example could be found in `sw/sca_jupyter/sca_test.ipynb`
 - [ ] Docker of the environment
 
 ## TO CHECK: 
-- a lot of registers in cw305_reg_ascon.sv are unused and seems useless
-to do (asap):
+- a lot of registers in cw305_reg_ascon.sv are unused and can be removed (to do asap)
