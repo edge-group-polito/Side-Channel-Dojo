@@ -708,7 +708,7 @@ class cpa_round_1_output_x0_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 19) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 19) % 64][4]:
-            max_corr = max_key_bit[(i - 19) % 64][4]
+            max_diff_corr = max_key_bit[(i - 19) % 64][4]
             max_bit_1 = max_key_bit[(i - 19) % 64][1]
             
         if max_tot < max_key_bit[(i - 19) % 64][5]:
@@ -720,7 +720,7 @@ class cpa_round_1_output_x0_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 28) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 28) % 64][4]:
-            max_corr = max_key_bit[(i - 28) % 64][4]
+            max_diff_corr = max_key_bit[(i - 28) % 64][4]
             max_bit_1 = max_key_bit[(i - 28) % 64][2]
             
         if max_tot < max_key_bit[(i - 28) % 64][5]:
@@ -1066,7 +1066,7 @@ class cpa_round_1_output_x4_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 7) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 7) % 64][4]:
-            max_corr = max_key_bit[(i - 7) % 64][4]
+            max_diff_corr = max_key_bit[(i - 7) % 64][4]
             max_bit_1 = max_key_bit[(i - 7) % 64][1]
             
         if max_tot < max_key_bit[(i - 7) % 64][5]:
@@ -1078,7 +1078,7 @@ class cpa_round_1_output_x4_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 41) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 41) % 64][4]:
-            max_corr = max_key_bit[(i - 41) % 64][4]
+            max_diff_corr = max_key_bit[(i - 41) % 64][4]
             max_bit_1 = max_key_bit[(i - 41) % 64][2]
             
         if max_tot < max_key_bit[(i - 41) % 64][5]:
@@ -1425,7 +1425,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 7) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 7) % 64][4]:
-            max_corr = max_key_bit[(i - 7) % 64][4]
+            max_diff_corr = max_key_bit[(i - 7) % 64][4]
             max_bit_1 = max_key_bit[(i - 7) % 64][1]
             
         if max_tot < max_key_bit[(i - 7) % 64][5]:
@@ -1437,7 +1437,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 41) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 41) % 64][4]:
-            max_corr = max_key_bit[(i - 41) % 64][4]
+            max_diff_corr = max_key_bit[(i - 41) % 64][4]
             max_bit_1 = max_key_bit[(i - 41) % 64][2]
             
         if max_tot < max_key_bit[(i - 41) % 64][5]:
@@ -1474,7 +1474,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 61) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 61) % 64][4]:
-            max_corr = max_key_bit[(i - 61) % 64][4]
+            max_diff_corr = max_key_bit[(i - 61) % 64][4]
             max_bit_1 = max_key_bit[(i - 61) % 64][1]
             
         if max_tot < max_key_bit[(i - 61) % 64][5]:
@@ -1486,7 +1486,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 39) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 39) % 64][4]:
-            max_corr = max_key_bit[(i - 39) % 64][4]
+            max_diff_corr = max_key_bit[(i - 39) % 64][4]
             max_bit_1 = max_key_bit[(i - 39) % 64][2]
             
         if max_tot < max_key_bit[(i - 39) % 64][5]:
