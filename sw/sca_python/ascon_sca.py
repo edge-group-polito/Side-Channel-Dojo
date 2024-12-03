@@ -7,133 +7,8 @@ import matplotlib.colors as mcolors
 import threading
 from multiprocessing.pool import ThreadPool
 from multiprocessing import Pool, cpu_count, Process, current_process
-
-def bytearray_to_bitlist(byte_array):
-    bit_list = []
-    for byte in byte_array:
-        bits = bin(byte)[2:].zfill(8)
-        bit_list.extend([int(bit) for bit in bits])
-    return bit_list
-
-def bit_to_hex(x0, x1, x2, x3, x4):
-    bitlist = []
-    bitlist.append(x0)
-    bitlist.append(x1)
-    bitlist.append(x2)
-    bitlist.append(x3)
-    bitlist.append(x4)
-    return int(''.join(str(bit) for bit in bitlist), 2)
-
-def hex_to_bit(value):
-    binary_string = format(value, f'05b')
-    bitlist = [int(bit) for bit in binary_string]
-    return bitlist
-
-def convert_to_hex(bit_list):
-    hex_string = ""
-    
-    for i in range(0, len(bit_list), 8):
-        byte_bits = bit_list[i:i+8]
-        byte_str = ''.join(str(bit) for bit in byte_bits)
-        byte_int = int(byte_str, 2)
-        hex_string += format(byte_int, '02X')
-    
-    return hex_string
-
-def highlight_bits(x):
-    global show_key
-    color_list = []
-    for row_index in range(len(x)):
-        color_row = [""] * 16
-        if row_index % 2 == 1:
-            for i in range(16):
-                if x.iloc[row_index, i] == show_key[row_index // 2][i]:
-                    color_row[i] = "color: green"
-                else:
-                    color_row[i] = "color: red"
-        color_list.append(color_row)
-    return pd.DataFrame(color_list, index=x.index, columns=x.columns)
-
-def highlight_bits_2(x):
-    global show_key
-    color_list = []
-    color_row = [""] * 4
-    color_list.append(color_row)
-    for row_index in range(1,len(x)):
-        color_row = [""] * 4
-        for i in range(3):
-            if x.iloc[row_index, i] == show_key[i]:
-                color_row[i] = "color: green"
-            else:
-                color_row[i] = "color: red"
-        color_list.append(color_row)
-    return pd.DataFrame(color_list, index=x.index, columns=x.columns)
-
-def create_table(show_list):
-    table_data = []
-        
-    for row in range(8):
-        row_data = list(range(127-16*row, 128-16*row - 17, -1))
-        table_data.append(row_data)
-        table_data.append(show_list[row])
-    
-    df = pd.DataFrame(table_data)
-
-    return df
-
-def create_table_2(best_guess, correlation, bitnum):
-    table_data = []
-    bit_number = ["k[" + str(((bitnum) % 64 ) + 64) + "]", "k[" + str(((19 + bitnum) % 64) + 64) + "]", "k[" + str(((28 + bitnum) % 64 ) + 64) + "]"] 
-    bit_number.append("Correlation")
-    table_data.append(bit_number)
-    
-    for i in range(len(best_guess)):
-        table_line = []
-        for b in range(len(best_guess[i])):
-            table_line.append(best_guess[i][b])
-        table_line.append(correlation[i])
-        table_data.append(table_line)
-
-    return pd.DataFrame(table_data)
-
-def create_table_3(show_list):
-    table_data = []
-        
-    for row in range(4):
-        row_data = list(range(127-16*row, 128-16*row - 17, -1))
-        table_data.append(row_data)
-        table_data.append(show_list[row])
-    
-    df = pd.DataFrame(table_data)
-
-    return df
-
-def create_table_total(show_list):
-    table_data = []
-        
-    for row in range(8):
-        row_data = list(range(127-16*row, 128-16*row - 17, -1))
-        table_data.append(row_data)
-        table_data.append(show_list[row])
-    
-    df = pd.DataFrame(table_data)
-
-    return df
-
-def create_table_4(best_guess, correlation, bitnum):
-    table_data = []
-    bit_number = ["k[" + str(((bitnum) % 64 ) + 64) + "]", "k[" + str(((7 + bitnum) % 64) + 64) + "]", "k[" + str(((41 + bitnum) % 64 ) + 64) + "]"] 
-    bit_number.append("Correlation")
-    table_data.append(bit_number)
-    
-    for i in range(len(best_guess)):
-        table_line = []
-        for b in range(len(best_guess[i])):
-            table_line.append(best_guess[i][b])
-        table_line.append(correlation[i])
-        table_data.append(table_line)
-
-    return pd.DataFrame(table_data)
+import sca_python.analyzer.attack.ascon.utils as utils
+impiort sca_python.analyzer.attack.ascon.ascon_funcs as ascon
 
 class dpa_round_1_output_x0:
     """
@@ -150,36 +25,10 @@ class dpa_round_1_output_x0:
         self.iv_bit = bytearray_to_bitlist(iv)[::-1]
         self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
         self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
         self.correct_list = []
     
     def attack_leak_model(self, traces, nonces, sub_layer_type, callback):
         """Function that run the DPA attack on 1 bit.
-
         Args:
             traces (list): list of traces.
             nonces (list): list of nonces.
@@ -193,7 +42,6 @@ class dpa_round_1_output_x0:
                                     "lut_lu_6",
                                     "lut_lu_7".
             callback (int): specify the number of traces for the callback
-
         Returns:
             list: list of the best guess key bits
         """
@@ -205,7 +53,7 @@ class dpa_round_1_output_x0:
 
             guess_key = [0] * 128
             full_diffs_list = []
-
+            #taken 36 output columns to retrieve the key
             for bitnum in range(36):
                 max_diffs = [0]*8
                 full_diffs = [0]*8
@@ -237,7 +85,8 @@ class dpa_round_1_output_x0:
             sub_layer_type (string): specify the type of S-box.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            
+            return hex_to_bit(ascon.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
         
         k = [int(bit) for bit in bin(kguess)[2:].zfill(3)][::-1]
         
@@ -1482,6 +1331,7 @@ class cpa_round_1_pool:
     """
     Class that implement a CPA attack on ASCON. 
     It uses the content of the register x4 and x1 for the leakage model.
+    Prima attacca x4 per trovare x1, poi attacca x1 per trovare x2
     """
     def __init__(self, key, iv=[0x80, 0x40, 0x0c, 0x06, 0x00, 0x00, 0x00, 0x00], c_r=[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0]):
         """
@@ -2110,6 +1960,7 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
     """
     Class that implement a CPA attack on ASCON to retrieve the first
     half of the key. It uses the content of the register x0 and x4 for the leakage model.
+    Si attacca x0 e x4 per recuperare x1, e poi si attacca x1 per recuperare x2. 
     """
     def __init__(self, key, iv=[0x80, 0x40, 0x0c, 0x06, 0x00, 0x00, 0x00, 0x00], c_r=[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0]):
         """
