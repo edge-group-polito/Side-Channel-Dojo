@@ -1,6 +1,6 @@
-""" AES tables and functions with modified SBox."""
+""" ASCON functions with modified SBox LUT"""
 
-def _sbox(inp, sb_type):
+def _sbox(sb_type, inp):
     s = {
         "hw" : [
         0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
@@ -30,14 +30,15 @@ def _sbox(inp, sb_type):
     return s[sb_type][inp]
 
 
-def _invsbox(inp, sb_type):
+def _invsbox(sb_type, inp):
     i_s={
         
     }
     return i_s[sb_type][inp]
     
     
-def sbox(inp ,sb_type):
+def sbox(sb_type, inp):
+    print(f"inp: {inp}, sb_type: {sb_type}")
     """Perform the SBox lookup. 
     Args:
         inp (int): Byte used for the Sbox lookup.
@@ -45,9 +46,9 @@ def sbox(inp ,sb_type):
     Returns:
         int: The result of the inverse SBox lookup.
     """
-    return _sbox(inp, sb_type)
+    return _sbox(sb_type, inp)
 
-def inv_sbox_lut(inp, sb_type):
+def inv_sbox_lut(sb_type, inp):
     """Perform an inverse SBox lookup. 
     Args:
         inp (int): Byte used for the Sbox lookup.

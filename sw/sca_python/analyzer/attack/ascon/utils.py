@@ -6,7 +6,7 @@ def bytearray_to_bitlist(byte_array):
     Args:
         byte_array (bytearray): The byte array to convert.
     Returns:
-        list: A list of bits.
+        bitlist: A list of bits.
     """
     bit_list = []
     for byte in byte_array:
@@ -31,18 +31,18 @@ def bit_to_hex(x0, x1, x2, x3, x4):
     return int(''.join(str(bit) for bit in bitlist), 2)
 
 def hex_to_bit(value):
-    binary_string = format(value, f'05b')
-    bitlist = [int(bit) for bit in binary_string]
-    return bitlist
-
-def hex_to_bit(value):
     """
     Converts a hexadecimal value to a list of 5 bits.
     Args:
         value (int): The hexadecimal value to convert.
     Returns:
-        list: A list of 5 bits.
+        bitlist: A list of 5 bits.
     """
+    binary_string = format(value, f'05b')
+    bitlist = [int(bit) for bit in binary_string]
+    return bitlist
+
+def convert_to_hex(value):
     hex_string = ""
     
     for i in range(0, len(bit_list), 8):
