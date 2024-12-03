@@ -85,8 +85,8 @@ class dpa_round_1_output_x0:
             sub_layer_type (string): specify the type of S-box.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            
-            return hex_to_bit(ascon.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
         
         k = [int(bit) for bit in bin(kguess)[2:].zfill(3)][::-1]
         
