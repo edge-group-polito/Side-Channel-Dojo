@@ -31,14 +31,9 @@ def _sbox(sb_type, inp):
 
 
 def _invsbox(sb_type, inp):
-    i_s={
-        
-    }
-    return i_s[sb_type][inp]
-    
+    return _sbox[sb_type].index(inp)
     
 def sbox(sb_type, inp):
-    print(f"inp: {inp}, sb_type: {sb_type}")
     """Perform the SBox lookup. 
     Args:
         inp (int): Byte used for the Sbox lookup.

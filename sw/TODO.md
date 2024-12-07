@@ -1,3 +1,4 @@
 todo:
-
-- [ ] : function that return the inverse of Sbox (AES and ascon SW)
+- [ ] : create table in utils.py function must become one func
+- [ ] : leakage models as chipwhisperer
+- [ ] : one single func for the attacks. the same organization as with chipwhisperer

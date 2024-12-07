@@ -33,16 +33,18 @@ def bit_to_hex(x0, x1, x2, x3, x4):
 def hex_to_bit(value):
     """
     Converts a hexadecimal value to a list of 5 bits.
+    
     Args:
         value (int): The hexadecimal value to convert.
+        
     Returns:
-        bitlist: A list of 5 bits.
+        list: A list of 5 bits representing the binary equivalent of the input value.
     """
     binary_string = format(value, f'05b')
     bitlist = [int(bit) for bit in binary_string]
     return bitlist
 
-def convert_to_hex(value):
+def convert_to_hex(bit_list):
     hex_string = ""
     
     for i in range(0, len(bit_list), 8):
@@ -53,43 +55,43 @@ def convert_to_hex(value):
     
     return hex_string
 
-def highlight_bits(x):
+def highlight_bits(x, key):
     """
-    Highlights bits in a DataFrame by comparing them to a global key. Tabella con riga da 16 bit (e.g. 4 righe : 64)
+    Highlights bits in a DataFrame by comparing them to the expected key.              Tabella con riga da 16 bit (e.g. 4 righe : 64)
     Args:
         x (pd.DataFrame): DataFrame containing bits to highlight.
+        key (list): List of expected key values.
     Returns:
         pd.DataFrame: DataFrame with color-coded bits.
     """
-    global show_key
     color_list = []
     for row_index in range(len(x)):
         color_row = [""] * 16
         if row_index % 2 == 1:
             for i in range(16):
-                if x.iloc[row_index, i] == show_key[row_index // 2][i]:
+                if x.iloc[row_index, i] == key[row_index // 2][i]:
                     color_row[i] = "color: green"
                 else:
                     color_row[i] = "color: red"
         color_list.append(color_row)
     return pd.DataFrame(color_list, index=x.index, columns=x.columns)
 
-def highlight_bits_2(x):
+def highlight_bits_2(x, key):
     """
-    Highlights bits in a DataFrame by comparing them to a global key. Attacato singolo bit colonna, 8 possibile valori (sottochiave 3 bit)
+    Highlights bits in a DataFrame by comparing them to the expected key. Attacato singolo bit colonna, 8 possibile valori (sottochiave 3 bit)
     Args:
         x (pd.DataFrame): DataFrame containing bits to highlight.
+        key (list): List of expected key values.
     Returns:
         pd.DataFrame: DataFrame with color-coded bits.
     """
-    global show_key
     color_list = []
     color_row = [""] * 4
     color_list.append(color_row)
     for row_index in range(1,len(x)):
         color_row = [""] * 4
         for i in range(3):
-            if x.iloc[row_index, i] == show_key[i]:
+            if x.iloc[row_index, i] == key[i]:
                 color_row[i] = "color: green"
             else:
                 color_row[i] = "color: red"

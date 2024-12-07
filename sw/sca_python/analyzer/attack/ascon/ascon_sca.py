@@ -30,17 +30,8 @@ class dpa_round_1_output_x0:
     def attack_leak_model(self, traces, nonces, sub_layer_type, callback):
         """Function that run the DPA attack on 1 bit.
         Args:
-            traces (list): list of traces.
-            nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+            traces (list): list of traces to process
+            nonces (list): list of nonces
             callback (int): specify the number of traces for the callback
         Returns:
             list: list of the best guess key bits
@@ -118,25 +109,24 @@ class dpa_round_1_output_x0:
         return abs(one_avg - zero_avg)
     
     def display_results(self,best_guess,tstart,tend):
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[64:128][::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
         self.correct_list.append(ncorrect)
         
         clear_output(wait=True)  
         df = utils.create_table_3(show_list)
         
-        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(utils.highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
         
     def plot_correct(self,resolution, index):
         fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[18,12])
@@ -182,17 +172,8 @@ class cpa_round_1_output_x0_1_bit:
         """Function that run the CPA attack on 1 bit.
 
         Args:
-            traces (list): list of traces.
-            nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+            traces (list): list of traces
+            nonces (list): list of nonces
             callback (int): specify the number of traces for the callback
             bitnum (int): column index for the attack
 
@@ -322,11 +303,10 @@ class cpa_round_1_output_x0_1_bit:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
-        show_key = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((19 + bitnum) % 64) + 64], self.key_bit[((28 + bitnum) % 64) + 64]]
+        key_list = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((19 + bitnum) % 64) + 64], self.key_bit[((28 + bitnum) % 64) + 64]]
         ncorrect = 0
         for i in range(3):
-            if show_key[i] == sorted_key_guess[0][i]:
+            if key_list[i] == sorted_key_guess[0][i]:
                 ncorrect += 1
         
         clear_output(wait=True)  
@@ -334,7 +314,7 @@ class cpa_round_1_output_x0_1_bit:
         
         caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/3'
         
-        display(df.head(10).style.apply(utils.highlight_bits_2, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
+        display(df.head(10).style.apply(utils.highlight_bits_2, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
         
     def plot_corr(self, resolution, traces, bitnum):
         """Plot correlation with matplotlib.
@@ -393,17 +373,9 @@ class cpa_round_1_output_x4_1_bit:
         """Function that run the CPA attack on 1 bit.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             bitnum (int): column index for the attack
 
@@ -523,19 +495,18 @@ class cpa_round_1_output_x4_1_bit:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
-        show_key = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((7 + bitnum) % 64) + 64], self.key_bit[((41 + bitnum) % 64) + 64]]
+        key_list = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((7 + bitnum) % 64) + 64], self.key_bit[((41 + bitnum) % 64) + 64]]
         ncorrect = 0
         for i in range(3):
-            if show_key[i] == sorted_key_guess[0][i]:
+            if key_list[i] == sorted_key_guess[0][i]:
                 ncorrect += 1
         
         clear_output(wait=True)  
-        df = create_table_4(sorted_key_guess,sorted_correlation, bitnum)
+        df = utils.create_table_4(sorted_key_guess,sorted_correlation, bitnum)
         
         caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/3'
         
-        display(df.head(10).style.apply(utils.highlight_bits_2, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
+        display(df.head(10).style.apply(utils.highlight_bits_2, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
         
     def plot_corr(self, resolution, traces, bitnum):
         """Plot correlation with matplotlib.
@@ -670,17 +641,9 @@ class cpa_round_1_output_x0_recover_x1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             index (int): attack number index.
 
@@ -824,16 +787,15 @@ class cpa_round_1_output_x0_recover_x1_pool:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -846,9 +808,9 @@ class cpa_round_1_output_x0_recover_x1_pool:
         clear_output(wait=True)  
         df = utils.create_table_3(show_list)
         
-        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(utils.highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def plot_success(self,resolution, index):
         """Plot success with matplotlib.
@@ -1005,17 +967,9 @@ class cpa_round_1_output_x4_recover_x1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback.
             index (int): attack number index.
 
@@ -1151,16 +1105,15 @@ class cpa_round_1_output_x4_recover_x1_pool:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -1173,9 +1126,9 @@ class cpa_round_1_output_x4_recover_x1_pool:
         clear_output(wait=True)  
         df = utils.create_table_3(show_list)
         
-        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(utils.highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def plot_success(self,resolution, index):
         """Plot success with matplotlib.
@@ -1390,17 +1343,9 @@ class cpa_round_1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             i (int): attack number index
 
@@ -1684,17 +1629,16 @@ class cpa_round_1_pool:
             i (int): attack number index.
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
-        """        
-        global show_key
+        """  
         reference_key = self.key_bit[::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64],reference_key[64:80],reference_key[80:96],reference_key[96:112],reference_key[112:128]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64],reference_key[64:80],reference_key[80:96],reference_key[96:112],reference_key[112:128]]
         bit_list = best_guess
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64],bit_list[64:80],bit_list[80:96],bit_list[96:112],bit_list[112:128]]
 
         ncorrect = 0
         for r in range(8):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -1707,9 +1651,9 @@ class cpa_round_1_pool:
         clear_output(wait=True)  
         df = create_table_total(show_list)
         
-        caption = f'Process {i}.Finished traces {tstart} to {tend}. Correct {ncorrect}/128<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Process {i}.Finished traces {tstart} to {tend}. Correct {ncorrect}/128<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(utils.highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def correct_x1(self,best_guess):
         """ Function that saves the number of correct bits and the success rate for the attack on the x4 register.
@@ -1718,14 +1662,14 @@ class cpa_round_1_pool:
             best_guess (list): list of the 64 guessed key bits.
         """        
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list_x4.append(ncorrect)
@@ -1742,14 +1686,14 @@ class cpa_round_1_pool:
             best_guess (list): list of the 64 guessed key bits.
         """ 
         reference_key = self.key_bit[0:64][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list_x1.append(ncorrect)
@@ -1936,17 +1880,9 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             i (int): attack number index
 
@@ -2179,16 +2115,15 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """  
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -2201,9 +2136,9 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
         clear_output(wait=True)  
         df = utils.create_table_3(show_list)
         
-        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(utils.highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def plot_success(self,resolution, index):
         """Plot success with matplotlib.
