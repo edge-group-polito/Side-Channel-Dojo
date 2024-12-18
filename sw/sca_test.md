@@ -3,7 +3,10 @@
 ```bash
 # Run updates
 sudo apt update && sudo apt upgrade
-# 1. python prereqs
+
+# Run if first time
+# ---------------------------------------------------------------------
+# 1. python prereqs 
 sudo apt-get install build-essential gdb lcov pkg-config \
     libbz2-dev libffi-dev libgdbm-dev libgdbm-compat-dev liblzma-dev \
     libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev \
@@ -11,14 +14,17 @@ sudo apt-get install build-essential gdb lcov pkg-config \
 
 sudo apt install libusb-dev make git avr-libc gcc-avr \
     gcc-arm-none-eabi libusb-1.0-0-dev usbutils
+# --------------------------------------------------------------------
 
 # install pyenv - skip if already done
+# ---------------------------------------------------------------------
 curl https://pyenv.run | bash
 echo 'export PATH="~/.pyenv/bin:$PATH"' >> ~/.bashrc
 echo 'export PATH="~/.pyenv/shims:$PATH"' >> ~/.bashrc
 echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
 source ~/.bashrc
+# ---------------------------------------------------------------------
 ```
 ### Python virtual environment creation
 ```bash
@@ -33,6 +39,10 @@ sudo usermod -aG chipwhisperer $USER
 sudo usermod -aG plugdev $USER
 # python packages installation
 python -m pip install -r requirements.txt
+```
+Once activated the virtual environment install missing chipwhisperer package
+```
+pip install chipwhisperer==5.7.0
 ```
 ## SCA attack overview
 1. **Reference model** 

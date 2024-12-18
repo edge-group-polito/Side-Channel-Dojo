@@ -5,6 +5,7 @@
 ## private folders ##
 private/
 build/
+traceset/
 
 ## Visual Studio Code settings
 .vscode/
