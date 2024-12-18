@@ -98,6 +98,34 @@ class CW305Wrapper:
         """
         self.key = key
         self.CW305.fpga_write(self.CW305.REG_CRYPT_KEY, key[::-1])
+
+    def set_nonce(self, nonce):
+        """
+        key (bytes): The key to use for encryption
+
+        Note: The key is reversed before being written to the target
+        """
+        self.nonce = nonce
+        self.CW305.fpga_write(0x0d, nonce[::-1])
+        
+    def write_fpga(self, add, data):
+        """
+        key (bytes): The key to use for encryption
+
+        Note: The key is reversed before being written to the target
+        """
+        self.data = data
+        self.CW305.fpga_write(add, data[::-1])
+        
+    def read_fpga(self, add, len):
+        """
+        key (bytes): The key to use for encryption
+
+        Note: The key is reversed before being written to the target
+        """
+        data = self.CW305.fpga_read(add, len)
+        
+        return data[::-1]
     
     def capture_trace(self, pt, project_file, wait_time=0.05, dummy=False):
         """
@@ -121,6 +149,56 @@ class CW305Wrapper:
         trace = Trace(np.array(data), pt, response, self.key)
         if not dummy:
             project_file.traces.append(trace)
+        
+        return response
+    
+    def capture_trace_1_round(self, project_file, pt, wait_time=0.05, dummy=False):
+        """
+        project_file (str): The path to the project file to save the traces
+        """
+        # Write nonce to target. Endianess is reversed
+        self.set_nonce(pt)
+        # Run the target        
+        self.scope.runBlock()
+        time.sleep(wait_time)
+        self.CW305.fpga_write(self.CW305.REG_USER_LED, [0x01])
+        self.CW305.usb_trigger_toggle()
+        self.scope.waitReady()
+        # Get captured trace 
+        data = self.scope.getDataV()
+        # Store captured data in project file
+        response = self.CW305.fpga_read(0x0e, 40)
+        response = response[::-1]
+        trace = Trace(np.array(data), self.nonce, 0x0, self.key)
+        if not dummy:
+            project_file.traces.append(trace)
+        
+        return response
+    
+    def TVLA_capture_trace(self, project_file, key, nonce, wait_time=0.05):
+        """
+        project_file (str): The path to the project file to save the traces
+        """
+
+        #Write key to target
+        self.set_key(key)
+        # Write nonce to target. Endianess is reversed
+        self.set_nonce(nonce)
+
+        # Run the target        
+        self.scope.runBlock()
+        time.sleep(wait_time)
+        self.CW305.fpga_write(self.CW305.REG_USER_LED, [0x01])
+        self.CW305.usb_trigger_toggle()
+        self.scope.waitReady()
+
+        # Get captured trace 
+        data = self.scope.getDataV()
+        # Store captured data in project file
+        response = self.CW305.fpga_read(0x0e, 40)
+        response = response[::-1]
+        trace = Trace(np.array(data), self.nonce, 0x0, self.key)
+        project_file.traces.append(trace)
         
         return response
 

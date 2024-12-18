@@ -7,133 +7,8 @@ import matplotlib.colors as mcolors
 import threading
 from multiprocessing.pool import ThreadPool
 from multiprocessing import Pool, cpu_count, Process, current_process
-
-def bytearray_to_bitlist(byte_array):
-    bit_list = []
-    for byte in byte_array:
-        bits = bin(byte)[2:].zfill(8)
-        bit_list.extend([int(bit) for bit in bits])
-    return bit_list
-
-def bit_to_hex(x0, x1, x2, x3, x4):
-    bitlist = []
-    bitlist.append(x0)
-    bitlist.append(x1)
-    bitlist.append(x2)
-    bitlist.append(x3)
-    bitlist.append(x4)
-    return int(''.join(str(bit) for bit in bitlist), 2)
-
-def hex_to_bit(value):
-    binary_string = format(value, f'05b')
-    bitlist = [int(bit) for bit in binary_string]
-    return bitlist
-
-def convert_to_hex(bit_list):
-    hex_string = ""
-    
-    for i in range(0, len(bit_list), 8):
-        byte_bits = bit_list[i:i+8]
-        byte_str = ''.join(str(bit) for bit in byte_bits)
-        byte_int = int(byte_str, 2)
-        hex_string += format(byte_int, '02X')
-    
-    return hex_string
-
-def highlight_bits(x):
-    global show_key
-    color_list = []
-    for row_index in range(len(x)):
-        color_row = [""] * 16
-        if row_index % 2 == 1:
-            for i in range(16):
-                if x.iloc[row_index, i] == show_key[row_index // 2][i]:
-                    color_row[i] = "color: green"
-                else:
-                    color_row[i] = "color: red"
-        color_list.append(color_row)
-    return pd.DataFrame(color_list, index=x.index, columns=x.columns)
-
-def highlight_bits_2(x):
-    global show_key
-    color_list = []
-    color_row = [""] * 4
-    color_list.append(color_row)
-    for row_index in range(1,len(x)):
-        color_row = [""] * 4
-        for i in range(3):
-            if x.iloc[row_index, i] == show_key[i]:
-                color_row[i] = "color: green"
-            else:
-                color_row[i] = "color: red"
-        color_list.append(color_row)
-    return pd.DataFrame(color_list, index=x.index, columns=x.columns)
-
-def create_table(show_list):
-    table_data = []
-        
-    for row in range(8):
-        row_data = list(range(127-16*row, 128-16*row - 17, -1))
-        table_data.append(row_data)
-        table_data.append(show_list[row])
-    
-    df = pd.DataFrame(table_data)
-
-    return df
-
-def create_table_2(best_guess, correlation, bitnum):
-    table_data = []
-    bit_number = ["k[" + str(((bitnum) % 64 ) + 64) + "]", "k[" + str(((19 + bitnum) % 64) + 64) + "]", "k[" + str(((28 + bitnum) % 64 ) + 64) + "]"] 
-    bit_number.append("Correlation")
-    table_data.append(bit_number)
-    
-    for i in range(len(best_guess)):
-        table_line = []
-        for b in range(len(best_guess[i])):
-            table_line.append(best_guess[i][b])
-        table_line.append(correlation[i])
-        table_data.append(table_line)
-
-    return pd.DataFrame(table_data)
-
-def create_table_3(show_list):
-    table_data = []
-        
-    for row in range(4):
-        row_data = list(range(127-16*row, 128-16*row - 17, -1))
-        table_data.append(row_data)
-        table_data.append(show_list[row])
-    
-    df = pd.DataFrame(table_data)
-
-    return df
-
-def create_table_total(show_list):
-    table_data = []
-        
-    for row in range(8):
-        row_data = list(range(127-16*row, 128-16*row - 17, -1))
-        table_data.append(row_data)
-        table_data.append(show_list[row])
-    
-    df = pd.DataFrame(table_data)
-
-    return df
-
-def create_table_4(best_guess, correlation, bitnum):
-    table_data = []
-    bit_number = ["k[" + str(((bitnum) % 64 ) + 64) + "]", "k[" + str(((7 + bitnum) % 64) + 64) + "]", "k[" + str(((41 + bitnum) % 64 ) + 64) + "]"] 
-    bit_number.append("Correlation")
-    table_data.append(bit_number)
-    
-    for i in range(len(best_guess)):
-        table_line = []
-        for b in range(len(best_guess[i])):
-            table_line.append(best_guess[i][b])
-        table_line.append(correlation[i])
-        table_data.append(table_line)
-
-    return pd.DataFrame(table_data)
+import utils as utils
+import ascon_funcs as ascon
 
 class dpa_round_1_output_x0:
     """
@@ -147,53 +22,17 @@ class dpa_round_1_output_x0:
             c_r (list, optional): value of the round constant. Defaults first round constant to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0].
         """
         self.stats = [[IncrementalStatsMath() for _ in range(8)] for _ in range(36)]
-        self.iv_bit = bytearray_to_bitlist(iv)[::-1]
-        self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
-        self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
+        self.iv_bit = utils.bytearray_to_bitlist(iv)[::-1]
+        self.c_r_bit = utils.bytearray_to_bitlist(c_r)[::-1]
+        self.key_bit = utils.bytearray_to_bitlist(key)[::-1]
         self.correct_list = []
     
     def attack_leak_model(self, traces, nonces, sub_layer_type, callback):
         """Function that run the DPA attack on 1 bit.
-
         Args:
-            traces (list): list of traces.
-            nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+            traces (list): list of traces to process
+            nonces (list): list of nonces
             callback (int): specify the number of traces for the callback
-
         Returns:
             list: list of the best guess key bits
         """
@@ -205,7 +44,7 @@ class dpa_round_1_output_x0:
 
             guess_key = [0] * 128
             full_diffs_list = []
-
+            #taken 36 output columns to retrieve the key
             for bitnum in range(36):
                 max_diffs = [0]*8
                 full_diffs = [0]*8
@@ -237,7 +76,8 @@ class dpa_round_1_output_x0:
             sub_layer_type (string): specify the type of S-box.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
         
         k = [int(bit) for bit in bin(kguess)[2:].zfill(3)][::-1]
         
@@ -246,7 +86,7 @@ class dpa_round_1_output_x0:
         
         trace_index = 0
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 19, 28]
@@ -269,25 +109,24 @@ class dpa_round_1_output_x0:
         return abs(one_avg - zero_avg)
     
     def display_results(self,best_guess,tstart,tend):
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[64:128][::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
         self.correct_list.append(ncorrect)
         
         clear_output(wait=True)  
-        df = create_table_3(show_list)
+        df = utils.create_table_3(show_list)
         
-        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
         
     def plot_correct(self,resolution, index):
         fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[18,12])
@@ -324,51 +163,17 @@ class cpa_round_1_output_x0_1_bit:
             c_r (list, optional): value of the round constant. Defaults first round constant to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0].
         """
         self.stats = [IncrementalStatsMath() for _ in range(2**3)]
-        self.iv_bit = bytearray_to_bitlist(iv)[::-1]
-        self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
-        self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
+        self.iv_bit = utils.bytearray_to_bitlist(iv)[::-1]
+        self.c_r_bit = utils.bytearray_to_bitlist(c_r)[::-1]
+        self.key_bit = utils.bytearray_to_bitlist(key)[::-1]
         self.HW = [bin(n).count("1") for n in range(0, 2**3)]
     
     def attack_leak_model(self, traces, nonces, sub_layer_type, callback, bitnum):
         """Function that run the CPA attack on 1 bit.
 
         Args:
-            traces (list): list of traces.
-            nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+            traces (list): list of traces
+            nonces (list): list of nonces
             callback (int): specify the number of traces for the callback
             bitnum (int): column index for the attack
 
@@ -431,7 +236,9 @@ class cpa_round_1_output_x0_1_bit:
             maxcpa (list): list where the correlation values of the guessed subkeys are returned.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
+        
         
         def correlation_derivative(correlation, d=25):
             """
@@ -461,7 +268,7 @@ class cpa_round_1_output_x0_1_bit:
         hws = []
         
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 19, 28]
@@ -496,19 +303,18 @@ class cpa_round_1_output_x0_1_bit:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
-        show_key = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((19 + bitnum) % 64) + 64], self.key_bit[((28 + bitnum) % 64) + 64]]
+        key_list = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((19 + bitnum) % 64) + 64], self.key_bit[((28 + bitnum) % 64) + 64]]
         ncorrect = 0
         for i in range(3):
-            if show_key[i] == sorted_key_guess[0][i]:
+            if key_list[i] == sorted_key_guess[0][i]:
                 ncorrect += 1
         
         clear_output(wait=True)  
-        df = create_table_2(sorted_key_guess,sorted_correlation, bitnum)
+        df = utils.create_table_2(sorted_key_guess,sorted_correlation, bitnum)
         
         caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/3'
         
-        display(df.head(10).style.apply(highlight_bits_2, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
+        display(df.head(10).style.apply(utils.highlight_bits_2, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
         
     def plot_corr(self, resolution, traces, bitnum):
         """Plot correlation with matplotlib.
@@ -557,51 +363,19 @@ class cpa_round_1_output_x4_1_bit:
             c_r (list, optional): value of the round constant. Defaults first round constant to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0].
         """
         self.stats = [IncrementalStatsMath() for _ in range(2**3)]
-        self.iv_bit = bytearray_to_bitlist(iv)[::-1]
-        self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
-        self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
+        self.iv_bit = utils.bytearray_to_bitlist(iv)[::-1]
+        self.c_r_bit = utils.bytearray_to_bitlist(c_r)[::-1]
+        self.key_bit = utils.bytearray_to_bitlist(key)[::-1]
+        
         self.HW = [bin(n).count("1") for n in range(0, 2**3)]
     
     def attack_leak_model(self, traces, nonces, sub_layer_type, callback, bitnum):
         """Function that run the CPA attack on 1 bit.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             bitnum (int): column index for the attack
 
@@ -664,7 +438,8 @@ class cpa_round_1_output_x4_1_bit:
             maxcpa (list): list where the correlation values of the guessed subkeys are returned.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
         
         def correlation_derivative(correlation, d=25):
             """
@@ -686,7 +461,7 @@ class cpa_round_1_output_x4_1_bit:
         hws = []
         
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 7, 41]
@@ -720,19 +495,18 @@ class cpa_round_1_output_x4_1_bit:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
-        show_key = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((7 + bitnum) % 64) + 64], self.key_bit[((41 + bitnum) % 64) + 64]]
+        key_list = [self.key_bit[((bitnum) % 64) + 64], self.key_bit[((7 + bitnum) % 64) + 64], self.key_bit[((41 + bitnum) % 64) + 64]]
         ncorrect = 0
         for i in range(3):
-            if show_key[i] == sorted_key_guess[0][i]:
+            if key_list[i] == sorted_key_guess[0][i]:
                 ncorrect += 1
         
         clear_output(wait=True)  
-        df = create_table_4(sorted_key_guess,sorted_correlation, bitnum)
+        df = utils.create_table_4(sorted_key_guess,sorted_correlation, bitnum)
         
         caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/3'
         
-        display(df.head(10).style.apply(highlight_bits_2, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
+        display(df.head(10).style.apply(utils.highlight_bits_2, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 50%;"'))
         
     def plot_corr(self, resolution, traces, bitnum):
         """Plot correlation with matplotlib.
@@ -781,34 +555,10 @@ class cpa_round_1_output_x0_recover_x1_pool:
             c_r (list, optional): value of the round constant. Defaults first round constant to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0].
         """
         self.stats = [[IncrementalStatsMath() for _ in range(2**3)]for _ in range(64)]
-        self.iv_bit = bytearray_to_bitlist(iv)[::-1]
-        self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
-        self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
+        self.iv_bit = utils.bytearray_to_bitlist(iv)[::-1]
+        self.c_r_bit = utils.bytearray_to_bitlist(c_r)[::-1]
+        self.key_bit = utils.bytearray_to_bitlist(key)[::-1]
+        
         self.HW = [bin(n).count("1") for n in range(0, 2**3)]
         self.success = []
         self.correct_list = []
@@ -859,7 +609,7 @@ class cpa_round_1_output_x0_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 19) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 19) % 64][4]:
-            max_corr = max_key_bit[(i - 19) % 64][4]
+            max_diff_corr = max_key_bit[(i - 19) % 64][4]
             max_bit_1 = max_key_bit[(i - 19) % 64][1]
             
         if max_tot < max_key_bit[(i - 19) % 64][5]:
@@ -871,7 +621,7 @@ class cpa_round_1_output_x0_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 28) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 28) % 64][4]:
-            max_corr = max_key_bit[(i - 28) % 64][4]
+            max_diff_corr = max_key_bit[(i - 28) % 64][4]
             max_bit_1 = max_key_bit[(i - 28) % 64][2]
             
         if max_tot < max_key_bit[(i - 28) % 64][5]:
@@ -891,17 +641,9 @@ class cpa_round_1_output_x0_recover_x1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             index (int): attack number index.
 
@@ -984,7 +726,8 @@ class cpa_round_1_output_x0_recover_x1_pool:
             maxcpa (list): list where the correlation values of the guessed subkeys are returned.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
 
         def correlation_derivative(correlation, d=25):
             """
@@ -1014,7 +757,7 @@ class cpa_round_1_output_x0_recover_x1_pool:
         hws = []
 
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 19, 28]
@@ -1044,16 +787,15 @@ class cpa_round_1_output_x0_recover_x1_pool:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -1064,11 +806,11 @@ class cpa_round_1_output_x0_recover_x1_pool:
             self.success.append(0)
         
         clear_output(wait=True)  
-        df = create_table_3(show_list)
+        df = utils.create_table_3(show_list)
         
-        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def plot_success(self,resolution, index):
         """Plot success with matplotlib.
@@ -1139,34 +881,10 @@ class cpa_round_1_output_x4_recover_x1_pool:
             c_r (list, optional): value of the round constant. Defaults first round constant to [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0].
         """
         self.stats = [[IncrementalStatsMath() for _ in range(2**3)]for _ in range(64)]
-        self.iv_bit = bytearray_to_bitlist(iv)[::-1]
-        self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
-        self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
+        self.iv_bit = utils.bytearray_to_bitlist(iv)[::-1]
+        self.c_r_bit = utils.bytearray_to_bitlist(c_r)[::-1]
+        self.key_bit = utils.bytearray_to_bitlist(key)[::-1]
+        
         self.HW = [bin(n).count("1") for n in range(0, 2**3)]
         self.success = []
         self.correct_list = []
@@ -1217,7 +935,7 @@ class cpa_round_1_output_x4_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 7) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 7) % 64][4]:
-            max_corr = max_key_bit[(i - 7) % 64][4]
+            max_diff_corr = max_key_bit[(i - 7) % 64][4]
             max_bit_1 = max_key_bit[(i - 7) % 64][1]
             
         if max_tot < max_key_bit[(i - 7) % 64][5]:
@@ -1229,7 +947,7 @@ class cpa_round_1_output_x4_recover_x1_pool:
             max_bit_0 = max_key_bit[(i - 41) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 41) % 64][4]:
-            max_corr = max_key_bit[(i - 41) % 64][4]
+            max_diff_corr = max_key_bit[(i - 41) % 64][4]
             max_bit_1 = max_key_bit[(i - 41) % 64][2]
             
         if max_tot < max_key_bit[(i - 41) % 64][5]:
@@ -1249,17 +967,9 @@ class cpa_round_1_output_x4_recover_x1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback.
             index (int): attack number index.
 
@@ -1342,7 +1052,8 @@ class cpa_round_1_output_x4_recover_x1_pool:
             maxcpa (list): list where the correlation values of the guessed subkeys are returned.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
 
         def correlation_derivative(correlation, d=25):
             """
@@ -1364,7 +1075,7 @@ class cpa_round_1_output_x4_recover_x1_pool:
         hws = []
 
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 7, 41]
@@ -1394,16 +1105,15 @@ class cpa_round_1_output_x4_recover_x1_pool:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """ 
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -1414,11 +1124,11 @@ class cpa_round_1_output_x4_recover_x1_pool:
             self.success.append(0)
         
         clear_output(wait=True)  
-        df = create_table_3(show_list)
+        df = utils.create_table_3(show_list)
         
-        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Process {index}. Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def plot_success(self,resolution, index):
         """Plot success with matplotlib.
@@ -1482,6 +1192,7 @@ class cpa_round_1_pool:
     """
     Class that implement a CPA attack on ASCON. 
     It uses the content of the register x4 and x1 for the leakage model.
+    Prima attacca x4 per trovare x1, poi attacca x1 per trovare x2
     """
     def __init__(self, key, iv=[0x80, 0x40, 0x0c, 0x06, 0x00, 0x00, 0x00, 0x00], c_r=[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0]):
         """
@@ -1492,34 +1203,10 @@ class cpa_round_1_pool:
         """
         self.stats_x4 = [[IncrementalStatsMath() for _ in range(2**3)]for _ in range(64)]
         self.stats_x1 = [[IncrementalStatsMath() for _ in range(2**3)]for _ in range(64)]
-        self.iv_bit = bytearray_to_bitlist(iv)[::-1]
-        self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
-        self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
+        self.iv_bit = utils.bytearray_to_bitlist(iv)[::-1]
+        self.c_r_bit = utils.bytearray_to_bitlist(c_r)[::-1]
+        self.key_bit = utils.bytearray_to_bitlist(key)[::-1]
+        
         self.HW = [bin(n).count("1") for n in range(0, 2**3)]
         
         self.success = []
@@ -1575,7 +1262,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 7) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 7) % 64][4]:
-            max_corr = max_key_bit[(i - 7) % 64][4]
+            max_diff_corr = max_key_bit[(i - 7) % 64][4]
             max_bit_1 = max_key_bit[(i - 7) % 64][1]
             
         if max_tot < max_key_bit[(i - 7) % 64][5]:
@@ -1587,7 +1274,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 41) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 41) % 64][4]:
-            max_corr = max_key_bit[(i - 41) % 64][4]
+            max_diff_corr = max_key_bit[(i - 41) % 64][4]
             max_bit_1 = max_key_bit[(i - 41) % 64][2]
             
         if max_tot < max_key_bit[(i - 41) % 64][5]:
@@ -1624,7 +1311,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 61) % 64][1]
             
         if max_diff_corr < max_key_bit[(i - 61) % 64][4]:
-            max_corr = max_key_bit[(i - 61) % 64][4]
+            max_diff_corr = max_key_bit[(i - 61) % 64][4]
             max_bit_1 = max_key_bit[(i - 61) % 64][1]
             
         if max_tot < max_key_bit[(i - 61) % 64][5]:
@@ -1636,7 +1323,7 @@ class cpa_round_1_pool:
             max_bit_0 = max_key_bit[(i - 39) % 64][2]
             
         if max_diff_corr < max_key_bit[(i - 39) % 64][4]:
-            max_corr = max_key_bit[(i - 39) % 64][4]
+            max_diff_corr = max_key_bit[(i - 39) % 64][4]
             max_bit_1 = max_key_bit[(i - 39) % 64][2]
             
         if max_tot < max_key_bit[(i - 39) % 64][5]:
@@ -1656,17 +1343,9 @@ class cpa_round_1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             i (int): attack number index
 
@@ -1829,7 +1508,8 @@ class cpa_round_1_pool:
             maxcpa (list): list where the correlation values of the guessed subkeys are returned.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2^self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
 
         def correlation_derivative(correlation, d=25):
             """
@@ -1852,7 +1532,7 @@ class cpa_round_1_pool:
 
         # Calculating the leakage value for each nonce
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 7, 41]
@@ -1891,7 +1571,8 @@ class cpa_round_1_pool:
             x1 (list): list of the guessed bits of the register x1.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1[(bitnum + rs) % 64], x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1[(bitnum + rs) % 64], x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
 
         def correlation_derivative(correlation, d=25):
             """
@@ -1914,7 +1595,7 @@ class cpa_round_1_pool:
 
         # Calculating the leakage value for each nonce
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 61, 39]
@@ -1948,17 +1629,16 @@ class cpa_round_1_pool:
             i (int): attack number index.
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
-        """        
-        global show_key
+        """  
         reference_key = self.key_bit[::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64],reference_key[64:80],reference_key[80:96],reference_key[96:112],reference_key[112:128]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64],reference_key[64:80],reference_key[80:96],reference_key[96:112],reference_key[112:128]]
         bit_list = best_guess
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64],bit_list[64:80],bit_list[80:96],bit_list[96:112],bit_list[112:128]]
 
         ncorrect = 0
         for r in range(8):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -1971,9 +1651,9 @@ class cpa_round_1_pool:
         clear_output(wait=True)  
         df = create_table_total(show_list)
         
-        caption = f'Process {i}.Finished traces {tstart} to {tend}. Correct {ncorrect}/128<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Process {i}.Finished traces {tstart} to {tend}. Correct {ncorrect}/128<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def correct_x1(self,best_guess):
         """ Function that saves the number of correct bits and the success rate for the attack on the x4 register.
@@ -1982,14 +1662,14 @@ class cpa_round_1_pool:
             best_guess (list): list of the 64 guessed key bits.
         """        
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list_x4.append(ncorrect)
@@ -2006,14 +1686,14 @@ class cpa_round_1_pool:
             best_guess (list): list of the 64 guessed key bits.
         """ 
         reference_key = self.key_bit[0:64][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list_x1.append(ncorrect)
@@ -2110,6 +1790,7 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
     """
     Class that implement a CPA attack on ASCON to retrieve the first
     half of the key. It uses the content of the register x0 and x4 for the leakage model.
+    Si attacca x0 e x4 per recuperare x1, e poi si attacca x1 per recuperare x2. 
     """
     def __init__(self, key, iv=[0x80, 0x40, 0x0c, 0x06, 0x00, 0x00, 0x00, 0x00], c_r=[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0]):
         """
@@ -2120,34 +1801,10 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
         """
         self.stats_x0 = [[IncrementalStatsMath() for _ in range(2**3)]for _ in range(64)]
         self.stats_x4 = [[IncrementalStatsMath() for _ in range(2**3)]for _ in range(64)]
-        self.iv_bit = bytearray_to_bitlist(iv)[::-1]
-        self.c_r_bit = bytearray_to_bitlist(c_r)[::-1]
-        self.key_bit = bytearray_to_bitlist(key)[::-1]
-        self.sbox = {"hw" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17], 
-                "lut_ascon" : [
-        0x04, 0x0b, 0x1f, 0x14, 0x1a, 0x15, 0x09, 0x02, 0x1b, 0x05, 0x08, 0x12, 0x1d, 0x03, 0x06, 0x1c,
-        0x1e, 0x13, 0x07, 0x0e, 0x00, 0x0d, 0x11, 0x18, 0x10, 0x0c, 0x01, 0x19, 0x16, 0x0a, 0x0f, 0x17],
-                "lut_bilgin" : [
-        0x01, 0x00, 0x19, 0x1a, 0x11, 0x1d, 0x15, 0x1b, 0x14, 0x05, 0x04, 0x17, 0x0e, 0x12, 0x02, 0x1c,
-        0x0f, 0x08, 0x06, 0x03, 0x0d, 0x07, 0x18, 0x10, 0x1e, 0x09, 0x1f, 0x0a, 0x16, 0x0c, 0x0b, 0x13],
-                "lut_allouzi" : [
-        0x10, 0x0e, 0x0d, 0x02, 0x0b, 0x11, 0x15, 0x1e, 0x07, 0x18, 0x12, 0x1c, 0x1a, 0x01, 0x0c, 0x06,
-        0x1f, 0x19, 0x00, 0x17, 0x14, 0x16, 0x08, 0x1b, 0x04, 0x03, 0x13, 0x05, 0x09, 0x0a, 0x1d, 0x0f],
-                "lut_lu_4" : [
-        0x18, 0x09, 0x1b, 0x06, 0x03, 0x1f, 0x16, 0x01, 0x14, 0x1e, 0x08, 0x05, 0x0a, 0x15, 0x0f, 0x10,
-        0x04, 0x13, 0x17, 0x0c, 0x1c, 0x00, 0x0d, 0x1a, 0x07, 0x0b, 0x19, 0x12, 0x11, 0x14, 0x02, 0x1d],
-                "lut_lu_5" : [
-        0x17, 0x1c, 0x0f, 0x10, 0x02, 0x01, 0x15, 0x1e, 0x19, 0x13, 0x12, 0x0c, 0x0b, 0x08, 0x0d, 0x06,
-        0x18, 0x0e, 0x00, 0x03, 0x05, 0x1d, 0x0a, 0x1b, 0x04, 0x07, 0x1f, 0x09, 0x1a, 0x16, 0x14, 0x11],
-                "lut_lu_6" : [
-        0x03, 0x0d, 0x1a, 0x16, 0x11, 0x02, 0x0f, 0x15, 0x00, 0x17, 0x0c, 0x09, 0x14, 0x19, 0x1e, 0x0a,
-        0x1b, 0x0e, 0x04, 0x1d, 0x1c, 0x08, 0x01, 0x12, 0x07, 0x18, 0x10, 0x13, 0x1f, 0x06, 0x0b, 0x05],
-                "lut_lu_7" : [
-        0x16, 0x0f, 0x10, 0x09, 0x1b, 0x03, 0x05, 0x06, 0x01, 0x15, 0x1e, 0x12, 0x1c, 0x08, 0x0a, 0x1d,
-        0x0e, 0x00, 0x0d, 0x1a, 0x18, 0x14, 0x11, 0x1f, 0x13, 0x0c, 0x07, 0x19, 0x0b, 0x17, 0x04, 0x02]
-        }
+        self.iv_bit = utils.bytearray_to_bitlist(iv)[::-1]
+        self.c_r_bit = utils.bytearray_to_bitlist(c_r)[::-1]
+        self.key_bit = utils.bytearray_to_bitlist(key)[::-1]
+        
         self.HW = [bin(n).count("1") for n in range(0, 2**3)]
         self.success = []
         self.correct_list = []
@@ -2223,17 +1880,9 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
         """Function that run the CPA attack.
 
         Args:
-            traces (list): list of traces.
+            traces (list): list of traces to process
             nonces (list): list of nonces.
-            sub_layer_type (string): specify the type of S-box. Expected values:
-                                    "hw",
-                                    "lut_ascon",
-                                    "lut_bilgin", 
-                                    "lut_allouzi",
-                                    "lut_lu_4", 
-                                    "lut_lu_5",
-                                    "lut_lu_6",
-                                    "lut_lu_7".
+
             callback (int): specify the number of traces for the callback
             i (int): attack number index
 
@@ -2357,7 +2006,9 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
             maxcpa (list): list where the correlation values of the guessed subkeys are returned.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
+
 
         def correlation_derivative(correlation, d=25):
             """
@@ -2379,7 +2030,7 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
         hws = []
 
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 19, 28]
@@ -2412,7 +2063,8 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
             maxcpa (list): list where the correlation values of the guessed subkeys are returned.
         """
         def sub_layer(x1, x2, x3, x4, bitnum, rs, sub_layer_type):
-            return hex_to_bit(self.sbox[sub_layer_type][bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])])
+            sbox_input = utils.bit_to_hex(self.iv_bit[(bitnum + rs) % 64], x1, x2 ^ self.c_r_bit[(bitnum + rs) % 64], x3[(bitnum + rs) % 64], x4[(bitnum + rs) % 64])
+            return utils.hex_to_bit(ascon.sbox(sub_layer_type, sbox_input))
 
         def correlation_derivative(correlation, d=25):
             """
@@ -2434,7 +2086,7 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
         hws = []
 
         for text in nonces:
-            v = bytearray_to_bitlist(text)[::-1]
+            v = utils.bytearray_to_bitlist(text)[::-1]
             x3 = v[64:128]
             x4 = v[0:64]
             rs = [0, 7, 41]
@@ -2463,16 +2115,15 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
             tstart (int): trace number from which the callback started.
             tend (int): trace number from which the callback ended.
         """  
-        global show_key
         reference_key = self.key_bit[64:128][::-1]
-        show_key = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
+        key_list = [reference_key[0:16],reference_key[16:32],reference_key[32:48],reference_key[48:64]]
         bit_list = best_guess[::-1]
         show_list = [bit_list[0:16],bit_list[16:32],bit_list[32:48],bit_list[48:64]]
 
         ncorrect = 0
         for r in range(4):
             for c in range(16):
-                if show_list[r][c] == show_key[r][c]:
+                if show_list[r][c] == key_list[r][c]:
                     ncorrect += 1
                     
         self.correct_list.append(ncorrect)
@@ -2483,11 +2134,11 @@ class cpa_round_1_output_x0_x4_recover_x1_pool:
             self.success.append(0)
         
         clear_output(wait=True)  
-        df = create_table_3(show_list)
+        df = utils.create_table_3(show_list)
         
-        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {convert_to_hex(reference_key)}<br> Guessed key: {convert_to_hex(bit_list)}'
+        caption = f'Finished traces {tstart} to {tend}. Correct {ncorrect}/64<br>Correct key: {utils.convert_to_hex(reference_key)}<br> Guessed key: {utils.convert_to_hex(bit_list)}'
         
-        display(df.style.apply(highlight_bits, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
+        display(df.style.apply(utils.highlight_bits, key=key_list, axis=None).set_caption(caption).set_table_attributes('style="width: 100%;"'))
 
     def plot_success(self,resolution, index):
         """Plot success with matplotlib.
