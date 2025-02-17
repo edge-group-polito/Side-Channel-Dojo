@@ -32,7 +32,7 @@ pyenv install 3.9.5
 pyenv virtualenv 3.9.5 cw
 pyenv activate cw
 # rules for the connection to board
-sudo cp hardware/50-newae.rules /etc/udev/rules.d/50-newae.rules
+sudo cp hw/50-newae.rules /etc/udev/rules.d/50-newae.rules
 sudo udevadm control --reload-rules
 sudo groupadd -f chipwhisperer
 sudo usermod -aG chipwhisperer $USER

@@ -15,8 +15,6 @@ bokeh==2.4.3
 certifi==2023.7.22
 cffi==1.16.0
 charset-normalizer==3.3.0
--e git+https://github.com/pyenv/pyenv.git@f7f096503aec966bd7a0573b77085bc73391277f#egg=chipwhisperer
-chipwhisperer=5.7.0
 click==8.1.7
 cloudpickle==2.2.1
 colorcet==3.0.1
