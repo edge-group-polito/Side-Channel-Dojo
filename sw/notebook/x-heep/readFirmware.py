@@ -1,69 +1,64 @@
 # This file contains all the functions and classes needed to extract
 # 32 bit instructions from the firmware file main.hex for the X-HEP MCU.
 
+# This function sends 1 byte at the time to the FPGA for each instruction/address
+# The CW305 board has a set of addressable register identified by a proper address.
+# The byte count defines the size (in bytes) of each register. So, to write data on
+# a register 1 byte at the time, it is needed to specify both the reg address and the
+# reg byte count in order to write the byte in the proper location.
+# For X-HEEP, addresses and instructions are defined on 32 bit (4 bytes), so the address
+# have to be shifted by 2 position to the left. The remaining 2 LSB are used to address
+# the 4 bytes of the register.
+def writeByteToFPGA(address, bytecnt, data):
+    usb_addr = (int(address, base=16) << 2) + bytecnt
+    usb_data = int(data, base=16)
+    # self.CW305.fpga_write(self.CW305.usb_addr, usb_data)
+    #print("Usb_addr: {} \t usb_data: \n".format(usb_addr, usb_data))
+    print("usb_addr: {} \t usb_data: {} \t bytecnt: {}".format(hex(usb_addr), hex(usb_data), bytecnt))
+
+
+
 import ReqClass
 
-# Check that the firwmare file exists and then open it
-firmware = 'main.hex'
-request = ReqClass.Req()
+def readFirmware(firmwareFile):
+    request = ReqClass.Req()
 
-INSTR_VALID_MASK = 0x02
-ADDR_VALID_MASK = 0x04
+    INSTR_VALID_MASK = 0x02
+    ADDR_VALID_MASK = 0x04
 
-try:
-    with open(firmware, 'r') as fw:
+    #TODO: change with the CW305 register addresses defines
+    REG_BRIDGE_STATUS = '2'
+    REG_PROG_INSTR = '3'
+    REG_PROG_ADDRESS = '4'
 
-        for line in fw:
-            # Remove the newline character from the line
-            line = line.rstrip('\n')
+    # Check that the firwmare file exists and then open it
+    try:
+        with open(firmwareFile, 'r') as fw:
 
-            # Check if the line is an address line or an instruction line
-            if line.startswith('@'):
+            for line in fw:
+                # Remove the newline character from the line
+                line = line.rstrip('\n')
 
-                # Remove the '@' character from the line
-                address = str(line[1:])
+                # Check if the line is an address line or an instruction line
+                if line.startswith('@'):
 
-                # X-HEEP MCU accepts addresses from 0x180 when the bootmode is set to "Jump to Debug ROM"
-                # but the firmware contains also instructions for addresses below 0x180 which are not needed
-                # and have to be ignored.
-                if int(address, base=16) >= 0x180:
-                    request.setAddress(address)
+                    # Remove the '@' character from the line
+                    address = str(line[1:])
 
-                    print("Address: ", request.getAddress())
+                    # X-HEEP MCU accepts addresses from 0x180 when the bootmode is set to "Jump to Debug ROM"
+                    # but the firmware contains also instructions for addresses below 0x180 which are not needed
+                    # and have to be ignored.
+                    if int(address, base=16) >= 0x180:
+                        request.setAddress(address)
 
-                    # Check if the bridge is available, otherwise wait
-                    # The mask 0x02 is used to check the instruction valid flag in the status register
-                    # while self.read_fpga(self.CW305.REG_BRIDGE_STATUS, 1) & INSTR_VALID_MASK:
-                    #     pass
+                        # DEBUG
+                        print("Address: ", request.getAddress())
 
-                    # Call FPGA write function for the new address
-                    # Reverse the address for correct endianess and set it as valid (maybe not needed)(maybe convert to int)
-                    # self.CW305.fpga_write(self.CW305.REG_PROG_ADDRESS, request.getAddress()[::-1])
-
-                    # Set the status register
-                    # write_data = self.read_fpga(self.CW305.REG_BRIDGE_STATUS, 1)
-                    # write_data |= ADDR_VALID_MASK
-                    # self.CW305.fpga_write(self.CW305.REG_BRIDGE_STATUS, write_data)
-            else:
-                # Remove spaces from the line.
-                line = line.replace(' ', '')
-
-                # Same check as above for the address
-                if int(request.getAddress(), base=16) >= 0x180:
-                    # Group the hex characters into chunks of 8 (without spaces), so the resulting instructions are 32 bits long
-                    instructions = [line[i:i+8] for i in range(0, len(line), 8)]
-
-                    # Fill the last group with zeros if it's less than 8 characters. This is needed since
-                    # the firmware file might not contain a multiple of 32 bits when the remaining bits on
-                    # the line are meant to zeros.
-                    if len(instructions[-1]) < 8:
-                        instructions[-1] = instructions[-1].ljust(8, '0')  # Pad with zeros on the right
-
-                    # Iterate over the instructions extracted and send them to the FPGA
-                    for i in instructions:
-                        request.setInstruction(i)
-
-                        print("Instruction: ", request.getInstruction())
+                        # The address have to be reversed for correct endianess
+                        addr_to_write = request.getAddress()
+                        addr_to_write = addr_to_write[6:8] + addr_to_write[4:6] + addr_to_write[2:4] + addr_to_write[0:2]
+                        for j in range (0, len(addr_to_write), 2):
+                            writeByteToFPGA(REG_PROG_ADDRESS, (j//2), addr_to_write[j:j+2])
 
                         # Check if the bridge is available, otherwise wait
                         # The mask 0x02 is used to check the instruction valid flag in the status register
@@ -72,15 +67,58 @@ try:
 
                         # Call FPGA write function for the new address
                         # Reverse the address for correct endianess and set it as valid (maybe not needed)(maybe convert to int)
-                        # self.CW305.fpga_write(self.CW305.REG_PROG_INSTR, request.getInstruction()[::-1])
+                        # self.CW305.fpga_write(self.CW305.REG_PROG_ADDRESS, request.getAddress()[::-1])
 
                         # Set the status register
                         # write_data = self.read_fpga(self.CW305.REG_BRIDGE_STATUS, 1)
-                        # write_data |= INSTR_VALID_MASK
+                        # write_data |= ADDR_VALID_MASK
                         # self.CW305.fpga_write(self.CW305.REG_BRIDGE_STATUS, write_data)
+                else:
+                    # Remove spaces from the line.
+                    line = line.replace(' ', '')
+
+                    # Same check as above for the address
+                    if int(request.getAddress(), base=16) >= 0x180:
+                        # Group the hex characters into chunks of 8 (without spaces), so the resulting instructions are 32 bits long
+                        instructions = [line[i:i+8] for i in range(0, len(line), 8)]
+
+                        # Fill the last group with zeros if it's less than 8 characters. This is needed since
+                        # the firmware file might not contain a multiple of 32 bits when the remaining bits on
+                        # the line are meant to zeros.
+                        if len(instructions[-1]) < 8:
+                            instructions[-1] = instructions[-1].ljust(8, '0')  # Pad with zeros on the right
+
+                        # Iterate over the instructions extracted and send them to the FPGA
+                        for i in instructions:
+                            request.setInstruction(i)
+
+                            # DEBUG
+                            print("Instruction: ", request.getInstruction())
+
+                            instr_to_write = request.getInstruction()
+                            for j in range (0, len(instr_to_write), 2):
+                                writeByteToFPGA(REG_PROG_INSTR, (j//2), instr_to_write[j:j+2])
+
+                            # Check if the bridge is available, otherwise wait
+                            # The mask 0x02 is used to check the instruction valid flag in the status register
+                            # while self.read_fpga(self.CW305.REG_BRIDGE_STATUS, 1) & INSTR_VALID_MASK:
+                            #     pass
+
+                            # Call FPGA write function for the new address
+                            # Reverse the address for correct endianess and set it as valid (maybe not needed)(maybe convert to int)
+                            # self.CW305.fpga_write(self.CW305.REG_PROG_INSTR, request.getInstruction()[::-1])
+
+                            # Set the status register
+                            # write_data = self.read_fpga(self.CW305.REG_BRIDGE_STATUS, 1)
+                            # write_data |= INSTR_VALID_MASK
+                            # self.CW305.fpga_write(self.CW305.REG_BRIDGE_STATUS, write_data)
 
 
 
-except FileNotFoundError:
-    print("Error: Firmware file '{}' not found.\n".format(firmware))
-    exit(1)
+    except FileNotFoundError:
+        print("Error: Firmware file '{}' not found.\n".format(firmwareFile))
+        exit(1)
+
+
+# firmware = 'main.hex'
+# readFirmware(firmware)
