@@ -63,7 +63,7 @@ def readFirmware(CW305_obj, firmwareFile):
                         while instr_valid or addr_valid:
                             print("Waiting for bridge to be available. Address request pending...")
                             # DEBUG
-                            print("Bridge status: ", bridge_status, "Instruction valid: ", instr_valid, "Address valid: ", addr_valid)
+                            # print("Bridge status: ", bridge_status, "Instruction valid: ", instr_valid, "Address valid: ", addr_valid)
                             pass
 
                         # Call FPGA write function for the new address
@@ -81,7 +81,7 @@ def readFirmware(CW305_obj, firmwareFile):
                         CW305_obj.fpga_write(CW305_obj.REG_PROG_ADDRESS, addr_to_write)
 
                         # DEBUG
-                        #print("Address Register: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_ADDRESS, 4)[::-1]))
+                        # print("Address Register: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_ADDRESS, 4)[::-1]))
 
                         # Set the status register
                         CW305_obj.fpga_write(CW305_obj.REG_BRIDGE_STATUS, data=bytearray([ADDR_VALID_MASK]))
@@ -116,7 +116,7 @@ def readFirmware(CW305_obj, firmwareFile):
                             while instr_valid or addr_valid:
                                 print("Waiting for bridge to be available. Instruction request pending...")
                                 # DEBUG
-                                print("Bridge status: ", bridge_status, "Instruction valid: ", instr_valid, "Address valid: ", addr_valid)
+                                # print("Bridge status: ", bridge_status, "Instruction valid: ", instr_valid, "Address valid: ", addr_valid)
                                 pass
 
                             instr_to_write = request.getInstruction()
@@ -124,15 +124,11 @@ def readFirmware(CW305_obj, firmwareFile):
                             # Convert the instruction to a bytearray
                             instr_to_write = bytearray(bytes.fromhex(instr_to_write))
 
-                            # Fill the instruction with zeros if it's less than 4 bytes
-                            #instr_to_write = bytearray([0x00] * (4 - len(instr_to_write))) + instr_to_write
-
                             # write the instruction to the FPGA
                             CW305_obj.fpga_write(CW305_obj.REG_PROG_INSTR, instr_to_write)
 
                             # DEBUG
-                            #print("Instruction Register: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_INSTR, 4)[::-1]))
-
+                            # print("Instruction Register: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_INSTR, 4)[::-1]))
 
                             # Set the status register
                             CW305_obj.fpga_write(CW305_obj.REG_BRIDGE_STATUS, data=bytearray([INSTR_VALID_MASK]))
@@ -140,7 +136,10 @@ def readFirmware(CW305_obj, firmwareFile):
         # When end of file is reached, write '1' to the xheep boot_exit_loop memory location to signal the end of the programming process
         print("\n...Firmware loaded. Setting boot exit loop flag...\n")
 
-        while CW305_obj.fpga_read(CW305_obj.REG_BRIDGE_STATUS, 1)[0] & INSTR_VALID_MASK:
+        bridge_status = CW305_obj.fpga_read(CW305_obj.REG_BRIDGE_STATUS, 1)[0]
+        instr_valid = (bridge_status & INSTR_VALID_MASK) >> 1
+        addr_valid = (bridge_status & ADDR_VALID_MASK) >> 2
+        while instr_valid or addr_valid:
             print("Waiting for bridge to be available...")
             pass
 
@@ -149,19 +148,19 @@ def readFirmware(CW305_obj, firmwareFile):
         # Convert the address to a bytearray
         addr_to_write = bytearray(bytes.fromhex(addr_to_write))
 
-        # Fill the address with zeros if it's less than 4 bytes
-        addr_to_write = bytearray([0x00] * (4 - len(addr_to_write))) + addr_to_write
-
         # Write the address to the FPGA
         CW305_obj.fpga_write(CW305_obj.REG_PROG_ADDRESS, addr_to_write)
 
         # DEBUG
-        #print("Set exit loop address: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_ADDRESS, 4)[::-1]))
+        # print("Set exit loop address: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_ADDRESS, 4)[::-1]))
               
         # Set the status register
         CW305_obj.fpga_write(CW305_obj.REG_BRIDGE_STATUS, data=bytearray([ADDR_VALID_MASK]))
 
-        while CW305_obj.fpga_read(CW305_obj.REG_BRIDGE_STATUS, 1)[0] & INSTR_VALID_MASK:
+        bridge_status = CW305_obj.fpga_read(CW305_obj.REG_BRIDGE_STATUS, 1)[0]
+        instr_valid = (bridge_status & INSTR_VALID_MASK) >> 1
+        addr_valid = (bridge_status & ADDR_VALID_MASK) >> 2
+        while instr_valid or addr_valid:
             print("Waiting for bridge to be available...")
             pass
 
@@ -176,7 +175,7 @@ def readFirmware(CW305_obj, firmwareFile):
         CW305_obj.fpga_write(CW305_obj.REG_PROG_INSTR, instr_to_write)
 
         # DEBUG
-        #print("Exit loop instruction: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_INSTR, 4)[::-1]))
+        # print("Exit loop instruction: {}".format(CW305_obj.fpga_read(CW305_obj.REG_PROG_INSTR, 4)[::-1]))
 
         # Set the status register
         CW305_obj.fpga_write(CW305_obj.REG_BRIDGE_STATUS, data=bytearray([INSTR_VALID_MASK]))
