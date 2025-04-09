@@ -1,0 +1,259 @@
+CAPI=2:
+
+# Copyright 2024 Politecnico di Torino.
+# Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
+# SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+#
+# File: CW305.core
+# Author: Lorenzo Capobianco
+# Date: 25/01/2025
+# Description: Top-level file for HEEP simulation on the CW305 board 
+
+
+name: polito:cw305_heep:cw305_heep:0.0.1
+description: Top-level file for CW305 HEEP
+
+filesets:
+  # The fileset containing the top-level HDL files
+  rtl:
+    files:
+    # Top-level file
+    - hw/fpga/clocks.v
+    - hw/fpga/cw305_usb_reg_fe.v
+    - hw/fpga/cw305_aes_defines.v: {is_include_file: true}
+    - hw/fpga/cw305_reg_aes.v
+    - hw/fpga/cw305_top.v
+    file_type: verilogSource
+
+  rtl-bridge:
+    files:
+    # Bridge files
+    - hw/vendor/cw305_bridge/instr_reg.sv
+    - hw/vendor/cw305_bridge/counter_plus4.sv
+    - hw/vendor/cw305_bridge/bridge2xheep_cu.sv
+    - hw/vendor/cw305_bridge/bridge2xheep.sv
+    file_type: systemVerilogSource
+
+  rtl-CDC:
+    files:
+    - hw/vendor/Cross_Domain_Clock/dfs.v
+    - hw/vendor/Cross_Domain_Clock/handshake_CU.v
+    file_type: verilogSource
+
+  # GR-HEEP RTL
+  rtl-gr-heep:
+    depend:
+    - polito:gr_heep:packages
+    - polito:gr_heep:peripherals
+    - polito:gr_heep:ext_bus
+    files:
+    - hw/top/gr_heep_top.sv
+    - hw/pad-ring/pad_ring.sv
+    file_type: systemVerilogSource
+
+  # X-HEEP RTL (separated to avoid Verible errors)
+  rtl-x-heep:
+    depend:
+    - openhwgroup.org:systems:core-v-mini-mcu
+    - x-heep::packages
+    - x-heep:ip:pad_control
+
+  xdc-fpga-cw305:
+    depend:
+    - openhwgroup.org:systems:core-v-mini-mcu-fpga
+    - openhwgroup.org:systems:core-v-mini-mcu
+    - pulp-platform.org:ip:gpio
+    files:
+    - hw/fpga/constraints/cw305/cw305.xdc
+    file_type: xdc
+
+  ip-fpga-cw305:
+    files:
+    - hw/fpga/constraints/cw305/xilinx_generate_clk_wizard.tcl:  { file_type: tclSource }
+
+  # RTL testbench system
+  tb-system-cw305:
+    files:
+    - tb/tb_system_cw305.sv
+    file_type: systemVerilogSource
+
+  # Verilator C++ testbench
+  tb-verilator:
+    files:
+    - tb/verilator/Bridge2Xheep.h: { is_include_file: true }
+    - tb/verilator/Bridge2Xheep.cpp
+    - tb/verilator/tb_macros.cpp
+    - tb/verilator/cw305_tb.cpp
+    - tb/verilator/tb_macros.hh: {is_include_file: true}
+    file_type: cppSource
+
+  # Verilator waviver files
+  verilator-waivers:
+    files:
+    - tb/misc/tb-cw305-waivers.vlt
+    - hw/misc/gr-heep-waivers.vlt
+    - hw/misc/heep-waivers.vlt
+    file_type: vlt
+
+  # RTL testbench system vendored modules
+  tb-system-vendor:
+    depend:
+    - lowrisc:dv_dpi:uartdpi
+    - example:ip:gpio_cnt
+
+scripts:
+  # Copy waveforms in common directory
+  prepare_dirs:
+    cmd: ["mkdir", "-p", "../../sim-common"]
+
+  copy_waves:
+    cmd: ["ln", "-srf", "logs/waves.fst", "../../sim-common/waves.fst"]
+
+
+targets:
+  default: &default
+    filesets:
+    - rtl-x-heep
+    - rtl-gr-heep
+    - rtl-bridge
+    - rtl-CDC
+    - rtl
+    toplevel: cw305_top
+
+  # Verilator C++ testbench for RTL simulation
+  sim: &sim
+    <<: *default
+    description: Simulate the design using Verilator
+    default_tool: verilator
+    filesets_append:
+    - tb-system-cw305
+    - tb-system-vendor
+    - tool_verilator ? (tb-verilator)
+    - tool_verilator ? (verilator-waivers)
+    toplevel: 
+    - tool_verilator ? (tb_system_cw305)
+    hooks:
+      pre_run:
+      - tool_verilator ? (prepare_dirs)
+      post_run:
+      - tool_verilator ? (copy_waves)
+    parameters_append:
+    - boot_mode
+    - firmware
+    - log_level
+    - max_cycles
+    - trace
+    - RTL_SIMULATION=true
+    - VERILATOR_VERSION
+    tools:
+      verilator:
+        mode: cc
+        verilator_options:
+        - '--cc'
+        - '--assert'
+        - '--trace'
+        - '--trace-fst'
+        - '--trace-structs'
+        - '--trace-max-array 128'
+        - '--x-assign unique'
+        - '--x-initial unique'
+        #- '--threads 2' # only use with Verilator v5.XXX
+        - '--exe'
+        - 'cw305_tb.cpp'
+        - '-Wall'
+        - '-Wpedantic'
+        - '-LDFLAGS "-pthread -lutil -lelf"'
+        # - '-CFLAGS "-Wall -g"'
+
+  cw305:
+    << : *default
+    default_tool: vivado
+    description: Synthesis for the CW305 Board
+    filesets_append:
+    # TODO: check if other filesets are needed
+    - xdc-fpga-cw305
+    # - ip-fpga-cw305
+    parameters:
+    - SYNTHESIS=true
+    - FPGA_SYNTHESIS=true
+    - FPGA=true
+    tools:
+      vivado:
+        #TODO: Add the correct board part
+        part: xc7a100tftg256-2
+        # board_part: 
+        #board_part: tul.com.tw:pynq-z2:part0:1.0
+        #board_repo_paths: [../../../hw/fpga/board_files/vendor/esl_epfl_pynq_z2_board_files]
+    toplevel: [cw305_top]
+
+# Parameters
+# Inherited from the GR-HEEP core?
+parameters:
+  trace:
+    datatype: str
+    description: If 'true', generate simulation waves dump.
+    default: "true"
+    paramtype: cmdlinearg
+  no_err:
+    datatype: bool
+    description: Always exit with 0. Useful to run post-simulation hooks.
+    default: "true"
+    paramtype: cmdlinearg
+  firmware:
+    datatype: str
+    description: Firmware (in HEX format) to load into the system SRAM.
+    paramtype: plusarg
+  verbose:
+    datatype: bool
+    description: Verbosity mode for QuestaSim testbench.
+    paramtype: plusarg
+  log_level:
+    datatype: str
+    description: |
+      TB log level
+    default: LOG_NORMAL
+    paramtype: plusarg
+  boot_mode:
+    datatype: str
+    description: |
+      Boot mode for QuestaSim testbench. Admitted values: jtag|flash|force.
+    default: 2
+    paramtype: plusarg
+  vcd_mode:
+    datatype: int
+    description: "VCD dump mode: 0 (no dump) | 1 (always active) | 2 (triggered by GPIO 0)"
+    default: 0
+    paramtype: plusarg
+  max_cycles:
+    datatype: int
+    description: Maximum number of simulation cycles (halt the simulation when reached).
+    paramtype: plusarg
+  RTL_SIMULATION:
+    datatype: bool
+    paramtype: vlogdefine
+    description: |
+      Select code for RTL simulation (e.g., faster SRAM initialization)
+  UNIT_DELAY:
+    datatype: int
+    paramtype: vlogdefine
+    default: 0
+  no_warning:
+    datatype: bool
+    paramtype: vlogdefine
+    default: true
+  VERILATOR_VERSION:
+    datatype: int
+    paramtype: vlogdefine
+    default: 4
+  FPGA:
+    datatype: bool
+    paramtype: vlogdefine
+    default: false
+  FPGA_SYNTHESIS:
+    datatype: bool
+    paramtype: vlogdefine
+    default: false
+  SYNTHESIS:
+    datatype: bool
+    paramtype: vlogdefine
+    default: false

@@ -10,6 +10,18 @@
 # General configuration
 MAKE           	?= make
 BUILD_DIR	   	?= $(realpath .)/build
+ROOT_DIR		:= $(realpath .)
+
+# FUSESOC and Python values (default)
+ifndef CONDA_DEFAULT_ENV
+$(info USING VENV)
+FUSESOC = ./.venv/bin/fusesoc
+PYTHON  = ./.venv/bin/python
+else
+$(info USING MINICONDA $(CONDA_DEFAULT_ENV))
+FUSESOC := $(shell which fusesoc)
+PYTHON  := $(shell which python)
+endif
 
 # --------- AES
 ## AES RTL configuration
@@ -34,6 +46,11 @@ ASCON_SBOX_MODE := $(strip $(ASCON_SBOX_MODE))
 ASCON_SBOX := $(strip $(ASCON_SBOX))
 # ASCON bitstream path
 ASCON_bitstream_path 	?= hw/crypto_asic/ascon/build/vlsi_polito_ascon_0.1.0/cw305-ascon-vivado/vlsi_polito_ascon_0.1.0.bit
+
+
+# --------- CW305 X-HEEP
+MODULE_NAME	?= cw305-heep
+
 
 # --------- RTL
 # RTL simulation configs
@@ -126,6 +143,29 @@ verilator-waves: $(BUILD_DIR)/sim-verilator/logs/waves.fst | .check-gtkwave
 
 # Utilities
 # ---------
+
+## Update vendor submodules
+## @note These targets are used to update the vendored submodules.
+## @param MODULE_NAME=module_name The name of the submodule to update when using vendor-update.
+.PHONY: vendor-update
+vendor-update:
+	@echo "Updating vendored module '$(MODULE_NAME)'..."
+	$(PYTHON) util/vendor.py --update --verbose hw/vendor/$(MODULE_NAME).vendor.hjson
+	@echo "Vendored module '$(MODULE_NAME)' updated."
+
+.PHONY: vendor-update-sw
+vendor-update-sw:
+	@echo "Creating symbolic links to the updated module "sw" folder..."
+	@rm -rf $(ROOT_DIR)/hw/vendor/$(MODULE_NAME)/sw/build
+	@rm -rf $(ROOT_DIR)/hw/vendor/$(MODULE_NAME)/sw/device 
+	@rm -rf $(ROOT_DIR)/hw/vendor/$(MODULE_NAME)/sw/linker
+	@cd $(ROOT_DIR)/hw/vendor/$(MODULE_NAME)/sw; \
+	ln -s ../hw/vendor/x-heep/sw/build build; \
+	ln -s ../hw/vendor/x-heep/sw/device device; \
+	ln -s ../hw/vendor/x-heep/sw/linker linker; \
+	cd ../../../../
+	@echo "Symbolic links created."
+
 # Check if fusesoc is available
 .PHONY: .check-fusesoc
 .check-fusesoc:
@@ -161,3 +201,8 @@ clean:
 .print:
 	@echo "SIM_HDL_FILES: $(SIM_HDL_FILES)"
 	@echo "SIM_CPP_FILES: $(SIM_CPP_FILES)"
+
+
+export CW305_XHEEP_DIR 	= $(ROOT_DIR)/hw/vendor/$(MODULE_NAME)
+CW305_XHEEP_MAKE 		= $(CW305_XHEEP_DIR)/external.mk
+include $(CW305_XHEEP_MAKE)

@@ -1,0 +1,216 @@
+[*]
+[*] GTKWave Analyzer v3.3.121 (w)1999-2024 BSI
+[*] Wed Mar  5 16:26:23 2025
+[*]
+[dumpfile] "/home/lorenzocapobianco/Progetti/Tesi_Magistrale/CW305-HEEP/build/polito_cw305_heep_cw305_heep_0.0.1/sim-verilator/logs/waves.fst"
+[dumpfile_mtime] "Wed Mar  5 16:25:27 2025"
+[dumpfile_size] 11018220
+[savefile] "/home/lorenzocapobianco/Progetti/Tesi_Magistrale/CW305-HEEP/tb/misc/verilator-waves_cw305.gtkw"
+[timestart] 0
+[size] 1920 1001
+[pos] -1 -1
+*-18.801027 1145074 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.tb_system_cw305.
+[treeopen] TOP.tb_system_cw305.U_cw305_top.
+[treeopen] TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.
+[treeopen] TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.ao_peripheral_subsystem_i.soc_ctrl_i.hw2reg.
+[treeopen] TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.ao_peripheral_subsystem_i.soc_ctrl_i.reg2hw.
+[treeopen] TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.cpu_subsystem_i.
+[treeopen] TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.
+[treeopen] TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.peripheral_subsystem_i.
+[sst_width] 273
+[signals_width] 407
+[sst_expanded] 1
+[sst_vpaned_height] 296
+@800200
+-Testbench_CW305_TOP
+@28
+TOP.clk_i
+TOP.tb_system_cw305.pll_clk1
+TOP.rst_ni
+@22
+TOP.usb_addr[20:0]
+TOP.tb_system_cw305.U_cw305_top.usb_data[7:0]
+@28
+TOP.usb_wrn
+TOP.usb_rdn
+TOP.usb_cen
+TOP.tb_system_cw305.exit_valid_o
+@1000200
+-Testbench_CW305_TOP
+@800200
+-cw305_reg_aes
+@28
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.usb_clk
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.reset_i
+@22
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.reg_address[18:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.reg_bytecnt[1:0]
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.reg_addrvalid
+@22
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.write_data[7:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.I_reset_instr_valid
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.I_reset_new_addr_valid
+@22
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.O_clksettings[4:0]
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.O_status[7:0]
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.O_address[31:0]
+TOP.tb_system_cw305.U_cw305_top.U_reg_aes.O_instruction[31:0]
+@1000200
+-cw305_reg_aes
+@800200
+-bridge2xheep
+@28
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.clk
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.rst_n
+@100000028
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.bridge_cu.currentState[7:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.rst_instr_valid
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.rst_new_address_valid
+@22
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.new_section_address[31:0]
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.instruction[31:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.addr_valid
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.instr_valid
+@22
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.addr[31:0]
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.wdata[31:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.req
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.we
+@22
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.be[3:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.gnt
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.rvalid
+@22
+TOP.tb_system_cw305.U_cw305_top.u_bridge2xheep.rdata[31:0]
+@1000200
+-bridge2xheep
+@800200
+-cw305_usb_reg_fe
+@28
+TOP.tb_system_cw305.U_cw305_top.U_usb_reg_fe.reg_write
+TOP.tb_system_cw305.U_cw305_top.U_usb_reg_fe.reg_read
+@22
+TOP.tb_system_cw305.U_cw305_top.U_usb_reg_fe.reg_address[18:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.U_usb_reg_fe.reg_bytecnt[1:0]
+@22
+TOP.tb_system_cw305.U_cw305_top.U_usb_reg_fe.reg_datao[7:0]
+@1000200
+-cw305_usb_reg_fe
+@800200
+-soc_ctrl_i_EXIT_LOOP
+@28
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.ao_peripheral_subsystem_i.soc_ctrl_i.reg2hw.boot_exit_loop.q
+@1000200
+-soc_ctrl_i_EXIT_LOOP
+@800200
+-HEEP_program_counter
+@23
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.cpu_subsystem_i.gen_cv32e20.cv32e20_i.u_cve2_core.pc_if[31:0]
+@22
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.cpu_subsystem_i.gen_cv32e20.cv32e20_i.u_cve2_core.pc_id[31:0]
+@1000200
+-HEEP_program_counter
+@800200
+-HEEP_RAM0
+@28
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.clk_i
+@22
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.addr_i[12:0]
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.wdata_i[31:0]
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.rdata_o[31:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.req_i
+@22
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.be_i[3:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.u_gr_heep_top.u_core_v_mini_mcu.memory_subsystem_i.ram0_i.we_i
+@1000200
+-HEEP_RAM0
+@800200
+-Debug
+@28
+TOP.tb_system_cw305.debug_heep_uart_tx
+TOP.tb_system_cw305.debug_heep_uart_rx
+TOP.tb_system_cw305.U_cw305_top.led1
+TOP.tb_system_cw305.U_cw305_top.led2
+TOP.tb_system_cw305.U_cw305_top.led3
+@1000200
+-Debug
+@800200
+-synchr_usb_to_heep_instr_valid
+@28
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.clk_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.din_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.din_src_flop
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.clk_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.dmeta
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.dout_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.rst_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_instr_valid.rst_src
+@1000200
+-synchr_usb_to_heep_instr_valid
+@800200
+-synchr_usb_to_heep_addr_valid
+@28
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.clk_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.din_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.din_src_flop
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.clk_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.dmeta
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.dout_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.rst_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_1_new_addr_valid.rst_src
+@1000200
+-synchr_usb_to_heep_addr_valid
+@800200
+-synchr_heep_to_usb_rst_instr_valid
+@28
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.clk_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.din_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.din_src_flop
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.clk_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.dmeta
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.dout_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.rst_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_2_rst_instr_valid.rst_src
+@1000200
+-synchr_heep_to_usb_rst_instr_valid
+@800200
+-synchr_heep_to_usb_rst_new_addr_valid
+@28
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.clk_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.din_src
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.din_src_flop
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.clk_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.dmeta
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.dout_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.rst_dst
+TOP.tb_system_cw305.U_cw305_top.u_dfs_rst_new_addr_valid.rst_src
+@1000200
+-synchr_heep_to_usb_rst_new_addr_valid
+@800200
+-handshake_cu
+@28
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.usb_clk
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.rst_n
+@100000028
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.next_state[5:0]
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.present_state[5:0]
+@28
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.rst_instr_valid_from_bridge_i
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.rst_new_addr_valid_from_bridge_i
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.rst_instr_valid_to_regs_o
+TOP.tb_system_cw305.U_cw305_top.u_handshake_CU.rst_new_addr_valid_to_regs_o
+@1000200
+-handshake_cu
+[pattern_trace] 1
+[pattern_trace] 0
