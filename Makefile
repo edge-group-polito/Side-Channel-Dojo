@@ -149,12 +149,13 @@ verilator-waves: $(BUILD_DIR)/sim-verilator/logs/waves.fst | .check-gtkwave
 ## @param MODULE_NAME=module_name The name of the submodule to update when using vendor-update.
 .PHONY: vendor-update
 vendor-update:
+	@echo "WARNING: If this command returns an error, please run 'make vendor-update-simlinks' to create the symbolic links."
 	@echo "Updating vendored module '$(MODULE_NAME)'..."
 	$(PYTHON) util/vendor.py --update --verbose hw/vendor/$(MODULE_NAME).vendor.hjson
 	@echo "Vendored module '$(MODULE_NAME)' updated."
 
-.PHONY: vendor-update-sw
-vendor-update-sw:
+.PHONY: vendor-update-simlinks
+vendor-update-simlinks:
 	@echo "Creating symbolic links to the updated module "sw" folder..."
 	@rm -rf $(ROOT_DIR)/hw/vendor/$(MODULE_NAME)/sw/build
 	@rm -rf $(ROOT_DIR)/hw/vendor/$(MODULE_NAME)/sw/device 

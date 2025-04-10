@@ -93,3 +93,6 @@ An example could be found in `sw/sca_jupyter/sca_test.ipynb`
 
 ## TO CHECK: 
 - a lot of registers in cw305_reg_ascon.sv are unused and can be removed (to do asap)
+
+## CW305 X-HEEP
+For what concerns the integration of X-HEEP on the CW305 board, refer to the `README` available at `hw/vendor/cw305-heep/README.md`. In any case, all the relative commands can be invoked from the repository top level.
