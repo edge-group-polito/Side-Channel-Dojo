@@ -6,3 +6,4 @@ todo:
 - [x] : fix the symbolic link problem with the CW305 sw folder
 - [x] : modify the makefile to make some commands more explicit and clear
 - [ ] : add note in the readme about the parameters that have to be changed in the CW305.py API file provided by the chipwhisperer environement, namely self.registers = 7 and self.bytecount_size = 2
+- [x] : use one of the status register bits as trigger for program execution on xheep (connected to one GPIO). Then modify the code running on xheep in a way that the picoscope is triggered when the program execution starts.
