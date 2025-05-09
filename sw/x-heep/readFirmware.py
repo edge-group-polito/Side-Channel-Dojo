@@ -10,7 +10,7 @@ EXIT_LOOP_ADDRESS = '2000000c'
 import sys
 sys.path.append( '../../sca_python' )
 
-from CW305_api import CW305Wrapper
+# from CW305_api import CW305Wrapper
 import ReqClass
 
 def readFirmware(CW305_obj, firmwareFile):
