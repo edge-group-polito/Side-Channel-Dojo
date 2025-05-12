@@ -12,7 +12,7 @@
 #include "aes.h"
 #include "sbox.h"
 
-#define SBOX_VERSION 2
+#define SBOX_VERSION 0
 
 // --------- X-HEEP includes and defines ---------
 #include "core_v_mini_mcu.h"
