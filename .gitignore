@@ -5,6 +5,7 @@
 ## private folders ##
 private/
 build/
+traceset/
 
 ## Visual Studio Code settings
 .vscode/
@@ -66,3 +67,6 @@ __pycache__/
 sw/AES_python/validation_test/results
 # python generated graphs
 graphs/
+
+# captured traces
+traceset/
