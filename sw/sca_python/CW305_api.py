@@ -53,7 +53,7 @@ class CW305Wrapper:
             self.CW305 = cw.target(None, cw.targets.CW305, fpga_id='100t', force = force)
         else:
             self.CW305 = cw.target(scope, cw.targets.CW305, bsfile=bitstream, force=force)
-            print(self.CW305.is_programmed())
+            print(self.CW305.fpga.isFPGAProgrammed())
         
         if not self.check_target():
             raise Exception("CW305 not programmed.")
@@ -72,7 +72,7 @@ class CW305Wrapper:
 
 
     def check_target(self):
-        if not self.CW305.is_programmed():
+        if not self.CW305.fpga.isFPGAProgrammed():
             print("Error : CW305 not programmed.")
             return False
         else:

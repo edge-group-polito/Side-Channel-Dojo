@@ -34,6 +34,19 @@ sudo usermod -aG plugdev $USER
 # python packages installation
 python -m pip install -r requirements.txt
 ```
+Install picoscope drivers from:
+https://www.picotech.com/downloads/linux
+Known issue with Ubuntu 24.10 with no LTS
+command apt install picoscope, fails due to gtk3-sharp dependency 
+Fix:
+sudo apt update
+sudo apt install aptitude
+sudo aptitude install picoscope
+Installing chipwhisperer and picoscope python packages
+```
+ pip install chipwhisperer
+ pip install picosdk
+```
 ## SCA attack overview
 1. **Reference model** 
     The key is kept fix during the encrpytion tests
