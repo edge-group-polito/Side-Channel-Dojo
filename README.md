@@ -96,3 +96,5 @@ An example could be found in `sw/sca_jupyter/sca_test.ipynb`
 
 ## CW305 X-HEEP
 For what concerns the integration of X-HEEP on the CW305 board, refer to the `README` available at `hw/vendor/cw305-heep/README.md`. In any case, all the relative commands can be invoked from the repository top level.
+
+Note that it is necessary to modify the parameters self.registers to 7 and self.bytecount_size to 2 parameters in chipwhisperer file `CW305.py`.
