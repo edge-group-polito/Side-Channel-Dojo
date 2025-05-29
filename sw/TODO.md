@@ -9,3 +9,4 @@ todo:
 - [x] : use one of the status register bits as trigger for program execution on xheep (connected to one GPIO). Then modify the code running on xheep in a way that the picoscope is triggered when the program execution starts.
 - [ ] : modify the handshake protocol in a way that also the trigger flag is disabled by xheep when received
 - [x] : add missing sboxes in the file sbox_modified_funcs.py
+- [ ] : update precompiled firmware for AES for all SBoxes.
