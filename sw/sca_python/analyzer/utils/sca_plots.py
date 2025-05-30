@@ -28,7 +28,7 @@ class sca_plot:
         
         """
         if finish is None:
-            finish = len(traces)
+            finish = len(traces[0])
 
         fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[18,12])
 

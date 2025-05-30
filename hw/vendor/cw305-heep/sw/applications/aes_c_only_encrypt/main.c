@@ -12,10 +12,10 @@
 #include "aes.h"
 #include "sbox.h"
 
-#define SBOX_VERSION 2
+#define SBOX_VERSION 0
 
 #define ITERATIONS 1 // Number of iterations for the Success Rate Test
-#define POWER_TRACES 50000 // Number of power traces collected for each iteration
+#define POWER_TRACES 5000 // Number of power traces collected for each iteration
 #define FIXED_PLAINTEXT 0 // 1 = use fixed plaintext, 0 = random plaintext. Needed for the TVLA test.
 
 // --------- X-HEEP includes and defines ---------

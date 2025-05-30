@@ -57,6 +57,7 @@ build*
 *.jpg
 *.pdf
 *.csv
+sw/x-heep/results
 
 # MacOS configuration settings 
 .DS_Store
