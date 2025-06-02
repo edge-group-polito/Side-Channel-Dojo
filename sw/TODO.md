@@ -10,3 +10,11 @@ todo:
 - [ ] : modify the handshake protocol in a way that also the trigger flag is disabled by xheep when received
 - [x] : add missing sboxes in the file sbox_modified_funcs.py
 - [x] : update precompiled firmware for AES for all SBoxes.
+- [x] : change heep test notebook name to xheep AES notebook
+- [ ] : OPTIONAL: modify AES masked code adding all the SBoxes
+- [x] : OPTIONAL: modify AES masked code adding the code to calculate TVLA and Success Rate
+- [x] : move X-HEEP AES TVLA code in a different notebook (better if it performs trace acquisition with both random and fixed plaintezt automatically)
+- [x] : remove TVLA part in the main xheep AES sca notebook
+- [x] : remove useless comments in the main xheep AES sca notebook
+- [ ] : add some comments about the sw/x-heep folders in the readme
+- [ ] : add ASCON basic notebook
