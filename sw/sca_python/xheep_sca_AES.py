@@ -25,6 +25,7 @@ import holoviews as hv
 hv.extension('bokeh')
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 
 
@@ -204,6 +205,31 @@ ps.dis()
 
 ####################### OFFLINE PHASE #######################
 
+# --------- PGE, Correlation callbacks -------------------
+def _default_python_callback(attack):
+    global current_trace_iteration
+    attack_results = attack.results
+    key = attack.known_key()
+
+    attack_results.set_known_key(key)
+    stat_data = attack_results.find_maximums()
+    df = pd.DataFrame(stat_data).transpose()
+
+    # Add PGE row
+    df_pge = pd.DataFrame(attack_results.pge).transpose().rename(index={0: "PGE="}, columns=int)
+    df = pd.concat([df_pge, df], ignore_index=False)
+
+    reporting_interval = attack.reporting_interval
+    tstart = current_trace_iteration * reporting_interval
+    tend = tstart + reporting_interval
+    current_trace_iteration += 1
+
+def get_python_callback(attack):
+    global current_trace_iteration
+    current_trace_iteration = 0
+    return lambda: _default_python_callback(attack)
+# ------------------------------------------------------------
+
 
 
 ### Power traces overlapped plot ###
@@ -262,9 +288,13 @@ plt.close()
 
 ### CPA attack ###
 
-print("Running CPA attack...")
+print("Running CPA attack (this might take a while)...")
+leak_model = AES128SboxResistantLeakageModels().FirstRound_ModifiedSbox_Output(tested_sbox)
 attack = cwa.cpa(project, leak_model)
-results = attack.run()
+#results = attack.run()
+results = attack.run(get_python_callback(attack))
+print("CPA attack finished. Results:")
+print(results)
 
 # Recover key
 recv_firstroundkey = [kguess[0][0] for kguess in results.find_maximums()]
@@ -278,10 +308,15 @@ print("Key recovery : Success!")
 
 ### PGE vs Traces plot ###
 
+def byte_to_color(idx):
+    return hv.Palette.colormaps['Category20'](idx/16.0)
+
+
 print("Generating PGE vs Traces plot...")
 """
 Plots the PGE trends for all the 16 correct key guesses with matplotlib
 """
+
 plot_data = cwa.analyzer_plots(results)
 pges = [plot_data.pge_vs_trace(i) for i,_ in enumerate(key)]
 fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[14,10])
@@ -321,8 +356,6 @@ plt.close(fig)
 ### Correlation plot ###
 
 print("Generating Correlation plot...")
-def byte_to_color(idx):
-    return hv.Palette.colormaps['Category20'](idx/16.0)
 """
 Plots the various correlations of both the correct key guesses and the wrong ones
 """
