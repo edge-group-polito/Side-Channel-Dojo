@@ -194,6 +194,8 @@ for fw, proj in zip(firmwares, projects):
 
 ####################### OFFLINE PHASE #######################
 
+print("Generating TVLA t-test results and plot...")
+
 # Open the projects for fixed and random plaintext
 project_fixed   = cw.open_project(project_file_fixed_pt)
 project_random  = cw.open_project(project_file_random_pt)
