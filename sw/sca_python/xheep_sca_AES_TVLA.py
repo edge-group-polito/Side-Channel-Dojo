@@ -70,6 +70,8 @@ def prepare_board(firmware):
 
 ###################### INITIALIZATION ######################
 
+trace_acquisition = True
+
 # An already generated bitstream is available in the repository at the path:
 bitstream = r"../../hw/fpga/bitstream/xheep/cw305_top.bit"
 
@@ -123,12 +125,6 @@ print()
 
 ###################### ONLINE PHASE ######################
 
-# Create both projects for fixed and random plaintext
-project_fixed   = cw.create_project(project_file_fixed_pt, overwrite=True)
-project_random  = cw.create_project(project_file_random_pt, overwrite=True)
-
-firmwares   = [firmware_fixed_pt, firmware_random_pt]
-projects    = [project_fixed, project_random]
 
 # Initialize key and plain text.
 key  = [ 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c ]
@@ -144,52 +140,66 @@ cipher = AES_golden_model()
 # Number of traces to capture
 N = 5000
 
-# TODO: solve this bug. Apparently the sbox_rijandael is called sbox_aes somewhere.
-if tested_sbox == "sbox_rijandael":
-    tested_sbox = "sbox_aes"
+if trace_acquisition:
+    # Create both projects for fixed and random plaintext
+    project_fixed   = cw.create_project(project_file_fixed_pt, overwrite=True)
+    project_random  = cw.create_project(project_file_random_pt, overwrite=True)
 
-# For each of the 2 firmwares, prepare the board, load the firmware, and capture traces.
-# The results are saved in the corresponding project file.
-for fw, proj in zip(firmwares, projects):
-    # Prepare the board
-    ps, cw305 = prepare_board(fw)
+    firmwares   = [firmware_fixed_pt, firmware_random_pt]
+    projects    = [project_fixed, project_random]
 
-    # Trigger the iteration start in the firmware
-    cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x08]))
-    time.sleep(1E-3) # 1 ms
-    cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x00]))
+    # TODO: solve this bug. Apparently the sbox_rijandael is called sbox_aes somewhere.
+    if tested_sbox == "sbox_rijandael":
+        tested_sbox = "sbox_aes"
 
-    #for i in tnrange(N, desc='Capturing traces'):
-    for i in tqdm(range(N), desc="Capturing traces"):
-        # Run the target
-        ps.runBlock()
-        time.sleep(0.05)
+    # For each of the 2 firmwares, prepare the board, load the firmware, and capture traces.
+    # The results are saved in the corresponding project file.
+    for fw, proj in zip(firmwares, projects):
+        # Prepare the board
+        ps, cw305 = prepare_board(fw)
 
-        # Write 8 to the status register to trigger the program execution and the scope acquisition
+        print("Picoscope initialized: \n")
+        print(ps.get_scopeSettings())
+        print()
+        print("Sampling Interval: ", ps.get_samplingInterval(), "s")
+        print()
+
+        # Trigger the iteration start in the firmware
         cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x08]))
-
-        ps.waitReady()
-
-        # Get captured trace 
-        data = ps.getDataV()
-
-        trace = Trace(np.array(data), text, cipher.encrypt(formatted_key, text, tested_sbox), key)
-        proj.traces.append(trace)
-        #print("Cipertext: ", [ hex(subkey) for subkey in cipher.encrypt(formatted_key, text, tested_sbox)])
-        
-        if fw == firmware_random_pt:
-            # Update the plain text as the previous chipertext
-            text = cipher.encrypt(formatted_key, text, tested_sbox)
-
         time.sleep(1E-3) # 1 ms
-        # Reset the status register to reload the program execution and the scope acquisition
         cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x00]))
 
-    proj.save()
-    proj.close()
-    # Disconnect CW305 and picoscope
-    cw305.dis()
-    ps.dis()
+        #for i in tnrange(N, desc='Capturing traces'):
+        for i in tqdm(range(N), desc="Capturing traces"):
+            # Run the target
+            ps.runBlock()
+            time.sleep(0.05)
+
+            # Write 8 to the status register to trigger the program execution and the scope acquisition
+            cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x08]))
+
+            ps.waitReady()
+
+            # Get captured trace 
+            data = ps.getDataV()
+
+            trace = Trace(np.array(data), text, cipher.encrypt(formatted_key, text, tested_sbox), key)
+            proj.traces.append(trace)
+            #print("Cipertext: ", [ hex(subkey) for subkey in cipher.encrypt(formatted_key, text, tested_sbox)])
+            
+            if fw == firmware_random_pt:
+                # Update the plain text as the previous chipertext
+                text = cipher.encrypt(formatted_key, text, tested_sbox)
+
+            time.sleep(1E-3) # 1 ms
+            # Reset the status register to reload the program execution and the scope acquisition
+            cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x00]))
+
+        proj.save()
+        proj.close()
+        # Disconnect CW305 and picoscope
+        cw305.dis()
+        ps.dis()
 
 
 ####################### OFFLINE PHASE #######################

@@ -32,6 +32,11 @@ import pandas as pd
 ###################### INITIALIZATION ######################
 
 
+trace_acquisition = True
+traces_overlapped_plot = True
+traces_snr_plot = True
+traces_pge_plot = True
+traces_correlation_plot = True
 
 # An already generated bitstream is available in the repository at the path:
 bitstream = r"../../hw/fpga/bitstream/xheep/cw305_top.bit"
@@ -135,19 +140,6 @@ def prepare_board(firmware):
 ###################### ONLINE PHASE ######################
 
 
-
-# Prepare the board
-ps, cw305 = prepare_board(firmware)
-
-print("Picoscope initialized: \n")
-print(ps.get_scopeSettings())
-print()
-print("Sampling Interval: ", ps.get_samplingInterval(), "s")
-print()
-
-
-project = cw.create_project(project_file, overwrite=True)
-
 # Initialize key and plain text.
 key  = [ 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c ]
 text = [ 0x6e, 0xc1, 0x53, 0x9c, 0xfb, 0xe7, 0xf6, 0x18, 0x92, 0xac, 0x19, 0x87, 0xf5, 0x94, 0xe1, 0x2b ]
@@ -166,40 +158,53 @@ N = 5000
 if tested_sbox == "sbox_rijandael":
     tested_sbox = "sbox_aes"
 
-# Trigger the iteration start in the firmware
-cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x08]))
-time.sleep(1E-3) # 1 ms
-cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x00]))
+if trace_acquisition:
+    # Prepare the board
+    ps, cw305 = prepare_board(firmware)
 
-for i in tqdm(range(N), desc="Capturing traces"):
-    # Run the target
-    ps.runBlock()
-    time.sleep(0.05)
+    print("Picoscope initialized: \n")
+    print(ps.get_scopeSettings())
+    print()
+    print("Sampling Interval: ", ps.get_samplingInterval(), "s")
+    print()
 
-    # Write 8 to the status register to trigger the program execution and the scope acquisition
+
+    project = cw.create_project(project_file, overwrite=True)
+
+    # Trigger the iteration start in the firmware
     cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x08]))
-
-    ps.waitReady()
-
-    # Get captured trace 
-    data = ps.getDataV()
-
-    trace = Trace(np.array(data), text, cipher.encrypt(formatted_key, text, tested_sbox), key)
-    project.traces.append(trace)
-    #print("Cipertext: ", [ hex(subkey) for subkey in cipher.encrypt(formatted_key, text, tested_sbox)])
-    
-    # Update the plain text as the previous chipertext
-    text = cipher.encrypt(formatted_key, text, tested_sbox)
-
     time.sleep(1E-3) # 1 ms
-    # Reset the status register to reload the program execution and the scope acquisition
     cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x00]))
 
-project.save()
-project.close()
-# Disconnect CW305 and picoscope
-cw305.dis()
-ps.dis()
+    for i in tqdm(range(N), desc="Capturing traces"):
+        # Run the target
+        ps.runBlock()
+        time.sleep(0.05)
+
+        # Write 8 to the status register to trigger the program execution and the scope acquisition
+        cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x08]))
+
+        ps.waitReady()
+
+        # Get captured trace 
+        data = ps.getDataV()
+
+        trace = Trace(np.array(data), text, cipher.encrypt(formatted_key, text, tested_sbox), key)
+        project.traces.append(trace)
+        #print("Cipertext: ", [ hex(subkey) for subkey in cipher.encrypt(formatted_key, text, tested_sbox)])
+        
+        # Update the plain text as the previous chipertext
+        text = cipher.encrypt(formatted_key, text, tested_sbox)
+
+        time.sleep(1E-3) # 1 ms
+        # Reset the status register to reload the program execution and the scope acquisition
+        cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x00]))
+
+    project.save()
+    project.close()
+    # Disconnect CW305 and picoscope
+    cw305.dis()
+    ps.dis()
 
 
 
@@ -234,55 +239,56 @@ def get_python_callback(attack):
 
 ### Power traces overlapped plot ###
 
-print("Generating power traces overlapped plot...")
-
 # TODO: fix this bug.
 if tested_sbox == "sbox_aes":
     tested_sbox = "sbox_rijandael"
 
-sca_plt = sca_plot()
 project = cw.open_project(project_file)
 
-power_plt = sca_plt.power_traces_overlapped(ps.get_samplingInterval(), project.waves, finish=len(project.waves[0]))
+if traces_overlapped_plot:
+    print("Generating power traces overlapped plot...")
+    sca_plt = sca_plot()
+    power_plt = sca_plt.power_traces_overlapped(ps.get_samplingInterval(), project.waves, finish=len(project.waves[0]))
 
-# Ensure the Graphs directory exists and save the plot
-if masked_flag:
-    os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
-    power_plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_power_traces_overlapped_"+tested_sbox+".png")
-else:
-    os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
-    power_plt.savefig("../x-heep/Graphs/AES_c/AES_power_traces_overlapped_"+tested_sbox+".png")
+    # Ensure the Graphs directory exists and save the plot
+    if masked_flag:
+        os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
+        power_plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_power_traces_overlapped_"+tested_sbox+".png")
+    else:
+        os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
+        power_plt.savefig("../x-heep/Graphs/AES_c/AES_power_traces_overlapped_"+tested_sbox+".png")
 
-# power_plt.show()
-power_plt.close()
+    # power_plt.show()
+    power_plt.close()
 
 
 
 ### SNR plot ###
 
-print("Generating SNR plot...")
+if traces_snr_plot:
+    print("Generating SNR plot...")
 
-# First round sbox output snr calculation
-leak_model = AES128SboxResistantLeakageModels().FirstRound_ModifiedSbox_Output(tested_sbox)
-snr_fr = cwa.calculate_snr(project.traces, leak_model=leak_model, db=False)
+    # First round sbox output snr calculation
+    leak_model = AES128SboxResistantLeakageModels().FirstRound_ModifiedSbox_Output(tested_sbox)
+    snr_fr = cwa.calculate_snr(project.traces, leak_model=leak_model, db=False)
 
-plt.figure(figsize=(12, 6))  # width, height in inches
-plt.plot(np.arange(len(snr_fr)), snr_fr, color='orange', alpha=0.5)
-plt.xlabel('Sample')
-plt.ylabel('SNR')
-plt.title('SNR in time')
-plt.grid(True)
+    plt.figure(figsize=(12, 6))  # width, height in inches
+    plt.plot(np.arange(len(snr_fr)), snr_fr, color='orange', alpha=0.5)
+    plt.xlabel('Sample')
+    plt.ylabel('SNR')
+    plt.title('SNR in time')
+    plt.grid(True)
 
-# Save the plot
-if masked_flag:
-    os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
-    plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_SNR_"+tested_sbox+".png")
-else:
-    os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
-    plt.savefig("../x-heep/Graphs/AES_c/AES_SNR_"+tested_sbox+".png")
+    # Save the plot
+    if masked_flag:
+        os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
+        plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_SNR_"+tested_sbox+".png")
+    else:
+        os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
+        plt.savefig("../x-heep/Graphs/AES_c/AES_SNR_"+tested_sbox+".png")
 
-# plt.show()
-plt.close()
+    # plt.show()
+    plt.close()
 
 
 
@@ -312,92 +318,95 @@ def byte_to_color(idx):
     return hv.Palette.colormaps['Category20'](idx/16.0)
 
 
-print("Generating PGE vs Traces plot...")
-"""
-Plots the PGE trends for all the 16 correct key guesses with matplotlib
-"""
+if traces_pge_plot:
+    print("Generating PGE vs Traces plot...")
+    """
+    Plots the PGE trends for all the 16 correct key guesses with matplotlib
+    """
 
-plot_data = cwa.analyzer_plots(results)
-pges = [plot_data.pge_vs_trace(i) for i,_ in enumerate(key)]
-fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[14,10])
-plt.grid(which='major', axis='both', alpha=0.2)
+    plot_data = cwa.analyzer_plots(results)
+    pges = [plot_data.pge_vs_trace(i) for i,_ in enumerate(key)]
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[14,10])
+    plt.grid(which='major', axis='both', alpha=0.2)
 
-x_axis = plot_data.pge_vs_trace(0)[0]
-#step = 10
-step = 500
-for i, bnum in enumerate(key):
-    plt.plot(pges[i][0], pges[i][1], linewidth=1, label=f"Byte #{i}")
-plt.plot(pges[i][0], [10 for _ in range(len(pges[i][0]))], linewidth=1, linestyle="dashed",  color="black", label=f"max(PGE) < {10}")
-    
-plt.legend(title=f"Known Key", fontsize=12, loc="upper right")
-plt.title(" AES S-Box " + sbox_id + " - PGE", fontsize=18)
-ax1.set_xticks(range(0, x_axis[-1], step))
-# clip_min_y = 0
-# clip_max_y = 300
-# ax1.set_yticks(list(range(clip_min_y, clip_max_y+1, 10)))
-ax1.set_ylabel('Partial Guessing Entropy (PGE)', fontsize=16)
-ax1.set_xlabel('Traces', fontsize=16)
-#ax1.set_ylim(0, 300)
-ax1.set_xlim(0, 5000)
+    x_axis = plot_data.pge_vs_trace(0)[0]
+    #step = 10
+    step = 500
+    for i, bnum in enumerate(key):
+        plt.plot(pges[i][0], pges[i][1], linewidth=1, label=f"Byte #{i}")
+    plt.plot(pges[i][0], [10 for _ in range(len(pges[i][0]))], linewidth=1, linestyle="dashed",  color="black", label=f"max(PGE) < {10}")
+        
+    plt.legend(title=f"Known Key", fontsize=12, loc="upper right")
+    plt.title(" AES S-Box " + sbox_id + " - PGE", fontsize=18)
+    ax1.set_xticks(range(0, x_axis[-1], step))
+    # clip_min_y = 0
+    # clip_max_y = 300
+    # ax1.set_yticks(list(range(clip_min_y, clip_max_y+1, 10)))
+    ax1.set_ylabel('Partial Guessing Entropy (PGE)', fontsize=16)
+    ax1.set_xlabel('Traces', fontsize=16)
+    #ax1.set_ylim(0, 300)
+    ax1.set_xlim(0, 5000)
 
-# Save the plot
-if masked_flag:
-    os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
-    plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_PGE_"+tested_sbox+".png")
-else:
-    os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
-    plt.savefig("../x-heep/Graphs/AES_c/AES_PGE_"+tested_sbox+".png")
+    # Save the plot
+    if masked_flag:
+        os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
+        plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_PGE_"+tested_sbox+".png")
+    else:
+        os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
+        plt.savefig("../x-heep/Graphs/AES_c/AES_PGE_"+tested_sbox+".png")
 
-# plt.show()
-plt.close(fig)
+    # plt.show()
+    plt.close(fig)
 
 
 
 ### Correlation plot ###
 
-print("Generating Correlation plot...")
-"""
-Plots the various correlations of both the correct key guesses and the wrong ones
-"""
-# 16 subkeyCW305_leakage_model
-bnum_it = range(16)
+if traces_correlation_plot:
+    print("Generating Correlation plot...")
+    """
+    Plots the various correlations of both the correct key guesses and the wrong ones
+    """
+    # 16 subkeyCW305_leakage_model
+    bnum_it = range(16)
 
-fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[18,12])
-plt.grid(which='major', axis='both', alpha=0.2)
+    plot_data = cwa.analyzer_plots(results)
+    fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[18,12])
+    plt.grid(which='major', axis='both', alpha=0.2)
 
-# Plot correlation trends of wrong key guesses (
-for bnum in bnum_it:
-    data = np.array(plot_data.corr_vs_trace(bnum)[1])
-    xrangelist = plot_data.corr_vs_trace(bnum)[0]
-    wrong_results = data[[i != key for i in range(256)]]
-    ax1.plot(xrangelist, np.amax(wrong_results, 0), linewidth=2, linestyle ="dotted", color=byte_to_color(bnum))
+    # Plot correlation trends of wrong key guesses (
+    for bnum in bnum_it:
+        data = np.array(plot_data.corr_vs_trace(bnum)[1])
+        xrangelist = plot_data.corr_vs_trace(bnum)[0]
+        wrong_results = data[[i != key for i in range(256)]]
+        ax1.plot(xrangelist, np.amax(wrong_results, 0), linewidth=2, linestyle ="dotted", color=byte_to_color(bnum))
 
-# Plot correct key_guesses on top of wrong ones
-for bnum in bnum_it:
-    data = np.array(plot_data.corr_vs_trace(bnum)[1])
-    xrangelist = plot_data.corr_vs_trace(bnum)[0]
-    key = results.known_key[bnum]
-    wrong_results = data[[i != key for i in range(256)]]
-    ax1.plot(xrangelist, data[key], linewidth=1, label=f"Byte #{bnum}", color=byte_to_color(bnum))
+    # Plot correct key_guesses on top of wrong ones
+    for bnum in bnum_it:
+        data = np.array(plot_data.corr_vs_trace(bnum)[1])
+        xrangelist = plot_data.corr_vs_trace(bnum)[0]
+        key = results.known_key[bnum]
+        wrong_results = data[[i != key for i in range(256)]]
+        ax1.plot(xrangelist, data[key], linewidth=1, label=f"Byte #{bnum}", color=byte_to_color(bnum))
 
 
-ax1.legend(title=f"Known Key", fontsize=12, loc="upper right")
-plt.title(" AES S-Box " + sbox_id + " - Correlations", fontsize=18)
+    ax1.legend(title=f"Known Key", fontsize=12, loc="upper right")
+    plt.title(" AES S-Box " + sbox_id + " - Correlations", fontsize=18)
 
-step = 200
-ax1.set_xticks(range(0, xrangelist[-1], step))
-ax1.set_ylabel('Correlation', fontsize=16)
-ax1.set_xlabel('Traces', fontsize=16)
+    step = 200
+    ax1.set_xticks(range(0, xrangelist[-1], step))
+    ax1.set_ylabel('Correlation', fontsize=16)
+    ax1.set_xlabel('Traces', fontsize=16)
 
-# Save the plot
-if masked_flag:
-    os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
-    plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_correlations_"+tested_sbox+".png")
-else:
-    os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
-    plt.savefig("../x-heep/Graphs/AES_c/AES_correlations_"+tested_sbox+".png")
+    # Save the plot
+    if masked_flag:
+        os.makedirs("../x-heep/Graphs/AES_c_masked", exist_ok=True)
+        plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_correlations_"+tested_sbox+".png")
+    else:
+        os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
+        plt.savefig("../x-heep/Graphs/AES_c/AES_correlations_"+tested_sbox+".png")
 
-# plt.show()
-plt.close(fig)
+    # plt.show()
+    plt.close(fig)
 
 project.close()
