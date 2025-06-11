@@ -32,6 +32,8 @@ import pandas as pd
 
 ###################### INITIALIZATION ######################
 
+
+
 trace_acquisition = True
 
 # An already generated bitstream is available in the repository at the path:
@@ -62,11 +64,10 @@ masked_flag = False
 #TODO: remove the project file and use just the traces
 if masked_flag:
     firmware = r"../x-heep/AES_masked_firmware_random_plaintext/main_"+sbox_id+".hex"
-    project_file = "../../build/xheep_test/CW305_xheep_AES_"+sbox_id+"_masked.cwp"
+    project_file = "../../build/xheep_test/CW305_xheep_AES_SR_"+sbox_id+"_masked.cwp"
 else:
     firmware = r"../x-heep/AES_Sbox_firmware_random_plaintext/main_"+sbox_id+".hex"
-    project_file = "../../build/xheep_test/CW305_xheep_AES_"+sbox_id+".cwp"
-
+    project_file = "../../build/xheep_test/CW305_xheep_AES_SR_"+sbox_id+".cwp"
 
 print()
 print("bitstream: ", bitstream)
@@ -129,12 +130,6 @@ def prepare_board(firmware):
 
 
 
-print("Picoscope initialized: \n")
-print(ps.get_scopeSettings())
-print()
-print("Sampling Interval: ", ps.get_samplingInterval(), "s")
-print()
-
 # Number of iterations
 max_iterations = 1
 # Number of traces to capture
@@ -157,6 +152,12 @@ if trace_acquisition:
     # Prepare the board
     ps, cw305 = prepare_board(firmware)
 
+    print("Picoscope initialized: \n")
+    print(ps.get_scopeSettings())
+    print()
+    print("Sampling Interval: ", ps.get_samplingInterval(), "s")
+    print()
+
     for iteration in range(1,max_iterations+1):
         print("Iteration: ", iteration)
         project_file = "../../build/xheep_test/xheep_CW305_AES_success_rate_" + sbox_id + "_iteration_" + str(iteration) + ".cwp"
@@ -171,7 +172,7 @@ if trace_acquisition:
         time.sleep(1E-3) # 1 ms
         cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x00]))
 
-        for i in tnrange(N, desc='Capturing traces'):
+        for i in tqdm(range(N), desc="Capturing traces"):
             # Run the target
             ps.runBlock()
             time.sleep(0.05)
@@ -207,14 +208,12 @@ if trace_acquisition:
 ####################### OFFLINE PHASE #######################
 
 
+
 # TODO: fix this bug.
 if tested_sbox == "sbox_aes":
     tested_sbox = "sbox_rijandael"
 
-from chipwhisperer.common.traces import Trace
-from IPython.display import clear_output
-import pandas as pd
-from AES import AES as AESpy
+
 
 # Functions to display the results in a Jupyter Notebook
 def format_stat(stat):
@@ -267,12 +266,14 @@ def stats_callback():
     
     stat_data = results.find_maximums()
     df = pd.DataFrame(stat_data).transpose()
-    clear_output(wait=True)
+    # clear_output(wait=True)
     tstart = current_trace_iteration * resolution
     tend = tstart + resolution
     current_trace_iteration += 1
-    display(df.head().style.format(format_stat).apply(color_corr_key,axis=1).set_caption("Iteration {}. Trial {}. Finished traces {} to {}. Success {}".format(iteration, trial, tstart, tend, successCount)))
+    # display(df.head().style.format(format_stat).apply(color_corr_key,axis=1).set_caption("Iteration {}. Trial {}. Finished traces {} to {}. Success {}".format(iteration, trial, tstart, tend, successCount)))
 
+
+print("Analyzing traces (this might take a while)...")
 
 global current_trace_iteration
 global result_success
@@ -313,8 +314,6 @@ for iteration in range(1,max_n_iteration+1):
         print(f"Trial {trial}: using traces {trial*max_n_traces} to {(trial+1)*max_n_traces-1}")
 
         success_project.save()
-
-        print(len(success_project.traces[:]))
 
         successCount = 0
         current_trace_iteration = 0
@@ -367,8 +366,7 @@ for i in range(int(max_n_traces/resolution)):
 
 
 # Normal plot with matplotlib
-
-import matplotlib.pyplot as plt
+print("Generating success rate plot...")
 
 xrange = range(len(success_rate))
 plt.figure(figsize=(10, 5))
