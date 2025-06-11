@@ -158,17 +158,17 @@ N = 5000
 if tested_sbox == "sbox_rijandael":
     tested_sbox = "sbox_aes"
 
+
+# Prepare the board
+ps, cw305 = prepare_board(firmware)
+
+print("Picoscope initialized: \n")
+print(ps.get_scopeSettings())
+print()
+print("Sampling Interval: ", ps.get_samplingInterval(), "s")
+print()
+
 if trace_acquisition:
-    # Prepare the board
-    ps, cw305 = prepare_board(firmware)
-
-    print("Picoscope initialized: \n")
-    print(ps.get_scopeSettings())
-    print()
-    print("Sampling Interval: ", ps.get_samplingInterval(), "s")
-    print()
-
-
     project = cw.create_project(project_file, overwrite=True)
 
     # Trigger the iteration start in the firmware
@@ -202,9 +202,10 @@ if trace_acquisition:
 
     project.save()
     project.close()
-    # Disconnect CW305 and picoscope
-    cw305.dis()
-    ps.dis()
+
+# Disconnect CW305 and picoscope
+cw305.dis()
+ps.dis()
 
 
 
