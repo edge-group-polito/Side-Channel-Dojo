@@ -1,5 +1,29 @@
 """ AES tables and functions with modified SBox."""
 
+def sbox_lut(inp ,sb_type):
+    """Perform the SBox lookup. 
+
+    Args:
+        inp (int): Byte used for the Sbox lookup.
+        sb_type (str): The SBox type to use.
+
+    Returns:
+        int: The result of the inverse SBox lookup.
+    """
+    return _sbox(inp, sb_type)
+
+def inv_sbox_lut(inp, sb_type):
+    """Perform an inverse SBox lookup. 
+
+    Args:
+        inp (int): Byte used for the Sbox lookup.
+        sb_type (str): The SBox type to use.
+
+    Returns:
+        int: The result of the inverse SBox lookup.
+    """
+    return _invsbox(inp, "inv_"+sb_type)
+
 def _sbox(inp, sb_type):
     s = {
         "sbox_rijandael": [
@@ -336,29 +360,6 @@ def _invsbox(inp, sb_type):
     return i_s[sb_type][inp]
     
     
-def sbox_lut(inp ,sb_type):
-    """Perform the SBox lookup. 
-
-    Args:
-        inp (int): Byte used for the Sbox lookup.
-        sb_type (str): The SBox type to use.
-
-    Returns:
-        int: The result of the inverse SBox lookup.
-    """
-    return _sbox(inp, sb_type)
-
-def inv_sbox_lut(inp, sb_type):
-    """Perform an inverse SBox lookup. 
-
-    Args:
-        inp (int): Byte used for the Sbox lookup.
-        sb_type (str): The SBox type to use.
-
-    Returns:
-        int: The result of the inverse SBox lookup.
-    """
-    return _invsbox(inp, "inv_"+sb_type)
     
 
 

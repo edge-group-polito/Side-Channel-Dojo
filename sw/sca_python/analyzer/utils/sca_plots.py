@@ -30,7 +30,7 @@ class sca_plot:
         if finish is None:
             finish = len(traces[0])
 
-        fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[18,12])
+        fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[10,6])
 
         xticks_samples = range(len(traces[0]))
         xfocus_window = xticks_samples[start:finish]

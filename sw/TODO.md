@@ -18,3 +18,5 @@ todo:
 - [x] : remove useless comments in the main xheep AES sca notebook
 - [ ] : add some comments about the sw/x-heep folders in the readme
 - [ ] : add ASCON basic notebook
+- [ ] : leave in sw notebook directory a single notebook which does the plain AES attack (cpa custom and capture trace custom) and then folders utils where are added the noetebook for SNR, TVLA, etc.. and examples where are put the noteboooks of x-heep e Ascon cases
+- [ ] Modify the parameters self.registers = 12  and self.bytecount_size = 7 in CW305.py

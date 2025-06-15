@@ -71,3 +71,7 @@ graphs/
 
 # captured traces
 traceset/
+/sw/notebook/dataset
+
+# vendorized components
+hw/vendor/
