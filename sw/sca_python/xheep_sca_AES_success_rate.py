@@ -280,17 +280,14 @@ for iteration in range(1,max_iterations+1):
     project.close()
 
 
-# Normal plot with matplotlib
+# Success Rate plot with matplotlib
 print("Generating success rate plot...")
 
-# On the x-axis, the number of traces is represented, which is the length of the success_rate list,
-# also equal to the total number of traces divided by the resolution.
-# The y-axis represents the success rate for each trial.
 xrange = [i * resolution for i in range(len(success_rate))]
 # xrange = range(len(success_rate))
 plt.figure(figsize=(10, 5))
 plt.plot(xrange, success_rate, color="red")
-plt.xlabel("Number of traces") #TODO: convert to actual number of traces
+plt.xlabel("Number of traces")
 plt.ylabel("Success Rate")
 plt.title("AES CPA Success Rate")
 plt.grid(True)
