@@ -14,21 +14,16 @@ import chipwhisperer as cw
 import chipwhisperer.analyzer as cwa
 from chipwhisperer.common.traces import Trace
 from AES_golden import AES_golden_model
-from AES import AES as AESpy
 import time
 
 from tqdm import tqdm
 from analyzer.attack.aes.SBox_leakage_models import AES128SboxResistantLeakageModels
-from analyzer.attack.aes.key_schedule import key_schedule_rounds
-from analyzer.utils.sca_plots import sca_plot
 
-import holoviews as hv
-hv.extension('bokeh')
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
-
+# Added for multiprocessing support
+from multiprocessing import Pool
 
 ###################### INITIALIZATION ######################
 
@@ -68,6 +63,9 @@ if masked_flag:
 else:
     firmware = r"../x-heep/AES_Sbox_firmware_random_plaintext/main_"+sbox_id+".hex"
     project_file = "../../build/xheep_test/CW305_xheep_AES_SR_"+sbox_id+".cwp"
+
+# To run another firware compiled with the X-HEEP toolchain, use the following line:
+#firmware = r"../../hw/vendor/cw305-heep/sw/build/main.hex"
 
 print()
 print("bitstream: ", bitstream)
@@ -213,167 +211,92 @@ if trace_acquisition:
 if tested_sbox == "sbox_aes":
     tested_sbox = "sbox_rijandael"
 
-
-
-# Functions to display the results in a Jupyter Notebook
-def format_stat(stat):
-    return str("{:02X}<br>{:.3f}".format(stat[0], stat[2]))
-
-def color_corr_key(row):
-    global key
-    ret = [""] * 16
-    for i,bnum in enumerate(row):
-        if bnum[0] == key[i]:
-            ret[i] = "color: red"
-        else:
-            ret[i] = ""
-    return ret
-    
-# This function is used to check if the recovered key matches the initial key.
-# To speed up the attack, if the recovered key matches the initial key for 10 
-# consecutive iterations, the attack stops, since the result will be the same
-# even analyzing more and more traces.
-def check_success(bestguess):
-    global successCount
-    recv_key = AESpy.get_initial_key(bestguess, 0, sbox_id)
-    if initial_key == recv_key:
-        successCount +=1
-        if successCount >= 10:
-            return 1
-        else:
-            return 0
-    else:
-        successCount = 0
-        return 0
-    
-class StopExecutionException(Exception):
-    pass
-
-# This function is used to display the statistics of the attack
-def stats_callback():
-    global current_trace_iteration
-    global result_success
-    global partialGuessingEntropy
-    
-    results = attack.results
-    results.set_known_key(key)
-    
-    # Success rate calculation
-    bestguess = [kguess[0][0] for kguess in results.find_maximums()]
-    results_success[current_trace_iteration] = check_success(bestguess)
-    if results_success[current_trace_iteration] == 1:
-        raise StopExecutionException("Reached Limit")
-    
-    stat_data = results.find_maximums()
-    df = pd.DataFrame(stat_data).transpose()
-    # clear_output(wait=True)
-    tstart = current_trace_iteration * resolution
-    tend = tstart + resolution
-    current_trace_iteration += 1
-    # display(df.head().style.format(format_stat).apply(color_corr_key,axis=1).set_caption("Iteration {}. Trial {}. Finished traces {} to {}. Success {}".format(iteration, trial, tstart, tend, successCount)))
-
-
 print("Analyzing traces (this might take a while)...")
 
-global current_trace_iteration
-global result_success
-global successCount
+# To calculate the success rate, an incremental number of traces is used.
+# The idea is that the total number of traces is first divided into N groups (e.g first only 500 traces,
+# then 1000 traces, then 1500 traces and so on), then a CPA attack is performed
+# on each group of traces and the success rate is calculated on each key byte (i.e. SR[key_byte] = 1
+# if guessed_key_byte == correct_key_byte, otherwise SR[key_byte] = 0).
+# Then, the success rate of the whole attack is calculated as the average of the success rates of each key byte,
+# i.e. SR = (SR[0] + SR[1] + ... + SR[15]) / 16 (16 since for AES128 the key size is 128 bit or 16 bytes).
+# The ChipWhisperer Analyzer is used to perform the CPA attack on the traces. It returns the list of the guessed
+# key bytes and it supports the use of a callback function to get the statistics of the attack, which is used 
+# to calculate the success rate. The callback function "resolution" parameter is used to define how often
+# the statistics are updated (e.g. every 25 traces), so it basically works also as traces slicer.
+# Each time the callback function is called, the guessed key bytes are compared with the correct key bytes
+# and the success rate is updated. The final success rate is then plotted using matplotlib.
 
+# Performance metrics
+tic = time.perf_counter()
+
+# Initialize the success rate list
+success_rate = []
+
+# The resolution defines how many traces are added each time to evaluate the n-success_rate.
 resolution = 25
-max_n_traces = 5000
-n_trials = 1
-max_n_iteration = 1
 
-for iteration in range(1,max_n_iteration+1):
+def success_rate_callback():
+    global success_rate
+    global key
 
+    # Get the attack results (guessed key bytes).
+    # The "find_maximums" method returns 3 nested lists:
+    # 1. The first list contains the guessed key bytes ordered by subkey index
+    #    [subkey0_data, subkey1_data, subkey2_data, ...]
+    # 2. subkey0_data is another list containing guesses ordered by strength of correlation:
+    #    [guess0, guess1, guess2, ...]
+    # 3. guess0 is a tuple containing:
+    #    (key_guess, location_of_max, correlation)
+    # So, with the syntax kguess[0][0], we get the best key guess for each subkey.
+    results = attack.results
+    guessed_key = [kguess[0][0] for kguess in results.find_maximums()]
+    
+    iteration_success_rate = []
+    # Compare the guessed key bytes with the correct key bytes
+    for key_byte, guessed_key_byte in zip(key, guessed_key):
+        # If the guessed key byte matches the correct key byte, i-th success_rate is 1, otherwise 0
+        success_rate_i = 1 if key_byte == guessed_key_byte else 0
+        iteration_success_rate.append(success_rate_i)
+
+    # Calculate the average success rate for the current iteration
+    avg_success_rate = sum(iteration_success_rate) / len(iteration_success_rate)
+    # Append the average success rate to the success_rate list
+    success_rate.append(avg_success_rate)
+
+
+# Attack loop
+for iteration in range(1,max_iterations+1):
     project_file = "../../build/xheep_test/xheep_CW305_AES_success_rate_" + sbox_id + "_iteration_" + str(iteration) + ".cwp"
     project = cw.open_project(project_file)
 
-    traces = project.waves[:]
-    textin = project.textins[:]
-    keys = project.keys[:]
-    ciphertext = project.textouts[:]
+    # The Hamming Weight is used as the leakage model for the CPA attack.
+    leak_model = AES128SboxResistantLeakageModels().FirstRound_ModifiedSbox_Output(tested_sbox)
+    attack = cwa.cpa(project, leak_model)
+    
+    # Perform the CPA attack
+    attack.run(success_rate_callback, resolution)
 
-    # DEBUG
-    print("Number of traces: ", len(traces))
-
-    for trial in range(0,n_trials):
-
-        success_file = "../../build/xheep_test/xheep_CW305_AES_success_rate_.cwp"
-        success_project = cw.create_project(success_file, overwrite=True)
-
-        for n_trace in range(max_n_traces):
-            traces_trial = traces[trial*max_n_traces+n_trace]
-            textin_trial = textin[trial*max_n_traces+n_trace]
-            ciphertext_trial = ciphertext[trial*max_n_traces+n_trace]
-            keys_trial = keys[trial*max_n_traces+n_trace]
-            trace_i = Trace(traces_trial, textin_trial, ciphertext_trial, keys_trial)
-            success_project.traces.append(trace_i)
-
-        # DEBUG
-        print(f"Trial {trial}: using traces {trial*max_n_traces} to {(trial+1)*max_n_traces-1}")
-
-        success_project.save()
-
-        successCount = 0
-        current_trace_iteration = 0
-        results_success = [1] * int(200)
-
-        initial_key = list(success_project.keys[0])
-
-        inpkey = success_project.keys[0]
-        input_key = ""
-        for subkey in inpkey:
-            input_key = input_key + format(subkey, "02x")
-        # round_10_key = AESpy.get_round_key(input_key, 10, sbox_type)
-
-        leak_model = AES128SboxResistantLeakageModels().FirstRound_ModifiedSbox_Output(tested_sbox)
-        attack = cwa.cpa(success_project, leak_model)
-        try:
-            results = attack.run(stats_callback, resolution)
-        except StopExecutionException as e:
-            print(f"Execution stopped: {e}")
-
-        success_project.close()
-
-        # Success Rate saving
-        
-        success_file_name = "../x-heep/results/AES_cpa_success_rate_" + sbox_id + "_success_results_trial_" + str(trial+10*(iteration-1)) + ".txt"
-        with open(success_file_name,'w') as success_file:
-            for success in results_success:
-                print(success, file=success_file)
-
-
-success_rate = [0] * int(max_n_traces/resolution)
-
-# n_trials = 100
-
-def mean(X):
-    return np.sum(X, axis=0)/len(X)
-
-trials_success_results_temp = []
-for i in range(n_trials):
-    success_file_name = "../x-heep/results/AES_cpa_success_rate_" + sbox_id + "_success_results_trial_" + str(i) + ".txt"
-    with open(success_file_name, 'r') as file_read:
-        data = [int(line.strip()) for line in file_read]
-        trials_success_results_temp.append(data)
-
-trials_success_results = list(zip(*trials_success_results_temp))
-
-for i in range(int(max_n_traces/resolution)):
-    success_rate[i] = mean(trials_success_results[i])
-
+    project.close()
 
 
 # Normal plot with matplotlib
 print("Generating success rate plot...")
 
-xrange = range(len(success_rate))
+# On the x-axis, the number of traces is represented, which is the length of the success_rate list,
+# also equal to the total number of traces divided by the resolution.
+# The y-axis represents the success rate for each trial.
+xrange = [i * resolution for i in range(len(success_rate))]
+# xrange = range(len(success_rate))
 plt.figure(figsize=(10, 5))
 plt.plot(xrange, success_rate, color="red")
-plt.xlabel("Trace Window")
+plt.xlabel("Number of traces") #TODO: convert to actual number of traces
 plt.ylabel("Success Rate")
 plt.title("AES CPA Success Rate")
 plt.grid(True)
-#plt.savefig("../x-heep/Graphs/AES_c/AES_cpa_success_rate_" + sbox_id + ".png", dpi=300)
-plt.show()
+plt.savefig("../x-heep/Graphs/AES_c/AES_cpa_success_rate_" + sbox_id + ".png", dpi=300)
+# plt.show()
+
+
+toc = time.perf_counter()
+print(f"[LOG] OFFLINE PHASE: Computation completed in {(toc - tic)/60:0.2f} minutes.")
