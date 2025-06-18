@@ -17,4 +17,11 @@ todo:
 - [x] : remove TVLA part in the main xheep AES sca notebook
 - [x] : remove useless comments in the main xheep AES sca notebook
 - [ ] : add some comments about the sw/x-heep folders in the readme
-- [ ] : add ASCON basic notebook
+- [x] : create a single python file for all the code in the AES notebooks (to use with tmux)
+- [x] : make the python scripts for AES sca parametric (parameter for the plots, for the online phase and eventually for calling the scripts for TVLA and Success Rate).
+- [x] : develop the CPA algorithm
+- [ ] : test the UART RX (from PC to board) -----> NOT FEASABLE
+- [x] : add ASCON basic python script
+- [ ] : add precompiled ASCON firmware to a specific folder and make the script use that firmware
+- [ ] : update the CW305 repo with the ASCON modification and update the vendor folder here
+- [ ] : save the traces in a h5 file
