@@ -2,6 +2,7 @@
 
 
 import sys
+sys.path.append( '../sca_python' )
 sys.path.append( '../x-heep' )
 import readFirmware
 import os
@@ -9,19 +10,29 @@ os.system("pip list | grep chipwhisperer")
 
 from pico_api import PS5000aWrapper
 import chipwhisperer as cw
+from analyzer.utils.sca_plots import sca_plot
 
 from tqdm import tqdm
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+import h5py
 
 ###################### INITIALIZATION ######################
 
-trace_acquisition = True
+trace_acquisition = False
 
 bitstream = r"../../hw/fpga/bitstream/xheep/cw305_top.bit"
 verilog_defines = r"../../hw/vendor/cw305-heep/hw/fpga/cw305_aes_defines.v"
-firmware = r"../../hw/vendor/cw305-heep/sw/build/main.hex"
+
+# Precompiled ASCON firmware for the CW305 board
+firmware = r"../x-heep/ASCON_firmware/main.hex"
+# To run another firmware compiled with the xheep toolchain, uncomment the following line: 
+#firmware = r"../../hw/vendor/cw305-heep/sw/build/main.hex"
+
+# Traces file path
+traces_dir  = r"../../build/xheep_test/"
+traces_file = r"../../build/xheep_test/ASCON_traces.h5"
 
 print()
 print("bitstream: ", bitstream)
@@ -40,7 +51,6 @@ def prepare_board(firmware):
         # Initialize picoscope
         ps = PS5000aWrapper()
         ps.get_unitInfo()
-        #ps.scope_setup(obs_time=1E-2, nSamples=400000) 
         # The complete permutation phase (12 repetitions) takes about 1800-1900 clock cycles, 
         # which corresponds to 180-190 us at 10 MHz clock frequency.
         # So, to capture just the first permutation, we need a time window of about 18 us.
@@ -94,7 +104,9 @@ def prepare_board(firmware):
 
 
 # Number of traces to capture
-N = 1
+N = 10000
+# Default sampling interval is 8 ns
+sampling_interval = 8E-9
 
 # Initialize key and plain text.
 key  = [ 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c ]
@@ -119,6 +131,13 @@ if trace_acquisition:
     print("Sampling Interval: ", ps.get_samplingInterval(), "s")
     print()
 
+    # Update the sampling interval
+    sampling_interval = ps.get_samplingInterval()
+
+    # Initialize the traces matrix.
+    # Shape is (N, nSamples), where N is the number of traces and nSamples is the number of samples per trace.
+    traces = np.zeros((N, ps.get_nSamples()))
+
     for i in tqdm(range(N), desc="Capturing traces"):
         # Run the target
         ps.runBlock()
@@ -132,19 +151,14 @@ if trace_acquisition:
         # Get captured trace 
         data = ps.getDataV()
 
+        # Convert the data to a numpy array
         trace = np.array(data)
 
-        # Plot the trace
-        xrange = np.arange(0, len(trace)) * ps.get_samplingInterval() # Convert samples to time
-        plt.plot(xrange, trace)
-        plt.title(f"Trace {i+1}")
-        plt.xlabel("Time samples (s)")
-        plt.ylabel("Voltage (V)")
-        plt.grid()
-        plt.show()
+        # Add the trace to the traces matrix
+        traces[i] = trace
 
         # Update the plain text as the previous chipertext
-        # text = cipher.encrypt(formatted_key, text, tested_sbox)
+        # text = cipher.encrypt(formatted_key, text, tested_sbox) #TODO: save also the plaintexts in a file
 
         time.sleep(1E-3) # 1 ms
         # Reset the status register to reload the program execution and the scope acquisition
@@ -154,6 +168,46 @@ if trace_acquisition:
     cw305.dis()
     ps.dis()
 
+    # Check if the traces file path exists, if not create the directory
+    if not os.path.exists(traces_dir):
+        os.makedirs(traces_dir)
+    # Save the traces to a file
+    with h5py.File(traces_file, 'w') as f_write_traces:
+        f_write_traces.create_dataset('traces', data=traces)
+
+    print(f"\nTraces saved to {traces_file}")
 
 
 ####################### OFFLINE PHASE #######################
+
+# Load the traces from the file, if it exists
+try:
+    with h5py.File(traces_file, 'r') as f_read_traces:
+        traces = f_read_traces['traces']
+
+        # Plot one trace
+        print(f"Number of traces: {len(traces)}")
+        print(f"Number of samples per trace: {len(traces[0])}")
+        xrange = np.arange(0, len(traces[0])) * sampling_interval # Convert samples to time
+        plt.plot(xrange, 1000*traces[576])
+        plt.title(f"Trace 0")
+        plt.xlabel("Time samples (s)")
+        plt.ylabel("Voltage (mV)")
+        plt.grid()
+        plt.show()
+
+        # Plot 40 traces overlapped
+        print("Generating power traces overlapped plot...")
+        sca_plt = sca_plot()
+        power_plt = sca_plt.power_traces_overlapped(sampling_interval, traces)
+        power_plt.show()
+
+        # Ensure the Graphs directory exists and save the plot
+        # os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
+        # power_plt.savefig("../x-heep/Graphs/AES_c/")
+
+        # power_plt.show()
+        power_plt.close()
+
+except FileNotFoundError:
+    print(f"ERROR: Traces file {traces_file} not found. Please run the trace acquisition phase first.")

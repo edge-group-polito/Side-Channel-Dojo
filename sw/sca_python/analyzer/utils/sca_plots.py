@@ -41,7 +41,7 @@ class sca_plot:
         ax1.set_ylabel("Voltage (mV)")
 
         for i in range(40):
-            ax1.plot(xfocus_window, (traces[i][start:finish]*1000), color=self.byte_to_color(i), alpha=0.5)
+            ax1.plot(xtick_us, (traces[i][start:finish]*1000), color=self.byte_to_color(i), alpha=0.5)
     
         return plt
 

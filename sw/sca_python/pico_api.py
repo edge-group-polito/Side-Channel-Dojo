@@ -91,6 +91,10 @@ class PS5000aWrapper:
     def get_samplingInterval(self):
         """Get the sampling interval."""
         return self.sample_interval
+    
+    def get_nSamples(self):
+        """Get the number of samples."""
+        return self.nSamples
 
     def runBlock(self):
         """Run the picoscope."""
