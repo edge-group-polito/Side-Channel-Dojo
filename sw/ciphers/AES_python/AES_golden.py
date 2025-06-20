@@ -11,7 +11,7 @@ class AES_golden_model:
             key (str): Key used for the encryption, size of 16 bytes.
             plaintext (int): Plaintext block to encrypt, size of 16 bytes.
             sbox_type (str): Type of Sbox to use.
-
+            
         Returns:
             int: Encrypted block of data.
         """
