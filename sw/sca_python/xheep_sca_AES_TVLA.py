@@ -148,9 +148,6 @@ if trace_acquisition:
     firmwares   = [firmware_fixed_pt, firmware_random_pt]
     projects    = [project_fixed, project_random]
 
-    # TODO: solve this bug. Apparently the sbox_rijandael is called sbox_aes somewhere.
-    if tested_sbox == "sbox_rijandael":
-        tested_sbox = "sbox_aes"
 
     # For each of the 2 firmwares, prepare the board, load the firmware, and capture traces.
     # The results are saved in the corresponding project file.

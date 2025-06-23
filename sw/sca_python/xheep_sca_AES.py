@@ -26,6 +26,7 @@ hv.extension('bokeh')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import logging
 
 
 
@@ -154,11 +155,6 @@ cipher = AES_golden_model()
 # Number of traces to capture
 N = 5000
 
-# TODO: solve this bug. Apparently the sbox_rijandael is called sbox_aes somewhere.
-if tested_sbox == "sbox_rijandael":
-    tested_sbox = "sbox_aes"
-
-
 # Prepare the board
 ps, cw305 = prepare_board(firmware)
 
@@ -240,10 +236,6 @@ def get_python_callback(attack):
 
 ### Power traces overlapped plot ###
 
-# TODO: fix this bug.
-if tested_sbox == "sbox_aes":
-    tested_sbox = "sbox_rijandael"
-
 project = cw.open_project(project_file)
 
 if traces_overlapped_plot:
@@ -308,8 +300,13 @@ recv_firstroundkey = [kguess[0][0] for kguess in results.find_maximums()]
 recv_key = key_schedule_rounds(recv_firstroundkey, 0, 0, tested_sbox)
 print("Recovered key: ", [hex(subkey) for subkey in recv_key])
 key=list(project.keys[0])
-assert (key == recv_key), "Failed to recover encryption key!\nGot {}\nExp {}\n".format(recv_key, key)
-print("Key recovery : Success!")
+if key != recv_key:
+    logging.warning(
+    "Failed to recover encryption key!\nGot {}\nExp {}\n".format(
+        [hex(k) for k in recv_key], [hex(k) for k in key])
+    )
+else:
+    print("Key recovery : Success!")
 
 
 

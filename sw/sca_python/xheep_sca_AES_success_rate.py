@@ -161,9 +161,6 @@ if trace_acquisition:
         project_file = "../../build/xheep_test/xheep_CW305_AES_success_rate_" + sbox_id + "_iteration_" + str(iteration) + ".cwp"
         project = cw.create_project(project_file, overwrite=True)
 
-        # TODO: solve this bug. Apparently the sbox_rijandael is called sbox_aes somewhere.
-        if tested_sbox == "sbox_rijandael":
-            tested_sbox = "sbox_aes"
 
         # Trigger the iteration start in the firmware
         cw305.fpga_write(cw305.REG_BRIDGE_STATUS, data=bytearray([0x08]))
@@ -206,10 +203,6 @@ if trace_acquisition:
 ####################### OFFLINE PHASE #######################
 
 
-
-# TODO: fix this bug.
-if tested_sbox == "sbox_aes":
-    tested_sbox = "sbox_rijandael"
 
 print("Analyzing traces (this might take a while)...")
 
