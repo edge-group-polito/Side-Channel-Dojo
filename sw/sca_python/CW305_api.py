@@ -92,46 +92,69 @@ class CW305Wrapper:
     
     def set_key(self, key):
         """
-        key (bytes): The key to use for encryption
+        Set the encryption key on the target.
 
-        Note: The key is reversed before being written to the target
+        Args:
+            key (bytes): The key to use for encryption.
+
+        Note: The key is reversed before being written to the target.
         """
         self.key = key
         self.CW305.fpga_write(self.CW305.REG_CRYPT_KEY, key[::-1])
 
     def set_nonce(self, nonce):
         """
-        key (bytes): The key to use for encryption
+        Set the nonce on the target.
 
-        Note: The key is reversed before being written to the target
+        Args:
+            nonce (bytes): The nonce to use for encryption.
+
+        Note: The nonce is reversed before being written to the target.
         """
         self.nonce = nonce
         self.CW305.fpga_write(0x0d, nonce[::-1])
         
-    def write_fpga(self, add, data):
+    def write_fpga(self, addr, data):
         """
-        key (bytes): The key to use for encryption
+        Write data to the FPGA at the specified address.
 
-        Note: The key is reversed before being written to the target
+        Args:
+            addr (int): The address to write to.
+            data (bytes): The data to write.
+
+        Note: The data is reversed before being written to the target.
         """
         self.data = data
-        self.CW305.fpga_write(add, data[::-1])
+        self.CW305.fpga_write(addr, data[::-1])
         
-    def read_fpga(self, add, len):
-        """
-        key (bytes): The key to use for encryption
+    def read_fpga(self, addr, length):
+        """Side-Channel-Dojo
+        Read data from the FPGA at the specified address.
 
-        Note: The key is reversed before being written to the target
+        Args:
+            addr (int): The address to read from.
+            length (int): The number of bytes to read.
+
+        Returns:
+            bytes: The data read from the FPGA, reversed.
         """
-        data = self.CW305.fpga_read(add, len)
-        
+        data = self.CW305.fpga_read(addr, length)
         return data[::-1]
     
-    def capture_trace(self, pt, project_file, wait_time=0.05, dummy=False):
+    def capture_trace(self, pt, wait_time=0.05, dummy=False):
         """
-        pt (bytes): The plaintext to encrypt
-        key (bytes): The key to use for encryption
-        project_file (str): The path to the project file to save the traces
+        Capture a power trace for a given plaintext.
+
+        Args:
+            pt (bytes): The plaintext to encrypt.
+            trace: Unused parameter (kept for compatibility).
+            wait_time (float, optional): Time to wait after starting acquisition. Default is 0.05.
+            dummy (bool, optional): Unused parameter (kept for compatibility).
+
+        Returns:
+            tuple: (response (bytes), trace (numpy.ndarray))
+                response: The ciphertext read from the target (bytes, reversed to original order).
+                trace: The captured power trace (numpy.ndarray).
         """
         # Write plaintext to target. Endianess is reversed
         self.CW305.fpga_write(self.CW305.REG_CRYPT_TEXTIN, pt[::-1])
@@ -141,16 +164,12 @@ class CW305Wrapper:
         self.CW305.fpga_write(self.CW305.REG_USER_LED, [0x01])
         self.CW305.usb_trigger_toggle()
         self.scope.waitReady()
-        # Get captured trace 
-        data = self.scope.getDataV()
+        # Get captured power trace 
+        trace = self.scope.getDataV()
         # Store captured data in project file
         response = self.CW305.fpga_read(self.CW305.REG_CRYPT_CIPHEROUT, 16)
         response = response[::-1]
-        trace = Trace(np.array(data), pt, response, self.key)
-        if not dummy:
-            project_file.traces.append(trace)
-        
-        return response
+        return response, trace
     
     def capture_trace_1_round(self, project_file, pt, wait_time=0.05, dummy=False):
         """

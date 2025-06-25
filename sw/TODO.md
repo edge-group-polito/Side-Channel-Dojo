@@ -27,3 +27,5 @@ todo:
 - [x] : save the traces in a h5 file
 - [x] : update the plaintext generation in the AES C applications. Then vendorize
 - [x] : update the already compiled firmwares
+- [ ] : leave in sw notebook directory a single notebook which does the plain AES attack (cpa custom and capture trace custom) and then folders utils where are added the noetebook for SNR, TVLA, etc.. and examples where are put the noteboooks of x-heep e Ascon cases
+- [ ] Modify the parameters self.registers = 12  and self.bytecount_size = 7 in CW305.py

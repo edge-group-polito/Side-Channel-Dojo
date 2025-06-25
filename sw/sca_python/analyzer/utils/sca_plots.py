@@ -8,6 +8,7 @@ import holoviews as hv
 from holoviews.operation.datashader import datashade, shade, dynspread, rasterize
 from holoviews.operation import decimate
 import chipwhisperer.analyzer as cwa
+from typing import Optional
 
 class sca_plot:
     
@@ -17,33 +18,85 @@ class sca_plot:
     def byte_to_color(self, idx):
           cmap = cm.get_cmap('cividis')  # Colormap with 40 colors
           return cmap(idx / 40.0)
-
-    def power_traces_overlapped(self, resolution, traces, start=0, finish=None):
-        """Plot overlapped power traces with matplotlib.
-
-            resolution: sampling interval in seconds
-            traces: list of power traces as numpy arrays
-            start: initial sample to plot
-            finish: final sample to plot
-        
+    def power_traces_overlapped(
+        self,
+        traces: list[np.ndarray],
+        resolution: Optional[float] = None,
+        start: int = 0,
+        finish: Optional[int] = None,
+        max_traces: Optional[int] = 40,
+    ):
         """
-        if finish is None:
-            finish = len(traces[0])
+        Plot multiple power traces on the same axes.
 
-        fig, ax1 = plt.subplots(nrows=1, ncols=1, sharex=True, figsize=[18,12])
+        Parameters
+        ----------
+        traces : list[np.ndarray]
+            List of 1-D numpy arrays, all of identical length (samples).
+        resolution : float | None, optional
+            Sampling interval in **seconds**.  
+            *If provided* the x-axis is converted to micro-seconds (µs);  
+            *if None* the x-axis shows raw sample indices.
+        start, finish : int, optional
+            Slice `[start:finish]` of the trace to plot.  
+            `finish=None` → plot to the end.
+        max_traces : int | None, optional
+            Limit the number of traces actually rendered (useful when the list is
+            huge). `None` means plot them all.
 
-        xticks_samples = range(len(traces[0]))
-        xfocus_window = xticks_samples[start:finish]
-        xtick_us = [x*resolution*1E6 for x in xfocus_window]
+        Returns
+        -------
+        matplotlib.pyplot : the matplotlib module so the caller can further tweak
+            or immediately `.show()` the figure.
+        """
+        # ------------------------------------------------------------------ #
+        # Argument sanity checks                                             #
+        # ------------------------------------------------------------------ #
+        if not traces:
+            raise ValueError("`traces` list must not be empty.")
+        n_samples_total = len(traces[0])
+        if finish is None or finish > n_samples_total:
+            finish = n_samples_total
 
-        plt.title("40 captured power traces overlapped")
-        ax1.set_xlabel("Time (us)")
-        ax1.set_ylabel("Voltage (mV)")
+        # Only plot the first `max_traces` if a limit is set
+        traces_to_plot = traces[:max_traces] if max_traces else traces
 
-        for i in range(40):
-            ax1.plot(xtick_us, (traces[i][start:finish]*1000), color=self.byte_to_color(i), alpha=0.5)
-    
+        # ------------------------------------------------------------------ #
+        # Build the x-axis (time or samples)                                 #
+        # ------------------------------------------------------------------ #
+        sample_window = np.arange(start, finish)
+
+        if resolution is None:
+            # X-axis is sample index
+            x_axis = sample_window
+            x_label = "Sample index"
+        else:
+            # Convert samples to time in µs
+            x_axis = sample_window * resolution * 1e6
+            x_label = "Time (µs)"
+
+        # ------------------------------------------------------------------ #
+        # Matplotlib figure setup                                            #
+        # ------------------------------------------------------------------ #
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.set_xlabel(x_label)
+        ax.set_ylabel("Voltage (mV)")
+        ax.set_title(f"{len(traces_to_plot)} power traces overlapped")
+
+        # ------------------------------------------------------------------ #
+        # Plot each trace                                                    #
+        # ------------------------------------------------------------------ #
+        for idx, trc in enumerate(traces_to_plot):
+            ax.plot(
+                x_axis,
+                trc[start:finish] * 1000,          # convert V → mV
+                color=self.byte_to_color(idx),
+                alpha=0.5,
+            )
+
+        # Return the matplotlib handle so the caller can customise further
         return plt
+
 
     def snr_vs_traces_plot(self, resolution, project, leak_model, start=0, finish=None, db_flag=False):
         """ Plot SNR vs traces with matplotlib.
