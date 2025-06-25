@@ -22,6 +22,8 @@ todo:
 - [x] : develop the CPA algorithm
 - [ ] : test the UART RX (from PC to board) -----> NOT FEASABLE
 - [x] : add ASCON basic python script
-- [ ] : add precompiled ASCON firmware to a specific folder and make the script use that firmware
-- [ ] : update the CW305 repo with the ASCON modification and update the vendor folder here
-- [ ] : save the traces in a h5 file
+- [x] : add precompiled ASCON firmware to a specific folder and make the script use that firmware
+- [x] : update the CW305 repo with the ASCON modification and update the vendor folder here
+- [x] : save the traces in a h5 file
+- [x] : update the plaintext generation in the AES C applications. Then vendorize
+- [x] : update the already compiled firmwares
