@@ -232,9 +232,9 @@ plt.grid(True)
 
 # Save to PNG
 if masked_flag:
-    plt.savefig("../x-heep/Graphs/AES_c_masked/tvla_ttest_results_masked.png")
+    plt.savefig("../x-heep/Graphs/AES_c_masked/AES_masked_TVLA_" + tested_sbox + ".png")
 else:
-    plt.savefig("../x-heep/Graphs/AES_c/tvla_ttest_results.png")
+    plt.savefig("../x-heep/Graphs/AES_c/AES_TVLA_" + tested_sbox + ".png")
 
 # plt.show()
 plt.close()
