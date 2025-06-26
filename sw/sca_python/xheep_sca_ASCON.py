@@ -104,7 +104,7 @@ def prepare_board(firmware):
 
 
 # Number of traces to capture
-N = 10000
+N = 50000
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
@@ -189,7 +189,7 @@ try:
         print(f"Number of traces: {len(traces)}")
         print(f"Number of samples per trace: {len(traces[0])}")
         xrange = np.arange(0, len(traces[0])) * sampling_interval # Convert samples to time
-        plt.plot(xrange, 1000*traces[576])
+        plt.plot(xrange, 1000*traces[0])
         plt.title(f"Trace 0")
         plt.xlabel("Time samples (s)")
         plt.ylabel("Voltage (mV)")
@@ -199,7 +199,7 @@ try:
         # Plot 40 traces overlapped
         print("Generating power traces overlapped plot...")
         sca_plt = sca_plot()
-        power_plt = sca_plt.power_traces_overlapped(sampling_interval, traces)
+        power_plt = sca_plt.power_traces_overlapped(traces, sampling_interval)
         power_plt.show()
 
         # Ensure the Graphs directory exists and save the plot
