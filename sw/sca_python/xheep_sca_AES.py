@@ -2,7 +2,7 @@
 
 
 import sys
-sys.path.append( '../AES_python' )
+sys.path.append( '../ciphers/AES_python' )
 sys.path.append( '../sca_python' )
 sys.path.append( '../x-heep' )
 import readFirmware
@@ -241,7 +241,7 @@ project = cw.open_project(project_file)
 if traces_overlapped_plot:
     print("Generating power traces overlapped plot...")
     sca_plt = sca_plot()
-    power_plt = sca_plt.power_traces_overlapped(ps.get_samplingInterval(), project.waves, finish=len(project.waves[0]))
+    power_plt = sca_plt.power_traces_overlapped(project.waves, ps.get_samplingInterval())
 
     # Ensure the Graphs directory exists and save the plot
     if masked_flag:

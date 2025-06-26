@@ -2,7 +2,7 @@
 
 
 import sys
-sys.path.append( '../AES_python' )
+sys.path.append( '../ciphers/AES_python' )
 sys.path.append( '../sca_python' )
 sys.path.append( '../x-heep' )
 import readFirmware
