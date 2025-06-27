@@ -2,6 +2,7 @@
 
 
 import sys
+sys.path.append( '../ciphers/ASCON_init_python' )
 sys.path.append( '../sca_python' )
 sys.path.append( '../x-heep' )
 import readFirmware
@@ -18,9 +19,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
+from operations_init import permutation
+
 ###################### INITIALIZATION ######################
 
 trace_acquisition = False
+save_traces = False
+
+traces_overlapped_plot = False
 
 bitstream = r"../../hw/fpga/bitstream/xheep/cw305_top.bit"
 verilog_defines = r"../../hw/vendor/cw305-heep/hw/fpga/cw305_aes_defines.v"
@@ -101,6 +107,49 @@ def prepare_board(firmware):
 
 ####################### ONLINE PHASE #######################
 
+def ascon_first_round(key, nonce):
+    """
+    This function performs the first round permutation using the combinatorial S-box.
+    The ASCON state is first initialized with the initialization vector, key, and nonce.
+    Then the first round permutation is applied to the state registers.
+
+    Inputs:
+        Key (int): The key used for the ASCON cipher, in hexadecimal format.
+        Nonce (int): The nonce used for the ASCON cipher, in hexadecimal format.
+    Returns:
+        S (list): The state registers after the first round permutation.
+    """
+
+    # Initialize the ASCON 128A parameters (taken from the ASCON C implementation).
+    # ASCON_128A_IV is a constant that represents the initialization vector for ASCON-128a
+    ASCON_AEAD_VARIANT = 1
+    ASCON_PA_ROUNDS = 12
+    ASCON_128A_PB_ROUNDS = 8
+    ASCON_TAG_SIZE = 16
+    ASCON_128A_RATE = 16
+
+    ASCON_128A_IV = (
+        (ASCON_AEAD_VARIANT << 0) |
+        (ASCON_PA_ROUNDS << 16) |
+        (ASCON_128A_PB_ROUNDS << 20) |
+        ((ASCON_TAG_SIZE * 8) << 24) |
+        (ASCON_128A_RATE << 40)
+    )
+
+    # Initialize the state as a list of 5 registers
+    S = [0, 0, 0, 0, 0]
+
+    # Load the state registers
+    S[0] = ASCON_128A_IV
+    S[1] = (key >> 64) & 0xFFFFFFFFFFFFFFFF   # Most significant 64 bits of the key
+    S[2] = key & 0xFFFFFFFFFFFFFFFF           # Least significant 64 bits of the key
+    S[3] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF # Most significant 64 bits of the nonce
+    S[4] = nonce & 0xFFFFFFFFFFFFFFFF         # Least significant 64 bits of the nonce
+
+    # Perform the first round permutation using the combinatorial S-box
+    permutation(S=S, r=0, mode="hw")
+
+    return S
 
 
 # Number of traces to capture
@@ -108,17 +157,17 @@ N = 50000
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
-# Initialize key and plain text.
-key  = [ 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c ]
-text = [ 0x6e, 0xc1, 0x53, 0x9c, 0xfb, 0xe7, 0xf6, 0x18, 0x92, 0xac, 0x19, 0x87, 0xf5, 0x94, 0xe1, 0x2b ]
+# Initialize key and nonce
+key   = "000102030405060708090A0B0C0D0E0F"
+nonce = "000102030405060708090A0B0C0D0E0F"
 
-# Each element of the key is converted to a 2-digit hex string 
-formatted_key = ''.join(format(el, '02x') for el in key)
-print("Key: ", [ hex(subkey) for subkey in key])
+# The key is converted to a 2-digit hex string 
+formatted_key = [key[i:i+2] for i in range(0, len(key), 2)]
+print("Key: ", formatted_key)
 
-# Initialize the AES software emulated cipher
-# cipher = AES_golden_model() #TODO: change this to the ASCON cipher
-
+# Nonce and key are converted to integers
+key = int(key, 16)
+nonce = int(nonce, 16)
 
 # Trace acquisition
 if trace_acquisition:
@@ -136,7 +185,10 @@ if trace_acquisition:
 
     # Initialize the traces matrix.
     # Shape is (N, nSamples), where N is the number of traces and nSamples is the number of samples per trace.
-    traces = np.zeros((N, ps.get_nSamples()))
+    traces = np.empty((N, ps.get_nSamples()))
+
+    # Initialize the nonce vector
+    nonces = np.empty((N, 2), dtype=np.uint64)
 
     for i in tqdm(range(N), desc="Capturing traces"):
         # Run the target
@@ -156,9 +208,13 @@ if trace_acquisition:
 
         # Add the trace to the traces matrix
         traces[i] = trace
+        # Add the nonce to the nonces vector. Each half of the nonce is stored into 2 64-bit integers.
+        nonces[i, 0] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF # Most significant 64 bits of the nonce
+        nonces[i, 1] = nonce & 0xFFFFFFFFFFFFFFFF         # Least significant 64 bits of the nonce
 
-        # Update the plain text as the previous chipertext
-        # text = cipher.encrypt(formatted_key, text, tested_sbox) #TODO: save also the plaintexts in a file
+        # Update the nonce for the next iteration using 2 of the state registers concatenated
+        S = ascon_first_round(key, nonce)
+        nonce = S[3] << 64 | S[4]
 
         time.sleep(1E-3) # 1 ms
         # Reset the status register to reload the program execution and the scope acquisition
@@ -168,14 +224,17 @@ if trace_acquisition:
     cw305.dis()
     ps.dis()
 
-    # Check if the traces file path exists, if not create the directory
-    if not os.path.exists(traces_dir):
-        os.makedirs(traces_dir)
-    # Save the traces to a file
-    with h5py.File(traces_file, 'w') as f_write_traces:
-        f_write_traces.create_dataset('traces', data=traces)
+    if save_traces:
+        print("Saving traces...")
+        # Check if the traces file path exists, if not create the directory
+        if not os.path.exists(traces_dir):
+            os.makedirs(traces_dir)
+        # Save the traces to a file
+        with h5py.File(traces_file, 'w') as f_write_traces:
+            f_write_traces.create_dataset('nonces', data=nonces)
+            f_write_traces.create_dataset('traces', data=traces)
 
-    print(f"\nTraces saved to {traces_file}")
+        print(f"\nTraces saved to {traces_file}")
 
 
 ####################### OFFLINE PHASE #######################
@@ -184,30 +243,18 @@ if trace_acquisition:
 try:
     with h5py.File(traces_file, 'r') as f_read_traces:
         traces = f_read_traces['traces']
+        nonces = f_read_traces['nonces']
 
-        # Plot one trace
-        print(f"Number of traces: {len(traces)}")
-        print(f"Number of samples per trace: {len(traces[0])}")
-        xrange = np.arange(0, len(traces[0])) * sampling_interval # Convert samples to time
-        plt.plot(xrange, 1000*traces[0])
-        plt.title(f"Trace 0")
-        plt.xlabel("Time samples (s)")
-        plt.ylabel("Voltage (mV)")
-        plt.grid()
-        plt.show()
+        if traces_overlapped_plot:
+            # Plot 40 traces overlapped
+            print("Generating power traces overlapped plot...")
+            sca_plt = sca_plot()
+            power_plt = sca_plt.power_traces_overlapped(traces, sampling_interval)
 
-        # Plot 40 traces overlapped
-        print("Generating power traces overlapped plot...")
-        sca_plt = sca_plot()
-        power_plt = sca_plt.power_traces_overlapped(traces, sampling_interval)
-        power_plt.show()
-
-        # Ensure the Graphs directory exists and save the plot
-        # os.makedirs("../x-heep/Graphs/AES_c", exist_ok=True)
-        # power_plt.savefig("../x-heep/Graphs/AES_c/")
-
-        # power_plt.show()
-        power_plt.close()
+            # Ensure the Graphs directory exists and save the plot
+            os.makedirs("../x-heep/Graphs/ASCON_c", exist_ok=True)
+            power_plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_power_traces_overlapped.png")
+            power_plt.close()
 
 except FileNotFoundError:
     print(f"ERROR: Traces file {traces_file} not found. Please run the trace acquisition phase first.")
