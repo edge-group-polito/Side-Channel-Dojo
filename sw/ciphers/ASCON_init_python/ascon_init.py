@@ -29,4 +29,3 @@ with open(file_name_results,'w') as results_file:
                print(sub_layer_type[i],file=results_file)
                print(state.hex(), file=results_file)
                print("",file=results_file)
-
