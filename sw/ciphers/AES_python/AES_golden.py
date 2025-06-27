@@ -1,4 +1,6 @@
 from AES_operation import SubBytes, InvSubBytes, ShiftRows, InvShiftRows, MixColumns, InvMixColumns, AddRoundKey, KeyExpansion, bytes2matrix, matrix2bytes, split_blocks    
+import copy
+
 class AES_golden_model:
 
     def __init__(self):
@@ -32,7 +34,7 @@ class AES_golden_model:
         SubBytes(sbox_type,plain_state)
         plain_state = ShiftRows(plain_state)
         AddRoundKey(plain_state,round_keys[10])
-
+        
         return matrix2bytes(plain_state)
     
     def decrypt_block(key,ciphertext,sbox_type):
