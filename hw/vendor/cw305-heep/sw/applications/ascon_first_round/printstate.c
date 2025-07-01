@@ -14,7 +14,7 @@ void printbytes(const char* text, const uint8_t* b, uint64_t len) {
 }
 
 void printword(const char* text, const uint64_t x) {
-  // printf("%s=0x%016lx", text, x);
+  // The x variable is a 64-bit integer, split into two 32-bit parts for printing.
   uint32_t hi = (uint32_t)(x >> 32);
   uint32_t lo = (uint32_t)(x & 0xFFFFFFFF);
   printf("%s=0x%08x%08x", text, hi, lo);

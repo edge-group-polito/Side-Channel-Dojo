@@ -22,6 +22,7 @@ import h5py
 from operations_init import permutation
 
 ###################### INITIALIZATION ######################
+debug = False
 
 trace_acquisition = False
 save_traces = False
@@ -38,7 +39,7 @@ firmware = r"../x-heep/ASCON_firmware/main.hex"
 
 # Traces file path
 traces_dir  = r"../../build/xheep_test/"
-traces_file = r"../../build/xheep_test/ASCON_traces.h5"
+traces_file = r"../../build/xheep_test/ASCON_traces_nonces.h5"
 
 print()
 print("bitstream: ", bitstream)
@@ -141,19 +142,37 @@ def ascon_first_round(key, nonce):
 
     # Load the state registers
     S[0] = ASCON_128A_IV
-    S[1] = (key >> 64) & 0xFFFFFFFFFFFFFFFF   # Most significant 64 bits of the key
-    S[2] = key & 0xFFFFFFFFFFFFFFFF           # Least significant 64 bits of the key
-    S[3] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF # Most significant 64 bits of the nonce
-    S[4] = nonce & 0xFFFFFFFFFFFFFFFF         # Least significant 64 bits of the nonce
+    S[1] = key & 0xFFFFFFFFFFFFFFFF           # Most significant 64 bits of the key (little-endian)
+    S[2] = (key >> 64) & 0xFFFFFFFFFFFFFFFF   # Least significant 64 bits of the key
+    S[3] = nonce & 0xFFFFFFFFFFFFFFFF         # Most significant 64 bits of the nonce
+    S[4] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF # Least significant 64 bits of the nonce
+
+    if debug:
+        # DEBUG: Print the state registers after the first round permutation
+        print("ASCON initial state registers:")
+        print("S[0]: 0x{:016X}".format(S[0]))
+        print("S[1]: 0x{:016X}".format(S[1]))
+        print("S[2]: 0x{:016X}".format(S[2]))
+        print("S[3]: 0x{:016X}".format(S[3]))
+        print("S[4]: 0x{:016X}".format(S[4]))
 
     # Perform the first round permutation using the combinatorial S-box
     permutation(S=S, r=0, mode="hw")
+
+    if debug:
+        # DEBUG: Print the state registers after the first round permutation
+        print("ASCON first round permutation state registers:")
+        print("S[0]: 0x{:016X}".format(S[0]))
+        print("S[1]: 0x{:016X}".format(S[1]))
+        print("S[2]: 0x{:016X}".format(S[2]))
+        print("S[3]: 0x{:016X}".format(S[3]))
+        print("S[4]: 0x{:016X}".format(S[4]))
 
     return S
 
 
 # Number of traces to capture
-N = 50000
+N = 2
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
@@ -165,9 +184,23 @@ nonce = "000102030405060708090A0B0C0D0E0F"
 formatted_key = [key[i:i+2] for i in range(0, len(key), 2)]
 print("Key: ", formatted_key)
 
-# Nonce and key are converted to integers
-key = int(key, 16)
-nonce = int(nonce, 16)
+# Nonce and key are first reversed by groups of 2 char (to be compliant with 
+# the endianess of the C application) and then converted to integers
+# Reverse by bytes (2 hex chars per byte)
+key_bytes = [key[i:i+2] for i in range(0, len(key), 2)]
+key_reversed = ''.join(key_bytes[::-1])
+key = int(key_reversed, 16)
+
+# Reverse by bytes (2 hex chars per byte)
+nonce_bytes = [nonce[i:i+2] for i in range(0, len(nonce), 2)]
+nonce_reversed = ''.join(nonce_bytes[::-1])
+nonce = int(nonce_reversed, 16)
+
+# DEBUG
+if debug:
+    for i in range(N):
+        S = ascon_first_round(key, nonce)
+        nonce = S[3] << 64 | S[4]
 
 # Trace acquisition
 if trace_acquisition:

@@ -76,12 +76,12 @@ int main() {
                          11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
                          22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
   
-// Encryption and decryption loop
+// Encryption loop
 for (int i = 0; i < POWER_TRACES; i++) {
   // Wait for the trigger signal
-  // while (!pin_value) {
-  //   gpio_read(GPIO_INPUT_TRIGGER, &pin_value);
-  // }
+  while (!pin_value) {
+    gpio_read(GPIO_INPUT_TRIGGER, &pin_value);
+  }
 
   // Initial part of the ASCON algorithm
 #if defined(XHEEP_PRINT) && (XHEEP_PRINT == 1)
@@ -111,10 +111,10 @@ for (int i = 0; i < POWER_TRACES; i++) {
 
   ROUND(&s, 0xf0);
 
-  // // Wait for the trigger signal to go low again
-  // while (pin_value) {
-  //   gpio_read(GPIO_INPUT_TRIGGER, &pin_value);
-  // }
+  // Wait for the trigger signal to go low again
+  while (pin_value) {
+    gpio_read(GPIO_INPUT_TRIGGER, &pin_value);
+  }
 
 #if defined(XHEEP_PRINT) && (XHEEP_PRINT == 1)
   printstate("state after first round", &s);
