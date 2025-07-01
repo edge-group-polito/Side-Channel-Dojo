@@ -27,7 +27,7 @@
 #include "printstate.h"
 
 // --------- X-HEEP includes and defines ---------
-#define XHEEP_PRINT 1
+#define XHEEP_PRINT 0
 
 #include "core_v_mini_mcu.h"
 #include "x-heep.h"
@@ -38,7 +38,7 @@
 // ----------------------------------------------
 
 // Number of power traces collected for each iteration
-#define POWER_TRACES 2
+#define POWER_TRACES 50000
 
 
 int main() {

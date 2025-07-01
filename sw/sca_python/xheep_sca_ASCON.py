@@ -172,7 +172,7 @@ def ascon_first_round(key, nonce):
 
 
 # Number of traces to capture
-N = 2
+N = 50000
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
