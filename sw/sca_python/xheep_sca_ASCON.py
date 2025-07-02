@@ -2,7 +2,6 @@
 
 
 import sys
-sys.path.append( '../ciphers/ASCON_init_python' )
 sys.path.append( '../sca_python' )
 sys.path.append( '../x-heep' )
 import readFirmware
@@ -19,7 +18,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
-from operations_init import permutation
+from analyzer.attack.ascon.xheep_ascon_cpa.ascon_first_round import ascon_first_round
+from analyzer.attack.ascon.xheep_ascon_cpa.ascon_leakage_model import ascon_leakage_model
+from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
 ###################### INITIALIZATION ######################
 debug = False
@@ -108,67 +109,6 @@ def prepare_board(firmware):
 
 ####################### ONLINE PHASE #######################
 
-def ascon_first_round(key, nonce):
-    """
-    This function performs the first round permutation using the combinatorial S-box.
-    The ASCON state is first initialized with the initialization vector, key, and nonce.
-    Then the first round permutation is applied to the state registers.
-
-    Inputs:
-        Key (int): The key used for the ASCON cipher, in hexadecimal format.
-        Nonce (int): The nonce used for the ASCON cipher, in hexadecimal format.
-    Returns:
-        S (list): The state registers after the first round permutation.
-    """
-
-    # Initialize the ASCON 128A parameters (taken from the ASCON C implementation).
-    # ASCON_128A_IV is a constant that represents the initialization vector for ASCON-128a
-    ASCON_AEAD_VARIANT = 1
-    ASCON_PA_ROUNDS = 12
-    ASCON_128A_PB_ROUNDS = 8
-    ASCON_TAG_SIZE = 16
-    ASCON_128A_RATE = 16
-
-    ASCON_128A_IV = (
-        (ASCON_AEAD_VARIANT << 0) |
-        (ASCON_PA_ROUNDS << 16) |
-        (ASCON_128A_PB_ROUNDS << 20) |
-        ((ASCON_TAG_SIZE * 8) << 24) |
-        (ASCON_128A_RATE << 40)
-    )
-
-    # Initialize the state as a list of 5 registers
-    S = [0, 0, 0, 0, 0]
-
-    # Load the state registers
-    S[0] = ASCON_128A_IV
-    S[1] = key & 0xFFFFFFFFFFFFFFFF           # Most significant 64 bits of the key (little-endian)
-    S[2] = (key >> 64) & 0xFFFFFFFFFFFFFFFF   # Least significant 64 bits of the key
-    S[3] = nonce & 0xFFFFFFFFFFFFFFFF         # Most significant 64 bits of the nonce
-    S[4] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF # Least significant 64 bits of the nonce
-
-    if debug:
-        # DEBUG: Print the state registers after the first round permutation
-        print("ASCON initial state registers:")
-        print("S[0]: 0x{:016X}".format(S[0]))
-        print("S[1]: 0x{:016X}".format(S[1]))
-        print("S[2]: 0x{:016X}".format(S[2]))
-        print("S[3]: 0x{:016X}".format(S[3]))
-        print("S[4]: 0x{:016X}".format(S[4]))
-
-    # Perform the first round permutation using the combinatorial S-box
-    permutation(S=S, r=0, mode="hw")
-
-    if debug:
-        # DEBUG: Print the state registers after the first round permutation
-        print("ASCON first round permutation state registers:")
-        print("S[0]: 0x{:016X}".format(S[0]))
-        print("S[1]: 0x{:016X}".format(S[1]))
-        print("S[2]: 0x{:016X}".format(S[2]))
-        print("S[3]: 0x{:016X}".format(S[3]))
-        print("S[4]: 0x{:016X}".format(S[4]))
-
-    return S
 
 
 # Number of traces to capture
@@ -199,7 +139,7 @@ nonce = int(nonce_reversed, 16)
 # DEBUG
 if debug:
     for i in range(N):
-        S = ascon_first_round(key, nonce)
+        S = ascon_first_round(key, nonce, debug)
         nonce = S[3] << 64 | S[4]
 
 # Trace acquisition
@@ -278,6 +218,10 @@ try:
         traces = f_read_traces['traces']
         nonces = f_read_traces['nonces']
 
+        # Sanity check: traces and nonces should have the same number of rows
+        if traces.shape[0] != nonces.shape[0]:
+            raise ValueError("Number of traces and nonces do not match. Please capture the traces again.")
+
         if traces_overlapped_plot:
             # Plot 40 traces overlapped
             print("Generating power traces overlapped plot...")
@@ -288,6 +232,27 @@ try:
             os.makedirs("../x-heep/Graphs/ASCON_c", exist_ok=True)
             power_plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_power_traces_overlapped.png")
             power_plt.close()
+
+
+        print("Running CPA attack (this might take a while)...")
+
+        # TODO: for the moment, the attack is performed only on the first half key register (x0).
+        # Still needed to add an external loop over the necessary key bits to retrieve the
+        # full key register x0. For each bit index, the leakage model is built and the CPA attack is performed.
+
+        # Build the leakage model matrix for all the nonces
+        H_matrix = np.empty((len(traces), 8), dtype=np.uint8)
+        for i in range(len(traces)):
+            leakage_model_i = ascon_leakage_model(nonces[i, 0], nonces[i, 1], state_register_index=0, bit_index=0, debug=debug)
+            H_matrix[i] = leakage_model_i
+
+        print("Leakage model matrix dimensions: ", H_matrix.shape)
+        
+        # CPA attack
+        tic = time.perf_counter()
+        results = ascon_cpa(traces, H_matrix, debug=debug)
+        toc = time.perf_counter()
+        print(f"CPA attack completed in {(toc - tic)/60:.2f} minutes.")
 
 except FileNotFoundError:
     print(f"ERROR: Traces file {traces_file} not found. Please run the trace acquisition phase first.")
