@@ -27,6 +27,7 @@ debug = False
 
 trace_acquisition = False
 save_traces = False
+cpa_phase = True
 
 traces_overlapped_plot = False
 
@@ -40,7 +41,7 @@ firmware = r"../x-heep/ASCON_firmware/main.hex"
 
 # Traces file path
 traces_dir  = r"../../build/xheep_test/"
-traces_file = r"../../build/xheep_test/ASCON_traces_nonces.h5"
+traces_file = r"../../build/xheep_test/ASCON_traces_nonces_400k.h5"
 
 print()
 print("bitstream: ", bitstream)
@@ -63,7 +64,8 @@ def prepare_board(firmware):
         # which corresponds to 180-190 us at 10 MHz clock frequency.
         # So, to capture just the first permutation, we need a time window of about 18 us.
         # 16 us observation time with sampling frequency of 125 MHz, so nSamples = 1600
-        ps.scope_setup(obs_time=16E-6, nSamples=1600)
+        #ps.scope_setup(obs_time=16E-6, nSamples=1600)
+        ps.scope_setup(obs_time=35E-6, nSamples=3500) # The algorithm ends at ~32 us, so 35 us is enough
 
         # In particular, a single repetition is composed by:
         # 1. A round constant addition (XOR operation) with the state (~2 us)
@@ -112,13 +114,14 @@ def prepare_board(firmware):
 
 
 # Number of traces to capture
-N = 50000
+N = 400000
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
 # Initialize key and nonce
 key   = "000102030405060708090A0B0C0D0E0F"
 nonce = "000102030405060708090A0B0C0D0E0F"
+initialization_vector = "00001000808C0001" # Computed from the ASCON 128A parameters
 
 # The key is converted to a 2-digit hex string 
 formatted_key = [key[i:i+2] for i in range(0, len(key), 2)]
@@ -135,6 +138,11 @@ key = int(key_reversed, 16)
 nonce_bytes = [nonce[i:i+2] for i in range(0, len(nonce), 2)]
 nonce_reversed = ''.join(nonce_bytes[::-1])
 nonce = int(nonce_reversed, 16)
+
+# iv_bytes = [initialization_vector[i:i+2] for i in range(0, len(initialization_vector), 2)]
+# iv_reversed = ''.join(iv_bytes[::-1])
+# initialization_vector = int(iv_reversed, 16)
+initialization_vector = int(initialization_vector, 16)
 
 # DEBUG
 if debug:
@@ -182,8 +190,8 @@ if trace_acquisition:
         # Add the trace to the traces matrix
         traces[i] = trace
         # Add the nonce to the nonces vector. Each half of the nonce is stored into 2 64-bit integers.
-        nonces[i, 0] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF # Most significant 64 bits of the nonce
-        nonces[i, 1] = nonce & 0xFFFFFFFFFFFFFFFF         # Least significant 64 bits of the nonce
+        nonces[i, 0] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF # Least significant 64 bits of the nonce
+        nonces[i, 1] = nonce & 0xFFFFFFFFFFFFFFFF         # Most significant 64 bits of the nonce
 
         # Update the nonce for the next iteration using 2 of the state registers concatenated
         S = ascon_first_round(key, nonce)
@@ -215,8 +223,12 @@ if trace_acquisition:
 # Load the traces from the file, if it exists
 try:
     with h5py.File(traces_file, 'r') as f_read_traces:
-        traces = f_read_traces['traces']
-        nonces = f_read_traces['nonces']
+        # Read the first 50000 traces and nonces. It is better to use the slicing
+        # operator even to load the whole dataset, since with the h5 format 
+        # data is read from the disk each time. The slicing operator forces the data 
+        # to be loaded into the RAM.
+        traces = f_read_traces['traces'][:200000]
+        nonces = f_read_traces['nonces'][:200000]
 
         # Sanity check: traces and nonces should have the same number of rows
         if traces.shape[0] != nonces.shape[0]:
@@ -233,26 +245,76 @@ try:
             power_plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_power_traces_overlapped.png")
             power_plt.close()
 
+        if cpa_phase:
+            print("Running CPA attack (this might take a while)...")
 
-        print("Running CPA attack (this might take a while)...")
+            # TODO: for the moment, the attack is performed only on the first half key register (x0).
+            # Still needed to add an external loop over the necessary key bits to retrieve the
+            # full key register x0. For each bit index, the leakage model is built and the CPA attack is performed.
 
-        # TODO: for the moment, the attack is performed only on the first half key register (x0).
-        # Still needed to add an external loop over the necessary key bits to retrieve the
-        # full key register x0. For each bit index, the leakage model is built and the CPA attack is performed.
+            # The CPA attack is repeated with an incremental number of traces,
+            # in order to see how the distance between the correlation value of 
+            # the correct key guess and the others increases with the number of traces.
+            corr_vs_traces = []
+            bit_index = 0
+            tic = time.perf_counter()
 
-        # Build the leakage model matrix for all the nonces
-        H_matrix = np.empty((len(traces), 8), dtype=np.uint8)
-        for i in range(len(traces)):
-            leakage_model_i = ascon_leakage_model(nonces[i, 0], nonces[i, 1], state_register_index=0, bit_index=0, debug=debug)
-            H_matrix[i] = leakage_model_i
+            for count in range(1, 5):
+                partial_traces = traces[:(count*50000)]
+                partial_nonces = nonces[:(count*50000)]
 
-        print("Leakage model matrix dimensions: ", H_matrix.shape)
-        
-        # CPA attack
-        tic = time.perf_counter()
-        results = ascon_cpa(traces, H_matrix, debug=debug)
-        toc = time.perf_counter()
-        print(f"CPA attack completed in {(toc - tic)/60:.2f} minutes.")
+                # Build the leakage model matrix for all the nonces
+                # H_matrix = np.empty((len(partial_nonces), 8), dtype=np.uint8)
+                H_matrix = np.empty((len(partial_nonces), 2), dtype=np.uint8)
+
+                for n in range(len(partial_nonces)):
+                    # leakage_model_i = ascon_leakage_model(initialization_vector, partial_nonces[n, 1], partial_nonces[n, 0], state_register_index=0, bit_index=bit_index, debug=debug)
+                    leakage_model_i = ascon_leakage_model(partial_nonces[n, 1], state_register_index=3, bit_index=bit_index, debug=debug)
+                    H_matrix[n] = leakage_model_i
+
+                # print("Leakage model matrix dimensions: ", H_matrix.shape)
+                
+                # CPA attack
+                results = ascon_cpa(partial_traces, H_matrix, debug=False)
+                # Find the time sample with the maximum correlation value
+                max_corr_per_time = np.max(np.abs(results), axis=0) # shape (8,). Max value for each column (key guess) is returned
+                print("Number of traces: ", len(partial_traces))
+                for j in range(max_corr_per_time.shape[0]):
+                    max_corr_value = max_corr_per_time[j]
+                    print(f"Key guess {j}: {max_corr_value:.4f}")
+
+                # Find the key guess with the maximum correlation value
+                max_key_guess = np.argmax(max_corr_per_time)
+                print(f"Key guess with maximum correlation value: {max_key_guess}")
+
+                # Store the correlation values for all the key guesses
+                corr_vs_traces.append(max_corr_per_time)
+
+            # Correlation vs traces plot
+            corr_vs_traces = np.array(corr_vs_traces)  # shape (steps, 8)
+            x = np.arange(1, len(corr_vs_traces) + 1) * 5000
+
+            plt.figure(figsize=(10, 5))
+            for key_idx in range(2):
+                plt.plot(x, corr_vs_traces[:, key_idx], label=f"Key guess {key_idx}")
+
+            plt.xlabel("Number of traces")
+            plt.ylabel("Correlation value")
+            plt.title("Correlation vs Number of traces")
+            plt.grid()
+            plt.legend()
+            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_correlation_vs_traces.png")
+            plt.close()
+
+            toc = time.perf_counter()
+            print(f"\nCPA attack completed in {(toc - tic)/60:.2f} minutes.\n")
+
+            # DEBUG
+            # key_0_j     = (key >> (bit_index % 64)) & 1
+            # key_0_j36   = (key >> ((bit_index + 36) % 64)) & 1
+            # key_0_j45   = (key >> ((bit_index + 45) % 64)) & 1
+            # print(f"Expected key bits: ({key_0_j45}, {key_0_j36}, {key_0_j})")
+            print(f"Expected key bit: {((key >> (bit_index % 64)) & 1)}")
 
 except FileNotFoundError:
     print(f"ERROR: Traces file {traces_file} not found. Please run the trace acquisition phase first.")
