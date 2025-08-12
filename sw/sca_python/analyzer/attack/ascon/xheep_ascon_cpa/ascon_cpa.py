@@ -3,7 +3,7 @@
 
 import numpy as np
 
-def ascon_cpa(traces, hypothetical_values, debug=False):
+def ascon_cpa(traces, hypothetical_values):
     """
     This function performs the correlation power analysis on the ASCON cipher.
     It computes the correlation between the traces and the leakage model for each key hypothesis.
@@ -24,16 +24,13 @@ def ascon_cpa(traces, hypothetical_values, debug=False):
     """
     
     # Initialize the correlations array (R matrix)
-    R_matrix = np.zeros((traces.shape[1], hypothetical_values.shape[1]))
+    R_matrix = np.zeros((hypothetical_values.shape[1], traces.shape[1]), dtype=np.float64)
 
     # Loop over each sample in the traces and over each key hypothesis
-    for sample_index in range(traces.shape[1]):
-        for hypothesis_index in range(hypothetical_values.shape[1]):
+    for hypothesis_index in range(hypothetical_values.shape[1]):
+        for sample_index in range(traces.shape[1]):
             # Compute the correlation between the traces and the hypothetical values
-            R_matrix[sample_index, hypothesis_index] = np.corrcoef(traces[:, sample_index], 
+            R_matrix[hypothesis_index, sample_index] = np.corrcoef(traces[:, sample_index], 
                                                                     hypothetical_values[:, hypothesis_index])[0, 1]
-
-    if debug:
-        print("Correlation matrix R dimensions: ", R_matrix.shape)
 
     return R_matrix

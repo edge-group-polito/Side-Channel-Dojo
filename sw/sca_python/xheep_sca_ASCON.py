@@ -23,11 +23,11 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_leakage_model import ascon_leak
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
 ###################### INITIALIZATION ######################
-debug = False
 
 trace_acquisition = False
 save_traces = False
 cpa_phase = True
+dpa_phase = False
 
 traces_overlapped_plot = False
 
@@ -41,7 +41,9 @@ firmware = r"../x-heep/ASCON_firmware/main.hex"
 
 # Traces file path
 traces_dir  = r"../../build/xheep_test/"
-traces_file = r"../../build/xheep_test/ASCON_traces_nonces_400k.h5"
+traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
+#traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_50k.h5"
+# traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_50k_2.h5"
 
 print()
 print("bitstream: ", bitstream)
@@ -60,19 +62,9 @@ def prepare_board(firmware):
         # Initialize picoscope
         ps = PS5000aWrapper()
         ps.get_unitInfo()
-        # The complete permutation phase (12 repetitions) takes about 1800-1900 clock cycles, 
-        # which corresponds to 180-190 us at 10 MHz clock frequency.
-        # So, to capture just the first permutation, we need a time window of about 18 us.
-        # 16 us observation time with sampling frequency of 125 MHz, so nSamples = 1600
         #ps.scope_setup(obs_time=16E-6, nSamples=1600)
-        ps.scope_setup(obs_time=35E-6, nSamples=3500) # The algorithm ends at ~32 us, so 35 us is enough
-
-        # In particular, a single repetition is composed by:
-        # 1. A round constant addition (XOR operation) with the state (~2 us)
-        # 2. A substitution layer (~2.5 us)
-        # 3. Keccak S-box (~7 to us)
-        # 4. Some rotations (~3 to us)
-        # 5. A linear diffusion layer (~9.5 us)
+        # The scope is triggered before the registers update, and it is set for only 34 clock cycles.
+        ps.scope_setup(obs_time=3.5E-6, nSamples=350) # ~3.5 us, 350 samples
 
         # Initialize CW305 with required parameters. More in detail:
         # ps: picoscope object
@@ -114,7 +106,7 @@ def prepare_board(firmware):
 
 
 # Number of traces to capture
-N = 400000
+N = 50000
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
@@ -123,10 +115,6 @@ key   = "000102030405060708090A0B0C0D0E0F"
 nonce = "000102030405060708090A0B0C0D0E0F"
 initialization_vector = "00001000808C0001" # Computed from the ASCON 128A parameters
 
-# The key is converted to a 2-digit hex string 
-formatted_key = [key[i:i+2] for i in range(0, len(key), 2)]
-print("Key: ", formatted_key)
-
 # Nonce and key are first reversed by groups of 2 char (to be compliant with 
 # the endianess of the C application) and then converted to integers
 # Reverse by bytes (2 hex chars per byte)
@@ -134,21 +122,16 @@ key_bytes = [key[i:i+2] for i in range(0, len(key), 2)]
 key_reversed = ''.join(key_bytes[::-1])
 key = int(key_reversed, 16)
 
+# The key is converted to a 2-digit hex string 
+formatted_key = [key_reversed[i:i+2] for i in range(0, len(key_reversed), 2)]
+print("Key: ", formatted_key)
+
 # Reverse by bytes (2 hex chars per byte)
 nonce_bytes = [nonce[i:i+2] for i in range(0, len(nonce), 2)]
 nonce_reversed = ''.join(nonce_bytes[::-1])
 nonce = int(nonce_reversed, 16)
 
-# iv_bytes = [initialization_vector[i:i+2] for i in range(0, len(initialization_vector), 2)]
-# iv_reversed = ''.join(iv_bytes[::-1])
-# initialization_vector = int(iv_reversed, 16)
 initialization_vector = int(initialization_vector, 16)
-
-# DEBUG
-if debug:
-    for i in range(N):
-        S = ascon_first_round(key, nonce, debug)
-        nonce = S[3] << 64 | S[4]
 
 # Trace acquisition
 if trace_acquisition:
@@ -227,8 +210,18 @@ try:
         # operator even to load the whole dataset, since with the h5 format 
         # data is read from the disk each time. The slicing operator forces the data 
         # to be loaded into the RAM.
-        traces = f_read_traces['traces'][:200000]
-        nonces = f_read_traces['nonces'][:200000]
+        traces = f_read_traces['traces'][:500000]
+        nonces = f_read_traces['nonces'][:500000]
+
+        # Print the first nonce
+        nonce = int(nonces[0, 0]) << 64 | int(nonces[0, 1])
+        print(f"Nonce: {nonce:016X}")
+        print(f"Key: {key:016X}")
+        # Compute the state for the first two nonces
+        S = ascon_first_round(key, nonce)
+        print(f"State 0: {S[0]:<016X}")
+        print()
+
 
         # Sanity check: traces and nonces should have the same number of rows
         if traces.shape[0] != nonces.shape[0]:
@@ -238,7 +231,7 @@ try:
             # Plot 40 traces overlapped
             print("Generating power traces overlapped plot...")
             sca_plt = sca_plot()
-            power_plt = sca_plt.power_traces_overlapped(traces, sampling_interval)
+            power_plt = sca_plt.power_traces_overlapped(list(traces), sampling_interval)
 
             # Ensure the Graphs directory exists and save the plot
             os.makedirs("../x-heep/Graphs/ASCON_c", exist_ok=True)
@@ -256,46 +249,55 @@ try:
             # in order to see how the distance between the correlation value of 
             # the correct key guess and the others increases with the number of traces.
             corr_vs_traces = []
+            state_register_index = 0
             bit_index = 0
             tic = time.perf_counter()
 
-            for count in range(1, 5):
-                partial_traces = traces[:(count*50000)]
-                partial_nonces = nonces[:(count*50000)]
+            # DEBUG
+            key_0 = key & 0xFFFFFFFFFFFFFFFF
+            key_0_j     = (key_0 >> (bit_index % 64)) & 1
+            key_0_j36   = (key_0 >> ((bit_index + 36) % 64)) & 1
+            key_0_j45   = (key_0 >> ((bit_index + 45) % 64)) & 1
+
+            for count in range(1, 51):
+                partial_traces = traces[:(count*10000)]
+                partial_nonces = nonces[:(count*10000)]
 
                 # Build the leakage model matrix for all the nonces
-                # H_matrix = np.empty((len(partial_nonces), 8), dtype=np.uint8)
-                H_matrix = np.empty((len(partial_nonces), 2), dtype=np.uint8)
+                H_matrix = np.empty((len(partial_nonces), 8), dtype=np.uint8)
+                R_matrix = np.empty((8, partial_traces.shape[1]), dtype=np.float64)
 
                 for n in range(len(partial_nonces)):
-                    # leakage_model_i = ascon_leakage_model(initialization_vector, partial_nonces[n, 1], partial_nonces[n, 0], state_register_index=0, bit_index=bit_index, debug=debug)
-                    leakage_model_i = ascon_leakage_model(partial_nonces[n, 1], state_register_index=3, bit_index=bit_index, debug=debug)
+                    nonce_MSB = partial_nonces[n][1]
+                    nonce_LSB = partial_nonces[n][0]
+                    leakage_model_i = ascon_leakage_model(nonce_LSB, nonce_MSB, state_register_index, bit_index)
                     H_matrix[n] = leakage_model_i
-
-                # print("Leakage model matrix dimensions: ", H_matrix.shape)
                 
                 # CPA attack
-                results = ascon_cpa(partial_traces, H_matrix, debug=False)
+                R_matrix = ascon_cpa(partial_traces, H_matrix)
+
                 # Find the time sample with the maximum correlation value
-                max_corr_per_time = np.max(np.abs(results), axis=0) # shape (8,). Max value for each column (key guess) is returned
+                corr_vs_keyguess = np.max(np.abs(R_matrix), axis=1) # shape (8,). Max value for each column (key guess) is returned
                 print("Number of traces: ", len(partial_traces))
-                for j in range(max_corr_per_time.shape[0]):
-                    max_corr_value = max_corr_per_time[j]
+                for j in range(corr_vs_keyguess.shape[0]):
+                    max_corr_value = corr_vs_keyguess[j]
                     print(f"Key guess {j}: {max_corr_value:.4f}")
 
                 # Find the key guess with the maximum correlation value
-                max_key_guess = np.argmax(max_corr_per_time)
-                print(f"Key guess with maximum correlation value: {max_key_guess}")
+                best_key_guess = np.argmax(corr_vs_keyguess)
+                print(f"Key guess with maximum correlation value: {best_key_guess}")
+                print(f"Attacked bit index: {bit_index}, State register index: {state_register_index}")
+                print(f"Expected key bits: ({key_0_j45}, {key_0_j36}, {key_0_j}), got: ({(best_key_guess >> 2) & 1}, {(best_key_guess >> 1) & 1}, {best_key_guess & 1})")
 
                 # Store the correlation values for all the key guesses
-                corr_vs_traces.append(max_corr_per_time)
+                corr_vs_traces.append(corr_vs_keyguess)
 
             # Correlation vs traces plot
             corr_vs_traces = np.array(corr_vs_traces)  # shape (steps, 8)
-            x = np.arange(1, len(corr_vs_traces) + 1) * 5000
+            x = np.arange(1, len(corr_vs_traces) + 1) * 10000
 
             plt.figure(figsize=(10, 5))
-            for key_idx in range(2):
+            for key_idx in range(8):
                 plt.plot(x, corr_vs_traces[:, key_idx], label=f"Key guess {key_idx}")
 
             plt.xlabel("Number of traces")
@@ -309,12 +311,49 @@ try:
             toc = time.perf_counter()
             print(f"\nCPA attack completed in {(toc - tic)/60:.2f} minutes.\n")
 
-            # DEBUG
-            # key_0_j     = (key >> (bit_index % 64)) & 1
-            # key_0_j36   = (key >> ((bit_index + 36) % 64)) & 1
-            # key_0_j45   = (key >> ((bit_index + 45) % 64)) & 1
-            # print(f"Expected key bits: ({key_0_j45}, {key_0_j36}, {key_0_j})")
-            print(f"Expected key bit: {((key >> (bit_index % 64)) & 1)}")
+        if dpa_phase:
+            print("Running DPA attack (this might take a while)...")
+
+            # For the DPA attack, we need to group the traces according to the target bit 
+            # value of the output register S0 at the end of the linear diffusion layer.
+            # So for each key guess, we will have two groups of traces:
+            # 1. Traces where the target bit is 0
+            # 2. Traces where the target bit is 1
+            # Then the difference of means is computed for each sample in the traces.
+            # If the difference of means is high, it means that key guess is likely to be correct.
+
+            TARGET_BIT = 0
+            difference_of_means = []
+
+            for key_guess in range(8):
+                traces_0 = []
+                traces_1 = []
+                for i in range(len(nonces)):
+                    leakage_model_i = ascon_leakage_model(nonces[i][1], nonces[i][0], 0, TARGET_BIT) # This returns the expected value of the linear diffusion layer output for all key guesses
+
+                    if leakage_model_i[key_guess] == 0:
+                        traces_0.append(traces[i])
+                    else:
+                        traces_1.append(traces[i])
+
+                # Compute the difference of means for each sample in the traces
+                diff = np.mean(traces_1, axis=0) - np.mean(traces_0, axis=0)
+                difference_of_means.append(diff)
+
+            # Plot all the differences of means for each key guess in 8 subplots
+            fig, axs = plt.subplots(2, 4, figsize=(20, 10))
+            for key_guess in range(8):
+                ax = axs[key_guess // 4, key_guess % 4]
+                ax.plot(difference_of_means[key_guess], label=f"Key guess {key_guess}")
+                ax.set_title(f"Difference of means for key guess {key_guess}")
+                ax.set_xlabel("Sample")
+                ax.set_ylabel("Difference of means")
+                ax.grid()
+                ax.legend()
+
+            plt.tight_layout()
+            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_dpa_attack" + f"_bit_{TARGET_BIT}.png")
+            plt.close()
 
 except FileNotFoundError:
     print(f"ERROR: Traces file {traces_file} not found. Please run the trace acquisition phase first.")
