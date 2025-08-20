@@ -27,7 +27,6 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 trace_acquisition = False
 save_traces = False
 cpa_phase = True
-dpa_phase = False
 
 traces_overlapped_plot = False
 
@@ -114,6 +113,7 @@ sampling_interval = 8E-9
 key   = "000102030405060708090A0B0C0D0E0F"
 nonce = "000102030405060708090A0B0C0D0E0F"
 initialization_vector = "00001000808C0001" # Computed from the ASCON 128A parameters
+sbox_type = "lut_ascon"
 
 # Nonce and key are first reversed by groups of 2 char (to be compliant with 
 # the endianess of the C application) and then converted to integers
@@ -213,15 +213,6 @@ try:
         traces = f_read_traces['traces'][:500000]
         nonces = f_read_traces['nonces'][:500000]
 
-        # Print the first nonce
-        nonce = int(nonces[0, 0]) << 64 | int(nonces[0, 1])
-        print(f"Nonce: {nonce:016X}")
-        print(f"Key: {key:016X}")
-        # Compute the state for the first two nonces
-        S = ascon_first_round(key, nonce)
-        print(f"State 0: {S[0]:<016X}")
-        print()
-
 
         # Sanity check: traces and nonces should have the same number of rows
         if traces.shape[0] != nonces.shape[0]:
@@ -256,12 +247,12 @@ try:
             # DEBUG
             key_0 = key & 0xFFFFFFFFFFFFFFFF
             key_0_j     = (key_0 >> (bit_index % 64)) & 1
-            key_0_j36   = (key_0 >> ((bit_index + 36) % 64)) & 1
-            key_0_j45   = (key_0 >> ((bit_index + 45) % 64)) & 1
+            key_0_j19   = (key_0 >> ((bit_index + 19) % 64)) & 1
+            key_0_j28   = (key_0 >> ((bit_index + 28) % 64)) & 1
 
-            for count in range(1, 51):
-                partial_traces = traces[:(count*10000)]
-                partial_nonces = nonces[:(count*10000)]
+            for count in range(1, 101):
+                partial_traces = traces[:(count*250)]
+                partial_nonces = nonces[:(count*250)]
 
                 # Build the leakage model matrix for all the nonces
                 H_matrix = np.empty((len(partial_nonces), 8), dtype=np.uint8)
@@ -270,7 +261,7 @@ try:
                 for n in range(len(partial_nonces)):
                     nonce_MSB = partial_nonces[n][1]
                     nonce_LSB = partial_nonces[n][0]
-                    leakage_model_i = ascon_leakage_model(nonce_LSB, nonce_MSB, state_register_index, bit_index)
+                    leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type)
                     H_matrix[n] = leakage_model_i
                 
                 # CPA attack
@@ -287,14 +278,14 @@ try:
                 best_key_guess = np.argmax(corr_vs_keyguess)
                 print(f"Key guess with maximum correlation value: {best_key_guess}")
                 print(f"Attacked bit index: {bit_index}, State register index: {state_register_index}")
-                print(f"Expected key bits: ({key_0_j45}, {key_0_j36}, {key_0_j}), got: ({(best_key_guess >> 2) & 1}, {(best_key_guess >> 1) & 1}, {best_key_guess & 1})")
+                print(f"Expected key bits (bit-j, bit-j + 19, bit-j + 28): ({key_0_j}, {key_0_j19}, {key_0_j28}), got: ({(best_key_guess >> 2) & 1}, {(best_key_guess >> 1) & 1}, {(best_key_guess >> 0) & 1})")
 
                 # Store the correlation values for all the key guesses
                 corr_vs_traces.append(corr_vs_keyguess)
 
             # Correlation vs traces plot
             corr_vs_traces = np.array(corr_vs_traces)  # shape (steps, 8)
-            x = np.arange(1, len(corr_vs_traces) + 1) * 10000
+            x = np.arange(1, len(corr_vs_traces) + 1) * 250
 
             plt.figure(figsize=(10, 5))
             for key_idx in range(8):
@@ -310,50 +301,6 @@ try:
 
             toc = time.perf_counter()
             print(f"\nCPA attack completed in {(toc - tic)/60:.2f} minutes.\n")
-
-        if dpa_phase:
-            print("Running DPA attack (this might take a while)...")
-
-            # For the DPA attack, we need to group the traces according to the target bit 
-            # value of the output register S0 at the end of the linear diffusion layer.
-            # So for each key guess, we will have two groups of traces:
-            # 1. Traces where the target bit is 0
-            # 2. Traces where the target bit is 1
-            # Then the difference of means is computed for each sample in the traces.
-            # If the difference of means is high, it means that key guess is likely to be correct.
-
-            TARGET_BIT = 0
-            difference_of_means = []
-
-            for key_guess in range(8):
-                traces_0 = []
-                traces_1 = []
-                for i in range(len(nonces)):
-                    leakage_model_i = ascon_leakage_model(nonces[i][1], nonces[i][0], 0, TARGET_BIT) # This returns the expected value of the linear diffusion layer output for all key guesses
-
-                    if leakage_model_i[key_guess] == 0:
-                        traces_0.append(traces[i])
-                    else:
-                        traces_1.append(traces[i])
-
-                # Compute the difference of means for each sample in the traces
-                diff = np.mean(traces_1, axis=0) - np.mean(traces_0, axis=0)
-                difference_of_means.append(diff)
-
-            # Plot all the differences of means for each key guess in 8 subplots
-            fig, axs = plt.subplots(2, 4, figsize=(20, 10))
-            for key_guess in range(8):
-                ax = axs[key_guess // 4, key_guess % 4]
-                ax.plot(difference_of_means[key_guess], label=f"Key guess {key_guess}")
-                ax.set_title(f"Difference of means for key guess {key_guess}")
-                ax.set_xlabel("Sample")
-                ax.set_ylabel("Difference of means")
-                ax.grid()
-                ax.legend()
-
-            plt.tight_layout()
-            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_dpa_attack" + f"_bit_{TARGET_BIT}.png")
-            plt.close()
 
 except FileNotFoundError:
     print(f"ERROR: Traces file {traces_file} not found. Please run the trace acquisition phase first.")
