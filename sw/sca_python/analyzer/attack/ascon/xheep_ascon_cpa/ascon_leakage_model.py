@@ -3,32 +3,32 @@
 from .. import ascon_funcs as ascon
 import numpy as np
 
-def ascon_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type):
+def ascon_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type, key_0=None):
     """
     This function computes the leakage model for the ASCON cipher.
     The attack point is the activity of the register at the 
     linear diffusion layer output (not at the S-box output).
-    Since 6 bits of the key are leaked, the leakage model returns
-    64 possible key guesses for the given nonce, as numpy array.
-    Each key guess is organized this way:
-    - The 3 MSBs represent the key guesses for the register x1
-    - The 3 LSBs represent the key guesses for the register x2
+    Since 3 bits of the key are leaked, the leakage model returns
+    8 possible key guesses for the given nonce, as numpy array.
 
     Inputs:
         init_vect (int): The initialization vector used for the ASCON cipher, 
-        in hexadecimal format, correspondig to the register x0.
+        in hexadecimal format, correspondig to the initial value of the register x0.
 
         nonce_MSB (int): The most significant half of the nonce used for the ASCON cipher, 
-        in hexadecimal format, correspondig to the register x3.
+        in hexadecimal format, correspondig to the initial value of the register x3.
         
         nonce_LSB (int): The least significant half of the nonce used for the ASCON cipher, 
-        in hexadecimal format, correspondig to the register x4.
-        
+        in hexadecimal format, correspondig to the initial value of the register x4.
+
         state_register_index (int): The ASCON state register attacked (0 or 1).
         
         bit_index (int): The index of the output register bit to be attacked (0 to 63).
 
         sbox_type (str): The type of S-Box to be used.
+
+        key_0 (int): The most significand half of the key. Used when attacking the state 
+        register x1, since it has already been recovered from the state register x0.
     Returns:
         leakage_model (numpy array): The leakage model for the ASCON cipher.
     """
@@ -69,8 +69,8 @@ def ascon_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, b
             This function computes the 5-bit output of the ASCON linear shift layer.
             Inputs:
                 init_vect (int): The initialization vector (IV) for the ASCON cipher.
-                key_0 (list): The most significant half of the key (as a list of 3 integers).
-                key_1 (list): The least significant half of the key (as a list of 3 integers).
+                key_0 (list): 3 bits of the most significant half of the key (as a list of 3 integers).
+                key_1 (list): 3 bits of the least significant half of the key (as a list of 3 integers).
                 nonce_0 (int): The most significant half of the nonce.
                 nonce_1 (int): The least significant half of the nonce.
                 round_constant (int): The round constant for the ASCON cipher.
@@ -112,26 +112,33 @@ def ascon_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, b
     round_constant = 0xf0
 
     # Row shift values for the ASCON cipher
-    row_shift = [0, 19, 28]
+    row_shift_0 = [0, 19, 28]
+    row_shift_1 = [0, 61, 39]
 
-    # Loop through all possible key guesses (from 0 to 63).
-    # Each key guess is represented by a 6-bit binary number 
-    # (e.g 000-010 -> 000 = key guess for k_0, 010 = key guess for k_1)
+    # Loop through all possible key guesses (from 0 to 7).
+    # Each key guess is represented by a 3-bit binary number (e.g 0 -> 000, 1 -> 001, 2 -> 010...)
     for key_guess in range(8):
-        key_guess_0 = split_3bit_to_lists(key_guess)
-        key_guess_1 = [0, 0, 0] # Fixed to zero according to the paper assumptions
-
-        # Compute the output of the linear diffusion layer (5 bits)
-        Z = ascon_shift_layer(init_vect, key_guess_0, key_guess_1, nonce_MSB, nonce_LSB, round_constant, row_shift, bit_index, sbox_type)
 
         # Choose the right bit according to the state register index
         if state_register_index == 0:
+            key_guess_0 = split_3bit_to_lists(key_guess)
+            key_guess_1 = [0, 0, 0] # Fixed to zero according to the paper assumptions
+
+            # Compute the output of the linear diffusion layer (5 bits)
+            Z = ascon_shift_layer(init_vect, key_guess_0, key_guess_1, nonce_MSB, nonce_LSB, round_constant, row_shift_0, bit_index, sbox_type)
             Z_0 = (Z >> 4) & 0x01
+
             leakage_model[key_guess] = Z_0
         else:
-            # TODO: finish the leakage model for the register 1
+            key_guess_0 = [(key_0 >> ((bit_index + row_shift_1[0]) % 64)) & 0x01,
+                           (key_0 >> ((bit_index + row_shift_1[1]) % 64)) & 0x01,
+                           (key_0 >> ((bit_index + row_shift_1[2]) % 64)) & 0x01]
+            key_guess_1 = split_3bit_to_lists(key_guess)
+
+            # Compute the output of the linear diffusion layer (5 bits)
+            Z = ascon_shift_layer(init_vect, key_guess_0, key_guess_1, nonce_MSB, nonce_LSB, round_constant, row_shift_1, bit_index, sbox_type)
             Z_1 = (Z >> 3) & 0x01
+
             leakage_model[key_guess] = Z_1
-            pass
 
     return leakage_model

@@ -26,7 +26,8 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
 trace_acquisition = False
 save_traces = False
-cpa_phase = True
+cpa_phase_1_bit = False
+cpa_phase_full_key = True
 
 traces_overlapped_plot = False
 
@@ -210,8 +211,8 @@ try:
         # operator even to load the whole dataset, since with the h5 format 
         # data is read from the disk each time. The slicing operator forces the data 
         # to be loaded into the RAM.
-        traces = f_read_traces['traces'][:500000]
-        nonces = f_read_traces['nonces'][:500000]
+        traces = f_read_traces['traces'][:25000]
+        nonces = f_read_traces['nonces'][:25000]
 
 
         # Sanity check: traces and nonces should have the same number of rows
@@ -229,7 +230,7 @@ try:
             power_plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_power_traces_overlapped.png")
             power_plt.close()
 
-        if cpa_phase:
+        if cpa_phase_1_bit:
             print("Running CPA attack (this might take a while)...")
 
             # TODO: for the moment, the attack is performed only on the first half key register (x0).
@@ -241,7 +242,7 @@ try:
             # the correct key guess and the others increases with the number of traces.
             corr_vs_traces = []
             state_register_index = 0
-            bit_index = 0
+            bit_index = 8
             tic = time.perf_counter()
 
             # DEBUG
@@ -250,9 +251,9 @@ try:
             key_0_j19   = (key_0 >> ((bit_index + 19) % 64)) & 1
             key_0_j28   = (key_0 >> ((bit_index + 28) % 64)) & 1
 
-            for count in range(1, 101):
-                partial_traces = traces[:(count*250)]
-                partial_nonces = nonces[:(count*250)]
+            for count in range(1, 1001):
+                partial_traces = traces[:(count*25)]
+                partial_nonces = nonces[:(count*25)]
 
                 # Build the leakage model matrix for all the nonces
                 H_matrix = np.empty((len(partial_nonces), 8), dtype=np.uint8)
@@ -285,7 +286,7 @@ try:
 
             # Correlation vs traces plot
             corr_vs_traces = np.array(corr_vs_traces)  # shape (steps, 8)
-            x = np.arange(1, len(corr_vs_traces) + 1) * 250
+            x = np.arange(1, len(corr_vs_traces) + 1) * 25
 
             plt.figure(figsize=(10, 5))
             for key_idx in range(8):
@@ -301,6 +302,112 @@ try:
 
             toc = time.perf_counter()
             print(f"\nCPA attack completed in {(toc - tic)/60:.2f} minutes.\n")
+
+        if cpa_phase_full_key:
+            # Full key recovery phase
+            print("Starting full key recovery phase...")
+
+            # Print the number of traces and the number of samples for each trace
+            print(f"Number of traces: {traces.shape[0]}")
+            print(f"Number of samples per trace: {traces.shape[1]}")
+
+            # List of bit indexes to attack, ordered according to the SNR value
+            key_bit_indexes_0 = [13, 32, 63, 16, 57, 52, 37, 54, 33, 43, 0, 40, 
+                                  1, 45, 11, 47, 41, 62, 4, 39, 44, 8, 55, 42, 53,
+                                  6, 49, 5, 14, 15, 22, 31, 38, 46, 48]
+            
+            key_bit_indexes_1 = [31, 32, 0, 35, 59, 60, 1, 36, 34, 63, 45, 44, 18,
+                                 46, 38, 12, 39, 47, 7, 41, 51, 49, 50, 5, 15, 62,
+                                 11, 25, 6, 13, 61, 48, 27, 17, 56, 16, 30]
+
+            k0_bits = np.zeros(64, dtype=np.uint8)
+            k1_bits = np.zeros(64, dtype=np.uint8)
+
+            tic = time.perf_counter()
+            print()
+
+            # Iterate over all key bits of k0
+            for key_bit in tqdm(key_bit_indexes_0, "Key bit recovery progress"):
+                # Build the leakage model matrix
+                H_matrix = np.empty((len(nonces), 8), dtype=np.uint8)
+                R_matrix = np.empty((8, traces.shape[1]), dtype=np.float64)
+
+                for n in range(len(nonces)):
+                    nonce_MSB = nonces[n][1]
+                    nonce_LSB = nonces[n][0]
+                    leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 0, key_bit, sbox_type)
+                    H_matrix[n] = leakage_model_i
+
+                # CPA attack
+                R_matrix = ascon_cpa(traces, H_matrix)
+
+                # Find the time samples with the maximum correlation value
+                corr_vs_keyguess = np.max(np.abs(R_matrix), axis=1) # shape (8,)
+
+                # Find the key guess with the maximum correlation value
+                best_key_guess = np.argmax(corr_vs_keyguess)
+
+                # Save the result to the k0 vector
+                k0_bits[(key_bit)      % 64] = (best_key_guess >> 2) & 1
+                k0_bits[(key_bit + 19) % 64] = (best_key_guess >> 1) & 1
+                k0_bits[(key_bit + 28) % 64] = (best_key_guess >> 0) & 1
+
+            # Convert the numpy array into a single hex integer
+            k0 = 0
+            for i in range(64):
+                k0 |= ((k0_bits[i] & 0x01) << i)
+            print(f"Recovered most significand half of the key: {k0:016x}")
+            print()
+
+            # Iterate over all key bits of k1
+            for key_bit in tqdm(key_bit_indexes_1, "Key bit recovery progress"):
+                # Build the leakage model matrix
+                H_matrix = np.empty((len(nonces), 8), dtype=np.uint8)
+                R_matrix = np.empty((8, traces.shape[1]), dtype=np.float64)
+
+                for n in range(len(nonces)):
+                    nonce_MSB = nonces[n][1]
+                    nonce_LSB = nonces[n][0]
+                    leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 1, key_bit, sbox_type, k0)
+                    H_matrix[n] = leakage_model_i
+
+                # CPA attack
+                R_matrix = ascon_cpa(traces, H_matrix)
+
+                # Find the time samples with the maximum correlation value
+                corr_vs_keyguess = np.max(np.abs(R_matrix), axis=1) # shape (8,)
+
+                # Find the key guess with the maximum correlation value
+                best_key_guess = np.argmax(corr_vs_keyguess)
+
+                # Save the result to the k1 vector
+                k1_bits[(key_bit)      % 64] = (best_key_guess >> 2) & 1
+                k1_bits[(key_bit + 61) % 64] = (best_key_guess >> 1) & 1
+                k1_bits[(key_bit + 39) % 64] = (best_key_guess >> 0) & 1
+
+            # Convert the numpy array into a single hex integer. The XOR operation is needed to isolate the k1 bits
+            k1 = 0
+            for i in range(64):
+                k1 |= (k1_bits[i] & 0x01) << i
+            # The key recovery from the register z1 actually need this extra XOR operation
+            #k1 = k1 ^ k0
+            print(f"Recovered least significand half of the key: {k1:016x}\n")
+
+            print(f"Recovered full key: {k1:016x}{k0:016x}")
+
+            # Convert to hex strings
+            k0_hex = f"{k0:016X}"
+            k1_hex = f"{k1:016X}"
+            # Combine the two halves
+            recovered_key = k1_hex + k0_hex
+            # Reverse both key strings by groups of 2 char and then reverse
+            recovered_key = [recovered_key[i:i + 2] for i in range(0, len(recovered_key), 2)][::-1]
+            recovered_key = ''.join(recovered_key)
+
+            print(f"Recovered key (little-endian): 0x{recovered_key}")
+
+            toc = time.perf_counter()
+            print(f"Full key recovery phase completed in {(toc - tic)/60:.2f} minutes.")
 
 except FileNotFoundError:
     print(f"ERROR: Traces file {traces_file} not found. Please run the trace acquisition phase first.")

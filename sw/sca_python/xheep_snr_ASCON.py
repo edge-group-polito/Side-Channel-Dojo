@@ -61,13 +61,17 @@ def return_snr_trace(trace_set, labels_set):
 traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
 #traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_50k.h5"
 
-#TARGET_BIT = 2
+state_register_index = 0 # 0 or 1
 
 key   = "000102030405060708090A0B0C0D0E0F"
 # Reverse the key bytes to match X-HEEP's endianness
 key_bytes = [key[i:i+2] for i in range(0, len(key), 2)]
 key_reversed = ''.join(key_bytes[::-1])
 key = int(key_reversed, 16)
+
+verbose = True
+# This list contains the maximum SNR value for each attacked bit
+max_SNR_values = []
 
 try:
     with h5py.File(traces_file, 'r') as f_read_traces:
@@ -79,7 +83,7 @@ try:
 
         for TARGET_BIT in tqdm(range(0, 64), desc="Attacking bits"):
             # Divide the traces according to the target bit value of the 
-            # output register S0 at the end of the linear diffusion layer.
+            # output register S0 or S1 at the end of the linear diffusion layer.
             label_attacked_bit=[]
             for i in range(0, len(traces)):
                 # Reconstruct the nonce from the two halves
@@ -90,10 +94,16 @@ try:
                 #     print(f"Nonce: {nonce:016X}, S[0]: {S[0]:016X}")
                 # Extract the bit of interest from the state register S0 and divide the traces
                 # according to its value.
-                label_attacked_bit.append((S[0] >> TARGET_BIT) & 0x01)
+                if state_register_index == 0:
+                    label_attacked_bit.append((S[0] >> TARGET_BIT) & 0x01)
+                else:
+                    label_attacked_bit.append((S[1] >> TARGET_BIT) & 0x01)
 
-            #print("Generating the SNR plot for the attacked bit...")
             snr_trace_attacked_bit = return_snr_trace(traces, label_attacked_bit)
+
+            # Save the maximum SNR value for each bit
+            max_snr_value = np.max(snr_trace_attacked_bit)
+            max_SNR_values.append(max_snr_value)
 
             plt.figure(figsize=(14,5))
             # Select 40 equally distributed indices in the range 0-(len(traces)-1)
@@ -109,15 +119,20 @@ try:
             ax2.set_ylabel('SNR value', color='red')
             ax2.tick_params(axis='y', labelcolor='red')
 
-            ax1.set_title(f"SNR trace and overlapped power traces for bit {TARGET_BIT}")
+            ax1.set_title(f"SNR trace and overlapped power traces for bit {TARGET_BIT + state_register_index*64}")
             ax1.set_xlabel('Time sample')
             ax1.set_ylabel('Power', color='gray')
             ax1.tick_params(axis='y', labelcolor='gray')
 
-            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_SNR_bit_" + str(TARGET_BIT) + "_with_traces.png")
+            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_SNR_bit_" + str(TARGET_BIT + state_register_index*64) + "_with_traces.png")
             #plt.show()
             plt.close()
 
+        if verbose:
+            # Print the list of maximum SNRs
+            print("Maximum SNR values for each attacked bit:")
+            for i, max_snr in enumerate(max_SNR_values):
+                print(f"Bit {i + state_register_index*64}: {max_snr}")
 
 
 except FileNotFoundError:
