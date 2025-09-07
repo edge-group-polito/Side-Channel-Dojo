@@ -58,8 +58,8 @@ def return_snr_trace(trace_set, labels_set):
     return snr_trace
 
 
-traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
-#traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_50k.h5"
+#traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
+traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
 
 state_register_index = 0 # 0 or 1
 
@@ -75,8 +75,8 @@ max_SNR_values = []
 
 try:
     with h5py.File(traces_file, 'r') as f_read_traces:
-        traces = f_read_traces['traces'][:500000]#, 2500:3200]
-        nonces = f_read_traces['nonces'][:500000]
+        traces = f_read_traces['traces'][:50000]
+        nonces = f_read_traces['nonces'][:50000]
 
         # DEBUG
         print(f"Number of traces: {len(traces)}, Number of samples: {len(traces[0])}")

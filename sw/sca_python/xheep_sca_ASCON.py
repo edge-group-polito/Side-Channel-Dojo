@@ -35,20 +35,20 @@ bitstream = r"../../hw/fpga/bitstream/xheep/cw305_top.bit"
 verilog_defines = r"../../hw/vendor/cw305-heep/hw/fpga/cw305_aes_defines.v"
 
 # Precompiled ASCON firmware for the CW305 board
-firmware = r"../x-heep/ASCON_firmware/main.hex"
+firmware = r"../x-heep/ASCON_firmware/ascon_opt32_50k.hex"
 # To run another firmware compiled with the xheep toolchain, uncomment the following line: 
 #firmware = r"../../hw/vendor/cw305-heep/sw/build/main.hex"
 
 # Traces file path
 traces_dir  = r"../../build/xheep_test/"
-traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
-#traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_50k.h5"
-# traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_50k_2.h5"
+# traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
+traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
 
 print()
 print("bitstream: ", bitstream)
-print("firmware: ", firmware)
 print("verilog_defines: ", verilog_defines)
+print("firmware: ", firmware)
+print("traces_file: ", traces_file)
 print()
 
 
@@ -64,7 +64,9 @@ def prepare_board(firmware):
         ps.get_unitInfo()
         #ps.scope_setup(obs_time=16E-6, nSamples=1600)
         # The scope is triggered before the registers update, and it is set for only 34 clock cycles.
-        ps.scope_setup(obs_time=3.5E-6, nSamples=350) # ~3.5 us, 350 samples
+        #ps.scope_setup(obs_time=3.5E-6, nSamples=350) # ~3.5 us, 350 samples
+        #ps.scope_setup(obs_time=6E-6, nSamples=600) # ~6 us, 600 samples
+        ps.scope_setup(obs_time=9E-6, nSamples=900) # ~9 us, 900 samples
 
         # Initialize CW305 with required parameters. More in detail:
         # ps: picoscope object
@@ -211,8 +213,8 @@ try:
         # operator even to load the whole dataset, since with the h5 format 
         # data is read from the disk each time. The slicing operator forces the data 
         # to be loaded into the RAM.
-        traces = f_read_traces['traces'][:25000]
-        nonces = f_read_traces['nonces'][:25000]
+        traces = f_read_traces['traces'][:50000]
+        nonces = f_read_traces['nonces'][:50000]
 
 
         # Sanity check: traces and nonces should have the same number of rows
@@ -242,7 +244,9 @@ try:
             # the correct key guess and the others increases with the number of traces.
             corr_vs_traces = []
             state_register_index = 0
-            bit_index = 8
+            bit_index = 13
+            resolution = 25
+            k0 = key & 0xFFFFFFFFFFFFFFFF
             tic = time.perf_counter()
 
             # DEBUG
@@ -251,9 +255,9 @@ try:
             key_0_j19   = (key_0 >> ((bit_index + 19) % 64)) & 1
             key_0_j28   = (key_0 >> ((bit_index + 28) % 64)) & 1
 
-            for count in range(1, 1001):
-                partial_traces = traces[:(count*25)]
-                partial_nonces = nonces[:(count*25)]
+            for count in range(1, (traces.shape[0] // resolution) + 1):
+                partial_traces = traces[:(count*resolution)]
+                partial_nonces = nonces[:(count*resolution)]
 
                 # Build the leakage model matrix for all the nonces
                 H_matrix = np.empty((len(partial_nonces), 8), dtype=np.uint8)
@@ -262,7 +266,7 @@ try:
                 for n in range(len(partial_nonces)):
                     nonce_MSB = partial_nonces[n][1]
                     nonce_LSB = partial_nonces[n][0]
-                    leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type)
+                    leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type, k0)
                     H_matrix[n] = leakage_model_i
                 
                 # CPA attack
@@ -286,7 +290,7 @@ try:
 
             # Correlation vs traces plot
             corr_vs_traces = np.array(corr_vs_traces)  # shape (steps, 8)
-            x = np.arange(1, len(corr_vs_traces) + 1) * 25
+            x = np.arange(1, len(corr_vs_traces) + 1) * resolution
 
             plt.figure(figsize=(10, 5))
             for key_idx in range(8):
@@ -316,9 +320,9 @@ try:
                                   1, 45, 11, 47, 41, 62, 4, 39, 44, 8, 55, 42, 53,
                                   6, 49, 5, 14, 15, 22, 31, 38, 46, 48]
             
-            key_bit_indexes_1 = [31, 32, 0, 35, 59, 60, 1, 36, 34, 63, 45, 44, 18,
-                                 46, 38, 12, 39, 47, 7, 41, 51, 49, 50, 5, 15, 62,
-                                 11, 25, 6, 13, 61, 48, 27, 17, 56, 16, 30]
+            key_bit_indexes_1 = [32, 0, 63, 36, 37, 31, 11, 13, 14, 12, 23, 38, 30, 45,
+                                 5, 19, 15, 10, 48, 3, 24, 6, 18, 21, 51, 20, 55, 26,
+                                 35, 43, 46, 44, 62, 28, 41, 2, 58, 59, 29, 47, 22, 49]
 
             k0_bits = np.zeros(64, dtype=np.uint8)
             k1_bits = np.zeros(64, dtype=np.uint8)
