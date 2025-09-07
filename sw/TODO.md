@@ -28,4 +28,16 @@ todo:
 - [x] : update the plaintext generation in the AES C applications. Then vendorize
 - [x] : update the already compiled firmwares
 - [ ] : leave in sw notebook directory a single notebook which does the plain AES attack (cpa custom and capture trace custom) and then folders utils where are added the noetebook for SNR, TVLA, etc.. and examples where are put the noteboooks of x-heep e Ascon cases
-- [ ] Modify the parameters self.registers = 12  and self.bytecount_size = 7 in CW305.py
+- [ ] : Modify the parameters self.registers = 12  and self.bytecount_size = 7 in CW305.py
+- [x] : Move the X-HEEP's SCA notebooks into sw/notebook/tests/xheep
+- [x] : Update the paths in the SCA notebooks and python scripts, since now the golden models have been moved to a different folder
+- [x] : create a new C program for ASCON that performs only the first round. The state registers 3 and 4 after the round are used as new nonce value
+- [x] : update also the CW305 repo, then vendorize
+- [x] : fix the golden model in the ascon python script
+- [ ] : add support for differnt sboxes in the ascon golden model
+- [x] : collect ASCON traces
+- [x] : develope the leakage model for ascon
+- [x] : develope the CPA algorithm for ascon
+- [ ] : apply multiprocessing on the ascon attack
+- [x] : remove useless stuff from the ascon attack folder (e.g. attack on the XOR etc)
+- [ ] : modify the ascon algorithm in a way to use different sboxes
