@@ -57,11 +57,13 @@ def return_snr_trace(trace_set, labels_set):
     snr_trace=var_signal/var_noise
     return snr_trace
 
+sbox_type = "lut_ascon"
 
 #traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
-traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
+#traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
+traces_file = r"../../build/xheep_test/ascon_opt32_" + sbox_type + "_10k.h5"
 
-state_register_index = 0 # 0 or 1
+state_register_index = 1 # 0 or 1
 
 key   = "000102030405060708090A0B0C0D0E0F"
 # Reverse the key bytes to match X-HEEP's endianness
@@ -70,13 +72,14 @@ key_reversed = ''.join(key_bytes[::-1])
 key = int(key_reversed, 16)
 
 verbose = True
+plot = False
 # This list contains the maximum SNR value for each attacked bit
 max_SNR_values = []
 
 try:
     with h5py.File(traces_file, 'r') as f_read_traces:
-        traces = f_read_traces['traces'][:50000]
-        nonces = f_read_traces['nonces'][:50000]
+        traces = f_read_traces['traces'][:10000]
+        nonces = f_read_traces['nonces'][:10000]
 
         # DEBUG
         print(f"Number of traces: {len(traces)}, Number of samples: {len(traces[0])}")
@@ -89,7 +92,7 @@ try:
                 # Reconstruct the nonce from the two halves
                 nonce = int(nonces[i][0]) << 64 | int(nonces[i][1])
                 # Compute the expected value of the state at the end of the first round
-                S = ascon_first_round(key, nonce)
+                S = ascon_first_round(key, nonce, sbox_type)
                 # if 0 <= i < 2:
                 #     print(f"Nonce: {nonce:016X}, S[0]: {S[0]:016X}")
                 # Extract the bit of interest from the state register S0 and divide the traces
@@ -105,28 +108,29 @@ try:
             max_snr_value = np.max(snr_trace_attacked_bit)
             max_SNR_values.append(max_snr_value)
 
-            plt.figure(figsize=(14,5))
-            # Select 40 equally distributed indices in the range 0-(len(traces)-1)
-            total_traces = len(traces)
-            num_traces_to_plot = 40
-            indices = np.linspace(0, total_traces-1, num_traces_to_plot, dtype=int)
-            for idx in indices:
-                plt.plot(traces[idx], color='gray', alpha=0.3, linewidth=0.7)
+            if plot:
+                plt.figure(figsize=(14,5))
+                # Select 40 equally distributed indices in the range 0-(len(traces)-1)
+                total_traces = len(traces)
+                num_traces_to_plot = 40
+                indices = np.linspace(0, total_traces-1, num_traces_to_plot, dtype=int)
+                for idx in indices:
+                    plt.plot(traces[idx], color='gray', alpha=0.3, linewidth=0.7)
 
-            ax1 = plt.gca()
-            ax2 = ax1.twinx()
-            ax2.plot(snr_trace_attacked_bit, color='red', linewidth=2, label='SNR')
-            ax2.set_ylabel('SNR value', color='red')
-            ax2.tick_params(axis='y', labelcolor='red')
+                ax1 = plt.gca()
+                ax2 = ax1.twinx()
+                ax2.plot(snr_trace_attacked_bit, color='red', linewidth=2, label='SNR')
+                ax2.set_ylabel('SNR value', color='red')
+                ax2.tick_params(axis='y', labelcolor='red')
 
-            ax1.set_title(f"SNR trace and overlapped power traces for bit {TARGET_BIT + state_register_index*64}")
-            ax1.set_xlabel('Time sample')
-            ax1.set_ylabel('Power', color='gray')
-            ax1.tick_params(axis='y', labelcolor='gray')
+                ax1.set_title(f"SNR trace and overlapped power traces for bit {TARGET_BIT + state_register_index*64}")
+                ax1.set_xlabel('Time sample')
+                ax1.set_ylabel('Power', color='gray')
+                ax1.tick_params(axis='y', labelcolor='gray')
 
-            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_SNR_bit_" + str(TARGET_BIT + state_register_index*64) + "_with_traces.png")
-            #plt.show()
-            plt.close()
+                plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_SNR_bit_" + str(TARGET_BIT + state_register_index*64) + "_with_traces.png")
+                #plt.show()
+                plt.close()
 
         if verbose:
             # Print the list of maximum SNRs

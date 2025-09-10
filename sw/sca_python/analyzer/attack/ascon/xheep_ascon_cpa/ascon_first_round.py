@@ -10,7 +10,7 @@ from operations_init import permutation
 
 
 
-def ascon_first_round(key, nonce, debug=False):
+def ascon_first_round(key, nonce, sbox_type, debug=False):
     """
     This function performs the first round permutation using the combinatorial S-box.
     The ASCON state is first initialized with the initialization vector, key, and nonce.
@@ -19,6 +19,7 @@ def ascon_first_round(key, nonce, debug=False):
     Inputs:
         key (int): The key used for the ASCON cipher, in hexadecimal format.
         nonce (int): The nonce used for the ASCON cipher, in hexadecimal format.
+        sbox_type (str): The type of S-box to use for the permutation. Options are "lut_ascon", "lut_bilgin", "lut_allouzi", "lut_lu_4", "lut_lu_5", "lut_lu_6", "lut_lu_7".
         debug (bool): If True, prints the state registers before and after the first round permutation.
     Returns:
         S (list): The state registers after the first round permutation.
@@ -60,7 +61,7 @@ def ascon_first_round(key, nonce, debug=False):
         print("S[4]: 0x{:016X}".format(S[4]))
 
     # Perform the first round permutation using the combinatorial S-box
-    permutation(S=S, r=0, mode="hw")
+    permutation(S=S, r=0, mode=sbox_type)
 
     if debug:
         # DEBUG: Print the state registers after the first round permutation

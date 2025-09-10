@@ -31,18 +31,20 @@ cpa_phase_full_key = True
 
 traces_overlapped_plot = False
 
+sbox_type = "lut_ascon"
+
 bitstream = r"../../hw/fpga/bitstream/xheep/cw305_top.bit"
 verilog_defines = r"../../hw/vendor/cw305-heep/hw/fpga/cw305_aes_defines.v"
 
 # Precompiled ASCON firmware for the CW305 board
-firmware = r"../x-heep/ASCON_firmware/ascon_opt32_50k.hex"
+firmware = r"../x-heep/ASCON_firmware/ascon_opt32_" + sbox_type + "_10k.hex"
 # To run another firmware compiled with the xheep toolchain, uncomment the following line: 
 #firmware = r"../../hw/vendor/cw305-heep/sw/build/main.hex"
 
 # Traces file path
 traces_dir  = r"../../build/xheep_test/"
 # traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
-traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
+traces_file = r"../../build/xheep_test/ascon_opt32_" + sbox_type + "_10k.h5"
 
 print()
 print("bitstream: ", bitstream)
@@ -108,7 +110,7 @@ def prepare_board(firmware):
 
 
 # Number of traces to capture
-N = 50000
+N = 10000
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
@@ -116,11 +118,11 @@ sampling_interval = 8E-9
 key   = "000102030405060708090A0B0C0D0E0F"
 nonce = "000102030405060708090A0B0C0D0E0F"
 initialization_vector = "00001000808C0001" # Computed from the ASCON 128A parameters
-sbox_type = "lut_ascon"
 
 # Nonce and key are first reversed by groups of 2 char (to be compliant with 
 # the endianess of the C application) and then converted to integers
 # Reverse by bytes (2 hex chars per byte)
+key_for_printing = key
 key_bytes = [key[i:i+2] for i in range(0, len(key), 2)]
 key_reversed = ''.join(key_bytes[::-1])
 key = int(key_reversed, 16)
@@ -180,7 +182,7 @@ if trace_acquisition:
         nonces[i, 1] = nonce & 0xFFFFFFFFFFFFFFFF         # Most significant 64 bits of the nonce
 
         # Update the nonce for the next iteration using 2 of the state registers concatenated
-        S = ascon_first_round(key, nonce)
+        S = ascon_first_round(key, nonce, sbox_type)
         nonce = S[3] << 64 | S[4]
 
         time.sleep(1E-3) # 1 ms
@@ -213,8 +215,8 @@ try:
         # operator even to load the whole dataset, since with the h5 format 
         # data is read from the disk each time. The slicing operator forces the data 
         # to be loaded into the RAM.
-        traces = f_read_traces['traces'][:50000]
-        nonces = f_read_traces['nonces'][:50000]
+        traces = f_read_traces['traces'][:10000]
+        nonces = f_read_traces['nonces'][:10000]
 
 
         # Sanity check: traces and nonces should have the same number of rows
@@ -244,8 +246,8 @@ try:
             # the correct key guess and the others increases with the number of traces.
             corr_vs_traces = []
             state_register_index = 0
-            bit_index = 13
-            resolution = 25
+            bit_index = 38
+            resolution = 250
             k0 = key & 0xFFFFFFFFFFFFFFFF
             tic = time.perf_counter()
 
@@ -316,13 +318,21 @@ try:
             print(f"Number of samples per trace: {traces.shape[1]}")
 
             # List of bit indexes to attack, ordered according to the SNR value
-            key_bit_indexes_0 = [13, 32, 63, 16, 57, 52, 37, 54, 33, 43, 0, 40, 
-                                  1, 45, 11, 47, 41, 62, 4, 39, 44, 8, 55, 42, 53,
-                                  6, 49, 5, 14, 15, 22, 31, 38, 46, 48]
+            # key_bit_indexes_0 = [13, 32, 63, 16, 57, 52, 37, 54, 33, 43, 0, 40, 
+            #                       1, 45, 11, 47, 41, 62, 4, 39, 44, 8, 55, 42, 53,
+            #                       6, 49, 5, 14, 15, 22, 31, 38, 46, 48]
+
+            key_bit_indexes_0 = [32, 13, 34, 4, 6, 54, 36, 0, 33, 63, 7, 16, 55, 19, 17, 
+                                 41, 1, 40, 8, 48, 24, 39, 14, 31, 58, 49, 
+                                 56, 47, 37, 29, 15, 46, 57, 11]
             
-            key_bit_indexes_1 = [32, 0, 63, 36, 37, 31, 11, 13, 14, 12, 23, 38, 30, 45,
-                                 5, 19, 15, 10, 48, 3, 24, 6, 18, 21, 51, 20, 55, 26,
-                                 35, 43, 46, 44, 62, 28, 41, 2, 58, 59, 29, 47, 22, 49]
+            # key_bit_indexes_1 = [32, 0, 63, 36, 37, 31, 11, 13, 14, 12, 23, 38, 30, 45,
+            #                      5, 19, 15, 10, 48, 3, 24, 6, 18, 21, 51, 20, 55, 26,
+            #                      35, 43, 46, 44, 62, 28, 41, 2, 58, 59, 29, 47, 22, 49]
+
+            key_bit_indexes_1 = [32, 0, 63, 1, 14, 13, 36, 15, 31, 8, 38, 43, 5, 18, 23, 
+                                 12, 45, 16, 9, 42, 3, 51, 2, 49, 24, 20, 44, 40, 28, 30, 
+                                 37, 19, 47, 59, 53, 4, 46]
 
             k0_bits = np.zeros(64, dtype=np.uint8)
             k1_bits = np.zeros(64, dtype=np.uint8)
@@ -409,6 +419,11 @@ try:
             recovered_key = ''.join(recovered_key)
 
             print(f"Recovered key (little-endian): 0x{recovered_key}")
+
+            if recovered_key != key_for_printing:
+                print(f"ERROR: Key recovery failed.\nGot: 0x{recovered_key}\nExpected: 0x{key_for_printing}\n")
+            else:
+                print("SUCCESS: Key correctly recovered!\n")
 
             toc = time.perf_counter()
             print(f"Full key recovery phase completed in {(toc - tic)/60:.2f} minutes.")
