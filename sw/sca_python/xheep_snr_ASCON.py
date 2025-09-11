@@ -61,9 +61,9 @@ sbox_type = "lut_ascon"
 
 #traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
 #traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
-traces_file = r"../../build/xheep_test/ascon_opt32_" + sbox_type + "_10k.h5"
+traces_file = r"../../build/xheep_test/ascon_opt32_" + sbox_type + "_150k.h5"
 
-state_register_index = 1 # 0 or 1
+state_register_index = 0 # 0 or 1
 
 key   = "000102030405060708090A0B0C0D0E0F"
 # Reverse the key bytes to match X-HEEP's endianness
@@ -78,8 +78,8 @@ max_SNR_values = []
 
 try:
     with h5py.File(traces_file, 'r') as f_read_traces:
-        traces = f_read_traces['traces'][:10000]
-        nonces = f_read_traces['nonces'][:10000]
+        traces = f_read_traces['traces'][:150000]
+        nonces = f_read_traces['nonces'][:150000]
 
         # DEBUG
         print(f"Number of traces: {len(traces)}, Number of samples: {len(traces[0])}")
