@@ -6,6 +6,8 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_first_round import ascon_first_
 
 from tqdm import tqdm
 import numpy as np
+from multiprocessing import Pool, shared_memory
+import time
 import matplotlib.pyplot as plt
 import h5py
 
@@ -58,8 +60,8 @@ def return_snr_trace(trace_set, labels_set):
     return snr_trace
 
 # Number of traces
-N = 10000
-sbox_type = "lut_ascon"
+N = 150000
+sbox_type = "lut_lu_5"
 
 #traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
 #traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
@@ -79,64 +81,94 @@ plot = False
 # This list contains the maximum SNR value for each attacked bit
 max_SNR_values = []
 
+
+def worker(args):
+    (TARGET_BIT, shm_traces_name, shm_nonces_name, shape_traces, shape_nonces, dtype_traces, dtype_nonces, key, sbox_type, state_register_index, plot) = args
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from multiprocessing import shared_memory
+    from analyzer.attack.ascon.xheep_ascon_cpa.ascon_first_round import ascon_first_round
+
+    # Attach to shared memory
+    shm_traces = shared_memory.SharedMemory(name=shm_traces_name)
+    shm_nonces = shared_memory.SharedMemory(name=shm_nonces_name)
+    traces = np.ndarray(shape_traces, dtype=dtype_traces, buffer=shm_traces.buf)
+    nonces = np.ndarray(shape_nonces, dtype=dtype_nonces, buffer=shm_nonces.buf)
+
+    label_attacked_bit = []
+    for i in range(len(traces)):
+        nonce = int(nonces[i][0]) << 64 | int(nonces[i][1])
+        S = ascon_first_round(key, nonce, sbox_type)
+        if state_register_index == 0:
+            label_attacked_bit.append((S[0] >> TARGET_BIT) & 0x01)
+        else:
+            label_attacked_bit.append((S[1] >> TARGET_BIT) & 0x01)
+
+    snr_trace_attacked_bit = return_snr_trace(traces, label_attacked_bit)
+    max_snr_value = np.max(snr_trace_attacked_bit)
+
+    if plot:
+        plt.figure(figsize=(14,5))
+        total_traces = len(traces)
+        num_traces_to_plot = 40
+        indices = np.linspace(0, total_traces-1, num_traces_to_plot, dtype=int)
+        for idx in indices:
+            plt.plot(traces[idx], color='gray', alpha=0.3, linewidth=0.7)
+
+        ax1 = plt.gca()
+        ax2 = ax1.twinx()
+        ax2.plot(snr_trace_attacked_bit, color='red', linewidth=2, label='SNR')
+        ax2.set_ylabel('SNR value', color='red')
+        ax2.tick_params(axis='y', labelcolor='red')
+
+        ax1.set_title(f"SNR trace and overlapped power traces for bit {TARGET_BIT + state_register_index*64}")
+        ax1.set_xlabel('Time sample')
+        ax1.set_ylabel('Power', color='gray')
+        ax1.tick_params(axis='y', labelcolor='gray')
+
+        plt.savefig(f"../x-heep/Graphs/ASCON_c/ASCON_SNR_bit_{TARGET_BIT + state_register_index*64}_with_traces.png")
+        plt.close()
+
+    # Clean up shared memory references (do not unlink)
+    shm_traces.close()
+    shm_nonces.close()
+    return max_snr_value
+
 try:
     with h5py.File(traces_file, 'r') as f_read_traces:
         traces = f_read_traces['traces'][:N]
         nonces = f_read_traces['nonces'][:N]
 
-        # DEBUG
         print(f"Number of traces: {len(traces)}, Number of samples: {len(traces[0])}")
 
-        for TARGET_BIT in tqdm(range(0, 64), desc="Attacking bits"):
-            # Divide the traces according to the target bit value of the 
-            # output register S0 or S1 at the end of the linear diffusion layer.
-            label_attacked_bit=[]
-            for i in range(0, len(traces)):
-                # Reconstruct the nonce from the two halves
-                nonce = int(nonces[i][0]) << 64 | int(nonces[i][1])
-                # Compute the expected value of the state at the end of the first round
-                S = ascon_first_round(key, nonce, sbox_type)
-                # if 0 <= i < 2:
-                #     print(f"Nonce: {nonce:016X}, S[0]: {S[0]:016X}")
-                # Extract the bit of interest from the state register S0 and divide the traces
-                # according to its value.
-                if state_register_index == 0:
-                    label_attacked_bit.append((S[0] >> TARGET_BIT) & 0x01)
-                else:
-                    label_attacked_bit.append((S[1] >> TARGET_BIT) & 0x01)
+        # Create shared memory for traces and nonces
+        shm_traces = shared_memory.SharedMemory(create=True, size=traces.nbytes)
+        shm_nonces = shared_memory.SharedMemory(create=True, size=nonces.nbytes)
+        shm_traces_np = np.ndarray(traces.shape, dtype=traces.dtype, buffer=shm_traces.buf)
+        shm_nonces_np = np.ndarray(nonces.shape, dtype=nonces.dtype, buffer=shm_nonces.buf)
+        np.copyto(shm_traces_np, traces)
+        np.copyto(shm_nonces_np, nonces)
 
-            snr_trace_attacked_bit = return_snr_trace(traces, label_attacked_bit)
+        # Prepare arguments for each bit
+        args_list = []
+        for TARGET_BIT in range(0, 64):
+            args_list.append((TARGET_BIT, shm_traces.name, shm_nonces.name, traces.shape, nonces.shape, traces.dtype, nonces.dtype, key, sbox_type, state_register_index, plot))
 
-            # Save the maximum SNR value for each bit
-            max_snr_value = np.max(snr_trace_attacked_bit)
-            max_SNR_values.append(max_snr_value)
+        tic = time.perf_counter()
+        # Run multiprocessing pool
+        with Pool(4) as pool:
+            max_SNR_values = list(tqdm(pool.imap(worker, args_list), total=len(args_list), desc="Attacking bits"))
 
-            if plot:
-                plt.figure(figsize=(14,5))
-                # Select 40 equally distributed indices in the range 0-(len(traces)-1)
-                total_traces = len(traces)
-                num_traces_to_plot = 40
-                indices = np.linspace(0, total_traces-1, num_traces_to_plot, dtype=int)
-                for idx in indices:
-                    plt.plot(traces[idx], color='gray', alpha=0.3, linewidth=0.7)
+        toc = time.perf_counter()
+        print(f"Processing time: {(toc - tic)/60:.2f} minutes")
 
-                ax1 = plt.gca()
-                ax2 = ax1.twinx()
-                ax2.plot(snr_trace_attacked_bit, color='red', linewidth=2, label='SNR')
-                ax2.set_ylabel('SNR value', color='red')
-                ax2.tick_params(axis='y', labelcolor='red')
-
-                ax1.set_title(f"SNR trace and overlapped power traces for bit {TARGET_BIT + state_register_index*64}")
-                ax1.set_xlabel('Time sample')
-                ax1.set_ylabel('Power', color='gray')
-                ax1.tick_params(axis='y', labelcolor='gray')
-
-                plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_SNR_bit_" + str(TARGET_BIT + state_register_index*64) + "_with_traces.png")
-                #plt.show()
-                plt.close()
+        # Cleanup shared memory
+        shm_traces.close()
+        shm_traces.unlink()
+        shm_nonces.close()
+        shm_nonces.unlink()
 
         if verbose:
-            # Print the list of maximum SNRs
             print("Maximum SNR values for each attacked bit:")
             for i, max_snr in enumerate(max_SNR_values):
                 print(f"Bit {i + state_register_index*64}: {max_snr}")
