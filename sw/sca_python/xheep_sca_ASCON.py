@@ -246,8 +246,8 @@ try:
             # the correct key guess and the others increases with the number of traces.
             corr_vs_traces = []
             state_register_index = 0
-            bit_index = 19
-            resolution = 1000
+            bit_index = 48
+            resolution = 5000
             k0 = key & 0xFFFFFFFFFFFFFFFF
             tic = time.perf_counter()
 
@@ -300,16 +300,17 @@ try:
 
             plt.xlabel("Number of traces")
             plt.ylabel("Correlation value")
-            plt.title("Correlation vs Number of traces")
+            plt.title("Correlation vs Number of traces - Bit {} - S-Box {}".format(bit_index, sbox_type))
             plt.grid()
             plt.legend()
-            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_correlation_vs_traces.png")
+            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_correlation_vs_traces" + f"_sbox_{sbox_type}_bit_{bit_index}.png")
             plt.close()
 
             toc = time.perf_counter()
             print(f"\nCPA attack completed in {(toc - tic)/60:.2f} minutes.\n")
 
         if cpa_phase_full_key:
+
             # Full key recovery phase
             print("Starting full key recovery phase...")
 
@@ -318,53 +319,28 @@ try:
             print(f"Number of samples per trace: {traces.shape[1]}")
             print(f"S-box type: {sbox_type}\n")
 
-            # List of bit indexes to attack, ordered according to the SNR value
-            # key_bit_indexes_0 = [13, 32, 63, 16, 57, 52, 37, 54, 33, 43, 0, 40, 
-            #                       1, 45, 11, 47, 41, 62, 4, 39, 44, 8, 55, 42, 53,
-            #                       6, 49, 5, 14, 15, 22, 31, 38, 46, 48]
+            # Mapping of sbox_type to key bit indexes
+            key_bit_indexes_0_dict = {
+                "lut_ascon": [32, 13, 34, 4, 6, 54, 36, 0, 33, 63, 7, 16, 55, 19, 17, 41, 1, 40, 8, 48, 24, 39, 14, 31, 58, 49, 56, 47, 37, 29, 15, 46, 57, 11],
+                "lut_bilgin": [4, 51, 7, 63, 31, 40, 32, 3, 43, 23, 59, 16, 13, 47, 36, 0, 41, 34, 44, 33, 6, 54, 48, 19, 17, 1, 10, 39, 56, 60, 18, 38, 11, 57, 49],
+                "lut_lu_7": [32, 0, 13, 4, 16, 33, 15, 34, 63, 54, 55, 43, 6, 31, 14, 7, 39, 36, 17, 40, 48, 1, 19, 41, 24, 11, 3, 47, 29, 27, 37, 57, 8, 49],
+                "lut_lu_5": [60, 30, 61, 28, 32, 0, 34, 23, 53, 14, 22, 44, 33, 5, 17, 38, 13, 62, 8, 56, 57, 6, 31, 15, 37, 10, 12, 39, 29, 36, 54, 49, 46, 35, 43],
+                "lut_allouzi": [32, 33, 34, 14, 13, 4, 36, 30, 1, 22, 53, 31, 0, 29, 44, 62, 17, 47, 9, 54, 41, 63, 37, 19, 5, 46, 24, 16, 20, 60, 7, 2, 40, 61, 42, 39, 57],
+            }
+            key_bit_indexes_1_dict = {
+                "lut_ascon": [32, 0, 63, 1, 14, 13, 36, 15, 31, 8, 38, 43, 5, 18, 23, 12, 45, 16, 9, 42, 3, 51, 2, 49, 24, 20, 44, 40, 28, 30, 37, 19, 47, 59, 53, 4, 46],
+                "lut_bilgin": [32, 0, 63, 1, 36, 14, 13, 12, 31, 11, 45, 60, 62, 47, 41, 52, 8, 33, 46, 20, 48, 54, 44, 18, 61, 34, 58, 4, 24, 28, 26, 5, 59],
+                "lut_lu_7": [50, 8, 42, 11, 59, 60, 17, 32, 49, 0, 63, 3, 10, 28, 43, 36, 1, 56, 34, 18, 33, 27, 4, 13, 25, 9, 6, 20, 19, 23, 5, 12, 15, 2, 62, 46, 55, 29],
+                "lut_lu_5": [50, 8, 32, 0, 63, 60, 1, 36, 6, 14, 4, 13, 31, 9, 42, 59, 16, 18, 5, 33, 44, 48, 15, 19, 40, 12, 20, 10, 46, 49, 30, 22, 29],
+                "lut_allouzi": [32, 0, 63, 1, 14, 36, 13, 31, 8, 38, 3, 9, 45, 18, 12, 30, 48, 15, 19, 43, 24, 46, 44, 40, 20, 2, 26, 55, 4, 37, 28, 11, 49, 59, 47],
+            }
 
-            # To use with lut_ascon
-            # key_bit_indexes_0 = [32, 13, 34, 4, 6, 54, 36, 0, 33, 63, 7, 16, 55, 19, 17, 
-            #                      41, 1, 40, 8, 48, 24, 39, 14, 31, 58, 49, 56, 47, 37, 29, 
-            #                      15, 46, 57, 11]
-            
-            # To use with lut_bilgin
-            # key_bit_indexes_0 =[4, 51, 7, 63, 31, 40, 32, 3, 43, 23, 59, 16, 13, 47, 36, 
-            #                     0, 41, 34, 44, 33, 6, 54, 48, 19, 17, 1, 10, 39, 56, 60, 
-            #                     18, 38, 11, 57, 49]
-
-            # To use with lut_lu_7
-            # key_bit_indexes_0 = [32, 0, 13, 4, 16, 33, 15, 34, 63, 54, 55, 43, 6, 31, 14, 7, 
-            #                      39, 36, 17, 40, 48, 1, 19, 41, 24, 11, 3, 47, 29, 27, 37, 57, 
-            #                      8, 49]
-
-            # To use with lut_lu_5
-            key_bit_indexes_0 = [60, 30, 61, 28, 32, 0, 34, 23, 53, 14, 22, 44, 33, 5, 17, 38, 
-                                 13, 62, 8, 56, 57, 6, 31, 15, 37, 10, 12, 39, 29, 36, 54, 49, 
-                                 46, 35, 43]
-            
-            # key_bit_indexes_1 = [32, 0, 63, 36, 37, 31, 11, 13, 14, 12, 23, 38, 30, 45,
-            #                      5, 19, 15, 10, 48, 3, 24, 6, 18, 21, 51, 20, 55, 26,
-            #                      35, 43, 46, 44, 62, 28, 41, 2, 58, 59, 29, 47, 22, 49]
-
-            # To use with lut_ascon
-            # key_bit_indexes_1 = [32, 0, 63, 1, 14, 13, 36, 15, 31, 8, 38, 43, 5, 18, 23, 
-            #                     12, 45, 16, 9, 42, 3, 51, 2, 49, 24, 20, 44, 40, 28, 30, 
-            #                     37, 19, 47, 59, 53, 4, 46]
-            
-            # To use with lut_bilgin
-            # key_bit_indexes_1 = [32, 0, 63, 1, 36, 14, 13, 12, 31, 45, 33, 8, 60, 48, 41, 
-            #                     62, 54, 20, 47, 61, 44, 52, 46, 53, 11, 42, 9, 19, 43, 58, 
-            #                     34, 38, 4, 30, 16, 28, 2]
-            
-            # To use with lut_lu_7
-            # key_bit_indexes_1 = [50, 8, 42, 11, 59, 60, 17, 32, 49, 0, 63, 3, 10, 28, 43, 36, 
-            #                      1, 56, 34, 18, 33, 27, 4, 13, 25, 9, 6, 20, 19, 23, 5, 12, 15, 
-            #                      2, 62, 46, 55, 29]
-
-            # To use with lut_lu_5
-            key_bit_indexes_1 = [50, 8, 32, 0, 63, 60, 1, 36, 6, 14, 4, 13, 31, 9, 42, 59, 16, 
-                                 18, 5, 33, 44, 48, 15, 19, 40, 12, 20, 10, 46, 49, 30, 22, 29]
+            # Select the correct list based on sbox_type
+            try:
+                key_bit_indexes_0 = key_bit_indexes_0_dict[sbox_type]
+                key_bit_indexes_1 = key_bit_indexes_1_dict[sbox_type]
+            except KeyError:
+                raise ValueError(f"Unknown sbox_type: {sbox_type}")
 
             k0_bits = np.zeros(64, dtype=np.uint8)
             k1_bits = np.zeros(64, dtype=np.uint8)
