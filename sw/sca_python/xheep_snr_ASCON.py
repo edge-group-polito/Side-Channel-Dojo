@@ -59,7 +59,7 @@ def return_snr_trace(trace_set, labels_set):
 
 # Number of traces
 N = 10000
-sbox_type = "lut_ascon"
+sbox_type = "lut_ascon" # Options: lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
 
 #traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
 #traces_file = r"../../build/xheep_test/ASCON_C_traces_nonces_50k.h5"
