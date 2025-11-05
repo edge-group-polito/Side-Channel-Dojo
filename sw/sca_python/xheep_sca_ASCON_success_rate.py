@@ -169,11 +169,11 @@ try:
 
             # Dictionary to store success rate as function of number of traces and the sbox type
             success_rate_vs_traces_0 = {sbox: [] for sbox in sbox_list}
-            # success_rate_vs_traces_1 = {sbox: [] for sbox in sbox_list} # TODO: for later
+            success_rate_vs_traces_1 = {sbox: [] for sbox in sbox_list}
 
             # Nested dictionaries to store rank trends as function of the sbox type and number of traces
             key_ranks_vs_traces_0 = {sbox: {key_bit: [] for key_bit in key_bit_indexes_0} for sbox in sbox_list}
-            # key_ranks_vs_traces_1 = {key_bit: [] for key_bit in key_bit_indexes_1} # TODO: for later
+            key_ranks_vs_traces_1 = {sbox: {key_bit: [] for key_bit in key_bit_indexes_1} for sbox in sbox_list}
 
             print("S0 Key Recovery Phase")
             pbar = tqdm(range(1, (traces.shape[0] // resolution) + 1), desc="Using 0 traces") # Loop over number of traces
@@ -243,41 +243,71 @@ try:
                 # Key rank plot
                 plot_key_rank_vs_traces(key_ranks_vs_traces_0[sbox_type], 11)
 
-            # Iterate over all key bits of k1
-            for key_bit in tqdm(key_bit_indexes_1, "Key bit recovery progress"):
-                # Build the leakage model matrix
-                H_matrix = np.empty((len(nonces), 8), dtype=np.uint8)
-                R_matrix = np.empty((8, traces.shape[1]), dtype=np.float64)
 
-                for n in range(len(nonces)):
-                    nonce_MSB = nonces[n][1]
-                    nonce_LSB = nonces[n][0]
-                    leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 1, key_bit, sbox_type, k0)
-                    H_matrix[n] = leakage_model_i
+            print("S1 Key Recovery Phase")
+            pbar = tqdm(range(1, (traces.shape[0] // resolution) + 1), desc="Using 0 traces") # Loop over number of traces
+            for count in pbar:
+                pbar.set_description(f"Using {count*resolution} traces")
+                partial_traces = traces[:(count*resolution)]
+                partial_nonces = nonces[:(count*resolution)]
 
-                # CPA attack
-                R_matrix = ascon_cpa(traces, H_matrix)
+                # Iterate over all key bits of k1
+                for key_bit in key_bit_indexes_1:
+                    key_1_j     = (key_1_correct >> ((key_bit)      % 64)) & 1
+                    key_1_j61   = (key_1_correct >> ((key_bit + 61) % 64)) & 1
+                    key_1_j39   = (key_1_correct >> ((key_bit + 39) % 64)) & 1
+                    correct_guess = (key_1_j << 2) | (key_1_j61 << 1) | (key_1_j39 << 0)
 
-                # Find the time samples with the maximum correlation value
-                corr_vs_keyguess = np.max(np.abs(R_matrix), axis=1) # shape (8,)
+                    # Build the leakage model matrix
+                    H_matrix = np.empty((len(partial_nonces), 8), dtype=np.uint8)
+                    R_matrix = np.empty((8, partial_traces.shape[1]), dtype=np.float64)
 
-                # Find the key guess with the maximum correlation value
-                best_key_guess = np.argmax(corr_vs_keyguess)
+                    for n in range(len(partial_nonces)):
+                        nonce_MSB = partial_nonces[n][1]
+                        nonce_LSB = partial_nonces[n][0]
+                        leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 1, key_bit, sbox_type, k0)
+                        H_matrix[n] = leakage_model_i
 
-                # Save the result to the k1 vector
-                k1_bits[(key_bit)      % 64] = (best_key_guess >> 2) & 1
-                k1_bits[(key_bit + 61) % 64] = (best_key_guess >> 1) & 1
-                k1_bits[(key_bit + 39) % 64] = (best_key_guess >> 0) & 1
+                    # CPA attack
+                    R_matrix = ascon_cpa(partial_traces, H_matrix)
 
-            # Convert the numpy array into a single hex integer. The XOR operation is needed to isolate the k1 bits
-            k1 = 0
-            for i in range(64):
-                k1 |= (k1_bits[i] & 0x01) << i
-            k1 = int(k1) & 0xFFFFFFFFFFFFFFFF
-            # The key recovery from the register z1 actually need this extra XOR operation
-            #k1 = k1 ^ k0
+                    # Find the time samples with the maximum correlation value
+                    corr_vs_keyguess = np.max(np.abs(R_matrix), axis=1) # shape (8,)
+
+                    # Find the key guess with the maximum correlation value
+                    best_key_guess = np.argmax(corr_vs_keyguess)
+
+                    # Order the guesses by their correlation values
+                    sorted_indices = np.argsort(-corr_vs_keyguess)  # Descending order
+                    rank = np.where(sorted_indices == correct_guess)[0][0]  # 0 = best, 7 = worst
+                    key_ranks_vs_traces_1[sbox_type][key_bit].append(rank)
+
+                    # Save the result to the k1 vector
+                    k1_bits[(key_bit)      % 64] = (best_key_guess >> 2) & 1
+                    k1_bits[(key_bit + 61) % 64] = (best_key_guess >> 1) & 1
+                    k1_bits[(key_bit + 39) % 64] = (best_key_guess >> 0) & 1
+
+                # Convert the numpy array into a single hex integer
+                k1 = 0
+                for i in range(64):
+                    k1 |= (k1_bits[i] & 0x01) << i
+                k1 = int(k1) & 0xFFFFFFFFFFFFFFFF
+
+                # Check how many bits have been correctly recovered so far
+                k1_expected = (key >> 64) & 0xFFFFFFFFFFFFFFFF
+                # Compare the recovered k1 with the expected one. The XOR operation returns 1 where bits differ. 
+                # So count the 1s to get the number of wrong bits.
+                wrong_bits = bin(k1 ^ k1_expected).count('1')
+                success_rate = (64 - wrong_bits) / 64 * 100
+                success_rate_vs_traces_1[sbox_type].append(success_rate)
+
+                # Success rate plot
+                plot_success_rate_vs_traces(success_rate_vs_traces_1[sbox_type])
+
+                # Key rank plot for k1
+                plot_key_rank_vs_traces(key_ranks_vs_traces_1[sbox_type], 46)
+
             print(f"Recovered least significand half of the key: {k1:016x}\n")
-
             print(f"Recovered full key: {k1:016x}{k0:016x}")
 
             # Convert to hex strings
