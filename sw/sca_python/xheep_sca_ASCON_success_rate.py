@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import h5py
+import json
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_leakage_model import ascon_leakage_model
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
@@ -17,7 +18,7 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
 # Number of traces
 N = 10000
-resolution = 2500
+resolution = 100
 cpa_phase_full_key = True
 
 sbox_type = "lut_ascon" # Options: lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
@@ -104,6 +105,27 @@ def plot_success_rate_vs_traces(success_rate_list):
     plt.legend()
     plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_success_rate_vs_traces" + f"_sbox_{sbox_type}.png")
     # plt.show()
+
+# This function is only used to convert numpy types to native Python types, otherwise
+# the json.dump() function raises an error.
+def to_python_types(obj):
+    """
+        Recursively convert numpy types in obj to native Python types.
+        In particular, convert:
+        - np.integer to int
+        - np.floating to float
+        Handles nested structures like lists and dictionaries.
+    """
+    if isinstance(obj, dict):
+        return {to_python_types(k): to_python_types(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [to_python_types(i) for i in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    else:
+        return obj
 
 
 # Load the traces from the file, if it exists
@@ -237,11 +259,17 @@ try:
                 success_rate_vs_traces_0[sbox_type].append(success_rate)
                 # print(f"Correctly recovered {64 - wrong_bits} out of 64 bits so far ({success_rate:.2f}%).\n")
 
-                # Success rate plot
-                plot_success_rate_vs_traces(success_rate_vs_traces_0[sbox_type])
+            # Save the success rate to a JSON file
+            with open(f"../x-heep/Graphs/ASCON_c/ASCON_success_rate_S0_sbox_{sbox_type}.json", "w") as f:
+                json.dump(success_rate_vs_traces_0[sbox_type], f)
+            # Success rate plot
+            plot_success_rate_vs_traces(success_rate_vs_traces_0[sbox_type])
 
-                # Key rank plot
-                plot_key_rank_vs_traces(key_ranks_vs_traces_0[sbox_type], 11)
+            # Save the key rank to a JSON file
+            with open(f"../x-heep/Graphs/ASCON_c/ASCON_key_ranks_S0_sbox_{sbox_type}.json", "w") as f:
+                json.dump(to_python_types(key_ranks_vs_traces_0[sbox_type]), f)
+            # Key rank plot
+            plot_key_rank_vs_traces(key_ranks_vs_traces_0[sbox_type], 11)
 
 
             print("S1 Key Recovery Phase")
@@ -301,13 +329,18 @@ try:
                 success_rate = (64 - wrong_bits) / 64 * 100
                 success_rate_vs_traces_1[sbox_type].append(success_rate)
 
-                # Success rate plot
-                plot_success_rate_vs_traces(success_rate_vs_traces_1[sbox_type])
+            # Save the success rate to a JSON file
+            with open(f"../x-heep/Graphs/ASCON_c/ASCON_success_rate_S1_sbox_{sbox_type}.json", "w") as f:
+                json.dump(success_rate_vs_traces_1[sbox_type], f)
+            # Success rate plot
+            plot_success_rate_vs_traces(success_rate_vs_traces_1[sbox_type])
 
-                # Key rank plot for k1
-                plot_key_rank_vs_traces(key_ranks_vs_traces_1[sbox_type], 46)
+            # Save the key rank to a JSON file
+            with open(f"../x-heep/Graphs/ASCON_c/ASCON_key_ranks_S1_sbox_{sbox_type}.json", "w") as f:
+                json.dump(to_python_types(key_ranks_vs_traces_1[sbox_type]), f)
+            # Key rank plot for k1
+            plot_key_rank_vs_traces(key_ranks_vs_traces_1[sbox_type], 46)
 
-            print(f"Recovered least significand half of the key: {k1:016x}\n")
             print(f"Recovered full key: {k1:016x}{k0:016x}")
 
             # Convert to hex strings
