@@ -18,8 +18,8 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 ###################### INITIALIZATION ######################
 
 # Number of traces
-N = 150000
-sbox_type = "lut_lu_5" # Options: lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
+N = 10000
+sbox_type = "lut_ascon" # Options: lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
 
 cpa_phase_full_key = True
 
@@ -90,14 +90,18 @@ try:
                 "lut_ascon": [32, 13, 34, 4, 6, 54, 36, 0, 33, 63, 7, 16, 55, 19, 17, 41, 1, 40, 8, 48, 24, 39, 14, 31, 58, 49, 56, 47, 37, 29, 15, 46, 57, 11],
                 "lut_bilgin": [4, 51, 7, 63, 31, 40, 32, 3, 43, 23, 59, 16, 13, 47, 36, 0, 41, 34, 44, 33, 6, 54, 48, 19, 17, 1, 10, 39, 56, 60, 18, 38, 11, 57, 49],
                 "lut_lu_7": [32, 0, 13, 4, 16, 33, 15, 34, 63, 54, 55, 43, 6, 31, 14, 7, 39, 36, 17, 40, 48, 1, 19, 41, 24, 11, 3, 47, 29, 27, 37, 57, 8, 49],
+                "lut_lu_6": [32, 13, 4, 63, 36, 33, 54, 34, 62, 16, 14, 0, 6, 17, 19, 43, 39, 40, 1, 55, 41, 8, 48, 47, 30, 58, 31, 56, 60, 38, 37, 57, 18],
                 "lut_lu_5": [60, 30, 61, 28, 32, 0, 34, 23, 53, 14, 22, 44, 33, 5, 17, 38, 13, 62, 8, 56, 57, 6, 31, 15, 37, 10, 12, 39, 29, 36, 54, 49, 46, 35, 43],
+                "lut_lu_4": [32, 13, 4, 36, 33, 54, 34, 6, 16, 14, 63, 0, 17, 19, 39, 43, 40, 1, 7, 55, 24, 41, 47, 48, 29, 58, 37, 50, 8, 12, 18, 57, 15, 49, 30],
                 "lut_allouzi": [32, 33, 34, 14, 13, 4, 36, 30, 1, 22, 53, 31, 0, 29, 44, 62, 17, 47, 9, 54, 41, 63, 37, 19, 5, 46, 24, 16, 20, 60, 7, 2, 40, 61, 42, 39, 57],
             }
             key_bit_indexes_1_dict = {
                 "lut_ascon": [32, 0, 63, 1, 14, 13, 36, 15, 31, 8, 38, 43, 5, 18, 23, 12, 45, 16, 9, 42, 3, 51, 2, 49, 24, 20, 44, 40, 28, 30, 37, 19, 47, 59, 53, 4, 46],
                 "lut_bilgin": [32, 0, 63, 1, 36, 14, 13, 12, 31, 11, 45, 60, 62, 47, 41, 52, 8, 33, 46, 20, 48, 54, 44, 18, 61, 34, 58, 4, 24, 28, 26, 5, 59],
                 "lut_lu_7": [50, 8, 42, 11, 59, 60, 17, 32, 49, 0, 63, 3, 10, 28, 43, 36, 1, 56, 34, 18, 33, 27, 4, 13, 25, 9, 6, 20, 19, 23, 5, 12, 15, 2, 62, 46, 55, 29],
+                "lut_lu_6": [50, 8, 32, 0, 63, 1, 60, 36, 3, 56, 14, 13, 4, 28, 31, 9, 6, 12, 42, 23, 59, 19, 15, 30, 43, 44, 52, 2, 46, 49, 40, 51, 55, 22],
                 "lut_lu_5": [50, 8, 32, 0, 63, 60, 1, 36, 6, 14, 4, 13, 31, 9, 42, 59, 16, 18, 5, 33, 44, 48, 15, 19, 40, 12, 20, 10, 46, 49, 30, 22, 29],
+                "lut_lu_4": [32, 0, 1, 63, 47, 31, 36, 60, 8, 4, 3, 9, 56, 37, 35, 16, 2, 7, 6, 30, 11, 26, 52, 12, 28, 54, 19, 62, 15, 43, 20, 27, 46, 14],
                 "lut_allouzi": [32, 0, 63, 1, 14, 36, 13, 31, 8, 38, 3, 9, 45, 18, 12, 30, 48, 15, 19, 43, 24, 46, 44, 40, 20, 2, 26, 55, 4, 37, 28, 11, 49, 59, 47],
             }
 
@@ -177,7 +181,8 @@ try:
             k0 = 0
             for i in range(64):
                 k0 |= ((k0_bits[i] & 0x01) << i)
-            print(f"Recovered most significand half of the key: {int(k0) & 0xFFFFFFFFFFFFFFFF:016x}")
+            k0 = int(k0) & 0xFFFFFFFFFFFFFFFF
+            print(f"Recovered most significand half of the key: {k0:016x}")
             print()
 
             # --- Parallel CPA for k1 ---
@@ -196,9 +201,10 @@ try:
             k1 = 0
             for i in range(64):
                 k1 |= (k1_bits[i] & 0x01) << i
+            k1 = int(k1) & 0xFFFFFFFFFFFFFFFF
             # The key recovery from the register z1 actually need this extra XOR operation
             #k1 = k1 ^ k0
-            print(f"Recovered least significand half of the key: {int(k1) & 0xFFFFFFFFFFFFFFFF:016x}\n")
+            print(f"Recovered least significand half of the key: {k1:016x}\n")
 
             print(f"Recovered full key: {k1:016x}{k0:016x}")
 
@@ -213,10 +219,11 @@ try:
 
             print(f"Recovered key (little-endian): 0x{recovered_key}")
 
+            # The strange symbols are for coloring the output in red (error) or green (success)
             if recovered_key != key_for_printing:
-                print(f"ERROR: Key recovery failed.\nGot: 0x{recovered_key}\nExpected: 0x{key_for_printing}\n")
+                print(f"\033[91mERROR\033[0m: Key recovery failed.\nGot: 0x{recovered_key}\nExpected: 0x{key_for_printing}\n")
             else:
-                print("SUCCESS: Key correctly recovered!\n")
+                print("\033[92mSUCCESS\033[0m: Key correctly recovered!\n")
 
             toc = time.perf_counter()
             print(f"Full key recovery phase completed in {(toc - tic)/60:.2f} minutes.")

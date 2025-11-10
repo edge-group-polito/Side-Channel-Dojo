@@ -29,8 +29,25 @@ def ascon_cpa(traces, hypothetical_values):
     # Loop over each sample in the traces and over each key hypothesis
     for hypothesis_index in range(hypothetical_values.shape[1]):
         for sample_index in range(traces.shape[1]):
-            # Compute the correlation between the traces and the hypothetical values
-            R_matrix[hypothesis_index, sample_index] = np.corrcoef(traces[:, sample_index], 
-                                                                    hypothetical_values[:, hypothesis_index])[0, 1]
+            x = traces[:, sample_index]
+            y = hypothetical_values[:, hypothesis_index]
+            # These checks are performed individually to determine the exact reason for invalid correlation (used for debugging)
+            # Check for NaN separately
+            if np.any(np.isnan(x)):
+                R_matrix[hypothesis_index, sample_index] = 0.0
+            elif np.any(np.isnan(y)):
+                R_matrix[hypothesis_index, sample_index] = 0.0
+            # Check for Inf separately
+            elif np.any(np.isinf(x)):
+                R_matrix[hypothesis_index, sample_index] = 0.0
+            elif np.any(np.isinf(y)):
+                R_matrix[hypothesis_index, sample_index] = 0.0
+            # Check for constant input (zero stddev) separately
+            elif np.std(x) == 0:
+                R_matrix[hypothesis_index, sample_index] = 0.0
+            elif np.std(y) == 0:
+                R_matrix[hypothesis_index, sample_index] = 0.0
+            else:
+                R_matrix[hypothesis_index, sample_index] = np.corrcoef(x, y)[0, 1]
 
     return R_matrix
