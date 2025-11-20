@@ -19,5 +19,5 @@ The top level wrapper is defined in `cw305_top.v`, it is is composed of :
   
 - `crypto target` : in this case is the AES hardware accelerator (`aes_core.v`) implemented as a 1 round per cycle  
 
-The constraint file to synthesize in [[Vivado]] is `cw305.xdc`
+The constraint file to synthesize in **Vivado** is `cw305.xdc`
 ![alt text](../../pics/CW305_verilog_hierarchy.png)

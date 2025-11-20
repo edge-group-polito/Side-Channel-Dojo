@@ -10,6 +10,9 @@ import h5py
 import json
 import multiprocessing as mp
 from multiprocessing import shared_memory
+import os
+import atexit
+import signal
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_leakage_model import ascon_leakage_model
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
@@ -17,17 +20,17 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 ###################### INITIALIZATION ######################
 
 # Number of traces
-N = 10000
-resolution = 100
+N = 1000000
+resolution = 5000
 cpa_phase_full_key = True
 
-sbox_type = "lut_ascon" # Options: lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
+sbox_type = "lut_lu_6" # Options: lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
 sbox_list = ["lut_ascon", "lut_bilgin", "lut_allouzi", "lut_lu_4", "lut_lu_5", "lut_lu_6", "lut_lu_7"]
 
 # Traces file path
-traces_dir  = r"../../build/xheep_test/"
+traces_dir  = r"../../../traceset/"
 # traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
-traces_file = r"../../build/xheep_test/ascon_opt32_" + sbox_type + "_" + str(N//1000) + "k.h5"
+traces_file = traces_dir + "ascon_opt32_" + sbox_type + "_" + str(N//1000) + "k.h5"
 
 print()
 print("traces_file: ", traces_file)
@@ -54,6 +57,53 @@ initialization_vector = int(initialization_vector, 16)
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
+# Number of worker processes to use for multiprocessing pools.
+# Default: one less than the number of CPUs to keep the system responsive.
+# Override by setting environment variable `NUM_WORKERS` to an integer.
+num_cpus = max(1, mp.cpu_count() - 1)
+num_workers = int(os.environ.get("NUM_WORKERS", num_cpus))
+traces_shm = None
+nonces_shm = None
+
+
+def _cleanup_shared_memory():
+    global traces_shm, nonces_shm
+    try:
+        if traces_shm is not None:
+            try:
+                traces_shm.close()
+            except Exception:
+                pass
+            try:
+                traces_shm.unlink()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        if nonces_shm is not None:
+            try:
+                nonces_shm.close()
+            except Exception:
+                pass
+            try:
+                nonces_shm.unlink()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+atexit.register(_cleanup_shared_memory)
+
+
+def _handle_sigint(signum, frame):
+    print("\nReceived SIGINT, cleaning up shared memory and exiting...")
+    _cleanup_shared_memory()
+    sys.exit(1)
+
+
+signal.signal(signal.SIGINT, _handle_sigint)
 ####################### OFFLINE PHASE #######################
 
 
@@ -191,7 +241,7 @@ try:
                     (key_bit, traces.shape, nonces.shape, traces_shm.name, nonces_shm.name, initialization_vector, sbox_type, key_0_correct, partial_traces_len)
                     for key_bit in key_bit_indexes_0
                 ]
-                with mp.Pool(4) as pool:
+                with mp.Pool(num_workers) as pool:
                     results_k0 = list(pool.imap(cpa_worker_k0, args_list_k0))
 
                 for key_bit, best_key_guess, rank in results_k0:
@@ -254,7 +304,7 @@ try:
                     (key_bit, traces.shape, nonces.shape, traces_shm.name, nonces_shm.name, initialization_vector, sbox_type, k0, key_1_correct, partial_traces_len)
                     for key_bit in key_bit_indexes_1
                 ]
-                with mp.Pool(4) as pool:
+                with mp.Pool(num_workers) as pool:
                     results_k1 = list(pool.imap(cpa_worker_k1, args_list_k1))
 
                 for key_bit, best_key_guess, rank in results_k1:
