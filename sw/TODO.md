@@ -29,7 +29,7 @@ todo:
 - [x] : update the already compiled firmwares
 - [ ] : leave in sw notebook directory a single notebook which does the plain AES attack (cpa custom and capture trace custom) and then folders utils where are added the noetebook for SNR, TVLA, etc.. and examples where are put the noteboooks of x-heep e Ascon cases
 - [ ] : Modify the parameters self.registers = 12  and self.bytecount_size = 7 in CW305.py
-- [x] : Move the X-HEEP's SCA notebooks into sw/notebook/tests/xheep
+- [x] : Move the X-HEEP's SCA notebooks into sw/notebook/examples/xheep
 - [x] : Update the paths in the SCA notebooks and python scripts, since now the golden models have been moved to a different folder
 - [x] : create a new C program for ASCON that performs only the first round. The state registers 3 and 4 after the round are used as new nonce value
 - [x] : update also the CW305 repo, then vendorize

@@ -84,7 +84,7 @@ An example could be found in `sw/sca_jupyter/sca_test.ipynb`
 - [ ] Library for common plots in `sw/sca_python/analyzer/utils`
 - [ ] Simulate and synthesize the AES pipeline version
 - [ ] Test readme file in `sw` to recreate the environment
-- [ ] Python version of the notebook in the folder "sw/sca_python/tests/aes/"
+- [ ] Python version of the notebook in the folder "sw/sca_python/examples/aes/"
 
 *Optional :*
 - [ ] Makefile command which run python script to capture power traces

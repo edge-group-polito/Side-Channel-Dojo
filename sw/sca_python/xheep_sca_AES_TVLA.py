@@ -93,7 +93,7 @@ Available S-boxes:
 tested_sbox = "sbox_rijandael" 
 sbox_id = tested_sbox.replace("sbox_", "")
 
-# To perform also TVLA tests, traces have to be collected twice. So two different
+# To perform also TVLA test, traces have to be collected twice. So two different
 # firmware have to be loaded. The first one is with random plaintext and the second one 
 # is with fixed plaintext. The key is always fixed for both cases.
 # The firmware is already compiled and available in the repository for all S-boxes.

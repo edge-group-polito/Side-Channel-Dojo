@@ -52,6 +52,7 @@ class CW305Wrapper:
             # Programming the target with default AES128_8bit bitstream
             self.CW305 = cw.target(None, cw.targets.CW305, fpga_id='100t', force = force)
         else:
+            # self.CW305 = cw.target(scope, cw.targets.CW305, bsfile=bitstream, force=force, defines_files=["/home/mattia-mirigaldi/Desktop/Side-Channel-Dojo/hw/crypto_asic/aes/fpga/cw305_aes_defines.v"])
             self.CW305 = cw.target(scope, cw.targets.CW305, bsfile=bitstream, force=force)
             print(self.CW305.fpga.isFPGAProgrammed())
         
