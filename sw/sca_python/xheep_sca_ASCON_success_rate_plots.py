@@ -105,7 +105,7 @@ if single_sbox_plots:
 if overlapped_success_rate_plots:
     print("Generating Overlapped Success Rate vs Traces plots for all S-boxes...\n")
     # sbox_types = ["lut_ascon", "lut_bilgin", "lut_allouzi", "lut_lu_4", "lut_lu_5", "lut_lu_6", "lut_lu_7"]
-    sbox_types = ["lut_bilgin", "lut_allouzi", "lut_lu_4", "lut_lu_5", "lut_lu_6"]#, "lut_lu_7"]
+    sbox_types = ["lut_bilgin", "lut_allouzi", "lut_lu_4", "lut_lu_5", "lut_lu_6", "lut_lu_7"]
 
     for register_index in [0, 1]:
         plt.figure()
