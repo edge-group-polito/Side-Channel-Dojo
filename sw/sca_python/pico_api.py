@@ -84,7 +84,7 @@ class PS5000aWrapper:
     def get_scopeSettings(self):
         """Get the current scope settings."""
         print("Nsamples : ", self.nSamples)
-        print("Sampling interval = %f us", self.sample_interval)
+        print(f"Sampling interval = {self.sample_interval} us")
         print("Channel A settings: ", self.channelASettings)
         print("Channel B settings: ", self.channelBSettings)
     
