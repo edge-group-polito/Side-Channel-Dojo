@@ -8,7 +8,7 @@
 EXIT_LOOP_ADDRESS = '2000000c'
 
 import sys
-sys.path.append( '../../sca_python' )
+sys.path.append( '../../sca_scripts' )
 
 # from CW305_api import CW305Wrapper
 import ReqClass

@@ -1,14 +1,43 @@
-#!/usr/bin/env python3
+from pathlib import Path
 import sys
-sys.path.append( '../../ciphers/AES_python' )
-sys.path.append( '../../sca_python' )
+
+def find_project_root(start: Path, markers=("fusesoc.conf", ".dojo_root")) -> Path:
+    """Walk upwards from 'start' until one of the marker files is found."""
+    current = start
+    while current != current.parent:
+        if any((current / m).exists() for m in markers):
+            return current
+        current = current.parent
+    raise RuntimeError(
+        f"Could not find project root (looked for markers: {markers}). "
+        "Please check the repository layout."
+    )
+
+# ---------------------------------------------------------------------------
+# Project paths
+# ---------------------------------------------------------------------------
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+DOJO_ROOT = find_project_root(SCRIPT_DIR)
+
+AES_PY_DIR   = DOJO_ROOT / "sw" / "ciphers" / "AES_python"
+SCA_DIR      = DOJO_ROOT / "sw" / "sca_scripts"
+HW_DIR       = DOJO_ROOT / "hw"
+NOTEBOOK_DIR = DOJO_ROOT / "sw" / "notebook"
+
+# Add to sys.path for imports
+sys.path.insert(0, str(AES_PY_DIR))
+sys.path.insert(0, str(SCA_DIR))
+
+# ---------------------------------------------------------------------------
+# Imports
+# ---------------------------------------------------------------------------
+import os
 from CW305_api import CW305Wrapper
 from pico_api import PS5000aWrapper
 from AES_golden import AES_golden_model
 from analyzer.attack.aes.SBox_leakage_models import AES128SboxResistantLeakageModels
 from analyzer.attack.aes.key_schedule import key_schedule_rounds
-import os
-os.system("pip list | grep chipwhisperer")
 import chipwhisperer as cw
 import chipwhisperer.analyzer as cwa
 from chipwhisperer.common.traces import Trace
@@ -34,35 +63,34 @@ Available S-boxes:
 """
 
 ###################### CONFIGURATION ######################
-
 # ---------------------------------------------------------------------------
 # This script evaluates the success rate of a CPA attack against a selected
 # AES S-box implementation on CW305.
 # ---------------------------------------------------------------------------
 
 # Select the S-box implementation to test
-tested_sbox = "sbox_freyre_1"          # e.g. "sbox_rijandael", "sbox_freyre_1", ...
+tested_sbox = "sbox_ozkaynak_1"          # e.g. "sbox_rijandael", "sbox_freyre_1", ...
 sbox_id = tested_sbox.replace("sbox_", "")
 
 # Enable/disable trace acquisition
-trace_acquisition = True
+trace_acquisition = False
 
 # Path to the pre-generated FPGA bitstream for the selected S-box
-bitstream = f"../../../hw/fpga/bitstream/aes/aes_single_round/cw305_top_{sbox_id}_lut.bit"
+bitstream = str(HW_DIR) + f"/fpga/bitstream/aes/aes_single_round/cw305_top_{sbox_id}_lut.bit"
 
 # ChipWhisperer project file used to store/load traces and SCA metadata
-project_file = f"../../notebook/examples/aes/traceset/AES_{sbox_id}/{sbox_id}.cwp"
+project_file = str(NOTEBOOK_DIR) + f"/examples/aes/traceset/AES_{sbox_id}/{sbox_id}.cwp"
 
 # Cache configuration for success-rate curves
-save_SR_to_cache = True                # Save success-rate curve to JSON
-save_SR_plot    = True                 # Save success-rate plot as PDF/PNG
-resolution      = 25                   # Number of traces added at each evaluation step
+save_SR_to_cache = False                # Save success-rate curve to JSON
+save_SR_plot    = False                 # Save success-rate plot as PDF/PNG
+resolution      = 25                    # Number of traces added at each evaluation step
 
 # JSON cache file for success-rate results (one file per sbox_id / resolution)
-cache_file = f"../../notebook/examples/aes/cache/AES_{sbox_id}_success_rate_{resolution}.json"
+cache_file = str(NOTEBOOK_DIR) + f"/examples/aes/cache/AES_{sbox_id}_success_rate_{resolution}.json"
 
 # Directory for plots
-plot_dir = "../../notebook/examples/aes/Graphs"
+plot_dir = str(NOTEBOOK_DIR) + f"/examples/aes/Graphs"
 
 # AES key used during trace acquisition
 key = [

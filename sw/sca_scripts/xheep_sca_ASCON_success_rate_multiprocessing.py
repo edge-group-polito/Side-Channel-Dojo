@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-sys.path.append( '../sca_python' )
+sys.path.append( '../sca_scripts' )
 
 from tqdm import tqdm
 import time

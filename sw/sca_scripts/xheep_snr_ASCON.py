@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-sys.path.append( '../sca_python' )
+sys.path.append( '../sca_scripts' )
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_first_round import ascon_first_round
 
 from tqdm import tqdm

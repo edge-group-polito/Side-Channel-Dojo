@@ -2,7 +2,7 @@
 
 
 import sys
-sys.path.append( '../sca_python' )
+sys.path.append( '../sca_scripts' )
 sys.path.append( '../x-heep' )
 
 from tqdm import tqdm
