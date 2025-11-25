@@ -134,7 +134,7 @@ aes-verilator-sim: $(BUILD_DIR)/.verilator.lock | .check-fusesoc
 	fusesoc run --no-export --target aes-sim --tool verilator --run $(FUSESOC_FLAGS) vlsi:polito:crypto_targets:0.1.0 \
 		--log_level=$(LOG_LEVEL) \
 		--max_cycles=$(MAX_CYCLES) \
-		--dump_trace=$(DUMP_TRACE) \cw305_top_ascon_hw_sbox_ascon .bit
+		--dump_trace=$(DUMP_TRACE) \
 		
 # Open dumped waveform with GTKWave
 .PHONY: verilator-waves
