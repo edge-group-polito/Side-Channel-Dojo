@@ -41,3 +41,4 @@ todo:
 - [ ] : apply multiprocessing on the ascon attack
 - [x] : remove useless stuff from the ascon attack folder (e.g. attack on the XOR etc)
 - [ ] : modify the ascon algorithm in a way to use different sboxes
+- [ ] Clip the power traces captured during sofware execution to only the S-box operation of first round

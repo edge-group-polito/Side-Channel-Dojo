@@ -150,6 +150,9 @@ All related commands can be invoked from the top-level Makefile.
 > * `self.registers` → `7`
 > * `self.bytecount_size` → `2`
 
+While for HW standalone case is 
+> * `self.registers` → `12`
+> * `self.bytecount_size` → `7`
 ---
 
 ## 📒 Jupyter SCA notebooks (`sw/notebook`)
@@ -178,6 +181,7 @@ At the root of `sw/notebook` you will also find general-purpose notebooks, such 
 ---
 
 ## 🐍 Advanced Python SCA scripts (`sw/sca_python`)
+**NOTE :** Parameters of the scripts are  hardwired and should be changed directly inside the python file. In future versions these could be passed as arguments by command line. 
 
 This folder contains **non-notebook** tooling for long-running and advanced attacks (💡 recommended to run via `tmux` or similar, since many scripts take a long time).
 
@@ -243,6 +247,8 @@ In short: `sw/notebook/` is ideal for **interactive exploration**, while `sw/sca
 * [ ] Simulate and synthesize the **AES pipeline** version
 * [ ] Finalize `sw/sca_setup.md` and ensure environment recreation is fully documented
 * [ ] Provide a pure-Python version of the AES notebook in `sw/sca_python/examples/aes/` (non-Jupyter flow)
+* [ ] Update readme to say that the scrippts refere to commond traceset directory and similarly cache and plot directory are fixed
+* [ ] Update all scripts to use same way to refer to root directory and to save traces captured and results in common directories
 
 **Optional:**
 

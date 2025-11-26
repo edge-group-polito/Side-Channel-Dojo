@@ -12,7 +12,7 @@ For each S-box, this script:
 
 It is designed to be run from anywhere inside the repository, as it
 automatically detects the project root (DOJO_ROOT) by walking upwards
-until a marker file is found (e.g., 'fusesoc.conf' or '.dojo_root').
+until the marker file ('.dojo_root') is found .
 """
 
 import sys
@@ -31,7 +31,7 @@ from analyzer.attack.aes.SBox_leakage_models import AES128SboxResistantLeakageMo
 # Project root detection and path setup
 # ============================================================================
 
-def find_dojo_root(start: Path, markers=("fusesoc.conf", ".dojo_root")) -> Path:
+def find_dojo_root(start: Path, markers=(".dojo_root")) -> Path:
     """
     Walk upwards from `start` until one of the marker files is found.
 
@@ -66,7 +66,7 @@ SCA_DIR = SW_DIR / "sca_scripts"
 # Directory where graphs/results for x-heep AES experiments are stored
 XHEEP_GRAPHS_DIR = SW_DIR / "x-heep" / "Graphs" / "AES_c"
 
-# Make local analysis code importable without ugly ../../
+# Make local analysis code importable
 sys.path.insert(0, str(SCA_DIR))
 
 

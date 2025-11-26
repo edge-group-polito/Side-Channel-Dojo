@@ -79,7 +79,7 @@ trace_acquisition = False
 bitstream = str(HW_DIR) + f"/fpga/bitstream/aes/aes_single_round/cw305_top_{sbox_id}_lut.bit"
 
 # ChipWhisperer project file used to store/load traces and SCA metadata
-project_file = str(NOTEBOOK_DIR) + f"/examples/aes/traceset/AES_{sbox_id}/{sbox_id}.cwp"
+project_file = str(NOTEBOOK_DIR) + f"/traceset/AES/hw/AES_{sbox_id}/{sbox_id}.cwp"
 
 # Cache configuration for success-rate curves
 save_SR_to_cache = False                # Save success-rate curve to JSON
@@ -87,10 +87,10 @@ save_SR_plot    = False                 # Save success-rate plot as PDF/PNG
 resolution      = 25                    # Number of traces added at each evaluation step
 
 # JSON cache file for success-rate results (one file per sbox_id / resolution)
-cache_file = str(NOTEBOOK_DIR) + f"/examples/aes/cache/AES_{sbox_id}_success_rate_{resolution}.json"
+cache_file = str(SCA_DIR) + f"/AES/hw/cache/AES_{sbox_id}_success_rate_{resolution}.json"
 
 # Directory for plots
-plot_dir = str(NOTEBOOK_DIR) + f"/examples/aes/Graphs"
+plot_dir = str(SCA_DIR) + f"/AES/hw/plot"
 
 # AES key used during trace acquisition
 key = [
