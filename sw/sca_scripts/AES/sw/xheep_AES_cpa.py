@@ -281,7 +281,7 @@ def run_cpa_and_cache(project):
              corr_wrong_max,
              cpa_meta) = load_cpa_results(CPA_CACHE_FILE)
 
-            print(f"[OFFLINE] Loaded cached CPA results from: {CPA_CACHE_FILE}")
+            print(f"[ANALYSIS] Loaded cached CPA results from: {CPA_CACHE_FILE}")
             key = cpa_meta.get("key", [])
             return x_axis, pge_per_byte, corr_correct, corr_wrong_max, key
         except FileNotFoundError:
@@ -335,12 +335,12 @@ def run_cpa_and_cache(project):
         correct_idx = results.known_key[bnum]
 
         # Correct key correlation curve
-        corr_correct.append(corr_matrix[correct_idx])
+        corr_correct.append(corr_matrix[correct_idx].tolist())
 
         # Max over all wrong key guesses at each trace
         wrong_mask = [i != correct_idx for i in range(256)]
         wrong_results = corr_matrix[wrong_mask]
-        corr_wrong_max.append(np.amax(wrong_results, axis=0))
+        corr_wrong_max.append(np.amax(wrong_results, axis=0).tolist())
 
         # Sanity check: x_axis should match x_corr
         if list(x_axis) != list(x_corr):
@@ -406,7 +406,7 @@ def plot_pge(x_axis, pge_per_byte, key):
     )
     if save_plots:
         plt.savefig(out_file)
-        print(f"[OFFLINE] PGE plot saved to: {out_file}")
+        print(f"[ANALYSIS] PGE plot saved to: {out_file}")
 
     # plt.show()
     plt.close(fig)
@@ -459,7 +459,7 @@ def plot_correlation(x_axis, corr_correct, corr_wrong_max):
     )
     if save_plots:
         plt.savefig(out_file)
-        print(f"[OFFLINE] Correlation plot saved to: {out_file}")
+        print(f"[ANALYSIS] Correlation plot saved to: {out_file}")
 
     # plt.show()
     plt.close(fig)
@@ -475,7 +475,7 @@ def main():
     # Open project
     try:
         project = cw.open_project(project_file)
-        print(f"[OFFLINE] Loaded project file: {project_file}")
+        print(f"[ANALYSIS] Loaded project file: {project_file}")
     except Exception as e:
         print(f"[ERROR] Failed to open project file '{project_file}': {e}")
         if not Path(project_file).exists():
@@ -499,7 +499,7 @@ def main():
 
     finally:
         project.close()
-        print("[OFFLINE] Project closed.")
+        print("[ANALYSIS] Project closed.")
 
 
 if __name__ == "__main__":
