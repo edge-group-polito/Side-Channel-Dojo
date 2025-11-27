@@ -55,7 +55,7 @@ scripts:
   copy_logs:
     cmd:
     - bash
-    - ../../../scripts/sim/copy-logs.sh
+    - ../../../scripts/copy-waves.sh
     - logs/waves.fst
 
 targets:

@@ -46,7 +46,7 @@ pip install chipwhisperer==5.7.0
 ```
 ## SCA attack overview
 1. **Reference model** 
-    The key is kept fix during the encrpytion tests
+    The key is kept fix during the encrpytion test
     ```python
     import chipwhisperer as cw
     ktp = cw.ktp.Basic()

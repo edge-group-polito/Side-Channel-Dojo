@@ -1,0 +1,183 @@
+[*]
+[*] GTKWave Analyzer v3.3.120 (w)1999-2024 BSI
+[*] Mon Nov 24 13:14:41 2025
+[*]
+[dumpfile] "/home/mattia-mirigaldi/Desktop/Side-Channel-Dojo/build/vlsi_polito_crypto_targets_0.1.0/aes-sim-verilator/logs/waves.fst"
+[dumpfile_mtime] "Mon Nov 24 11:26:09 2025"
+[dumpfile_size] 29475512
+[savefile] "/home/mattia-mirigaldi/Desktop/Side-Channel-Dojo/tb/verilator/gtk_waves.gtkw"
+[timestart] 6
+[size] 2494 1361
+[pos] -51 -51
+*-1.200000 13 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] TOP.
+[treeopen] TOP.aes_core.
+[treeopen] TOP.aes_core.sub_layer_inst.
+[treeopen] TOP.aes_core.sub_layer_inst.sbox_16way_inst.
+[sst_width] 278
+[signals_width] 502
+[sst_expanded] 1
+[sst_vpaned_height] 422
+@28
+TOP.aes_core.clk
+TOP.aes_core.ks_inst.en_i
+@200
+-
+@c00022
+TOP.aes_core.data_i[127:0]
+@28
+(0)TOP.aes_core.data_i[127:0]
+(1)TOP.aes_core.data_i[127:0]
+(2)TOP.aes_core.data_i[127:0]
+(3)TOP.aes_core.data_i[127:0]
+(4)TOP.aes_core.data_i[127:0]
+(5)TOP.aes_core.data_i[127:0]
+(6)TOP.aes_core.data_i[127:0]
+(7)TOP.aes_core.data_i[127:0]
+(8)TOP.aes_core.data_i[127:0]
+(9)TOP.aes_core.data_i[127:0]
+(10)TOP.aes_core.data_i[127:0]
+(11)TOP.aes_core.data_i[127:0]
+(12)TOP.aes_core.data_i[127:0]
+(13)TOP.aes_core.data_i[127:0]
+(14)TOP.aes_core.data_i[127:0]
+(15)TOP.aes_core.data_i[127:0]
+(16)TOP.aes_core.data_i[127:0]
+(17)TOP.aes_core.data_i[127:0]
+(18)TOP.aes_core.data_i[127:0]
+(19)TOP.aes_core.data_i[127:0]
+(20)TOP.aes_core.data_i[127:0]
+(21)TOP.aes_core.data_i[127:0]
+(22)TOP.aes_core.data_i[127:0]
+(23)TOP.aes_core.data_i[127:0]
+(24)TOP.aes_core.data_i[127:0]
+(25)TOP.aes_core.data_i[127:0]
+(26)TOP.aes_core.data_i[127:0]
+(27)TOP.aes_core.data_i[127:0]
+(28)TOP.aes_core.data_i[127:0]
+(29)TOP.aes_core.data_i[127:0]
+(30)TOP.aes_core.data_i[127:0]
+(31)TOP.aes_core.data_i[127:0]
+(32)TOP.aes_core.data_i[127:0]
+(33)TOP.aes_core.data_i[127:0]
+(34)TOP.aes_core.data_i[127:0]
+(35)TOP.aes_core.data_i[127:0]
+(36)TOP.aes_core.data_i[127:0]
+(37)TOP.aes_core.data_i[127:0]
+(38)TOP.aes_core.data_i[127:0]
+(39)TOP.aes_core.data_i[127:0]
+(40)TOP.aes_core.data_i[127:0]
+(41)TOP.aes_core.data_i[127:0]
+(42)TOP.aes_core.data_i[127:0]
+(43)TOP.aes_core.data_i[127:0]
+(44)TOP.aes_core.data_i[127:0]
+(45)TOP.aes_core.data_i[127:0]
+(46)TOP.aes_core.data_i[127:0]
+(47)TOP.aes_core.data_i[127:0]
+(48)TOP.aes_core.data_i[127:0]
+(49)TOP.aes_core.data_i[127:0]
+(50)TOP.aes_core.data_i[127:0]
+(51)TOP.aes_core.data_i[127:0]
+(52)TOP.aes_core.data_i[127:0]
+(53)TOP.aes_core.data_i[127:0]
+(54)TOP.aes_core.data_i[127:0]
+(55)TOP.aes_core.data_i[127:0]
+(56)TOP.aes_core.data_i[127:0]
+(57)TOP.aes_core.data_i[127:0]
+(58)TOP.aes_core.data_i[127:0]
+(59)TOP.aes_core.data_i[127:0]
+(60)TOP.aes_core.data_i[127:0]
+(61)TOP.aes_core.data_i[127:0]
+(62)TOP.aes_core.data_i[127:0]
+(63)TOP.aes_core.data_i[127:0]
+(64)TOP.aes_core.data_i[127:0]
+(65)TOP.aes_core.data_i[127:0]
+(66)TOP.aes_core.data_i[127:0]
+(67)TOP.aes_core.data_i[127:0]
+(68)TOP.aes_core.data_i[127:0]
+(69)TOP.aes_core.data_i[127:0]
+(70)TOP.aes_core.data_i[127:0]
+(71)TOP.aes_core.data_i[127:0]
+(72)TOP.aes_core.data_i[127:0]
+(73)TOP.aes_core.data_i[127:0]
+(74)TOP.aes_core.data_i[127:0]
+(75)TOP.aes_core.data_i[127:0]
+(76)TOP.aes_core.data_i[127:0]
+(77)TOP.aes_core.data_i[127:0]
+(78)TOP.aes_core.data_i[127:0]
+(79)TOP.aes_core.data_i[127:0]
+(80)TOP.aes_core.data_i[127:0]
+(81)TOP.aes_core.data_i[127:0]
+(82)TOP.aes_core.data_i[127:0]
+(83)TOP.aes_core.data_i[127:0]
+(84)TOP.aes_core.data_i[127:0]
+(85)TOP.aes_core.data_i[127:0]
+(86)TOP.aes_core.data_i[127:0]
+(87)TOP.aes_core.data_i[127:0]
+(88)TOP.aes_core.data_i[127:0]
+(89)TOP.aes_core.data_i[127:0]
+(90)TOP.aes_core.data_i[127:0]
+(91)TOP.aes_core.data_i[127:0]
+(92)TOP.aes_core.data_i[127:0]
+(93)TOP.aes_core.data_i[127:0]
+(94)TOP.aes_core.data_i[127:0]
+(95)TOP.aes_core.data_i[127:0]
+(96)TOP.aes_core.data_i[127:0]
+(97)TOP.aes_core.data_i[127:0]
+(98)TOP.aes_core.data_i[127:0]
+(99)TOP.aes_core.data_i[127:0]
+(100)TOP.aes_core.data_i[127:0]
+(101)TOP.aes_core.data_i[127:0]
+(102)TOP.aes_core.data_i[127:0]
+(103)TOP.aes_core.data_i[127:0]
+(104)TOP.aes_core.data_i[127:0]
+(105)TOP.aes_core.data_i[127:0]
+(106)TOP.aes_core.data_i[127:0]
+(107)TOP.aes_core.data_i[127:0]
+(108)TOP.aes_core.data_i[127:0]
+(109)TOP.aes_core.data_i[127:0]
+(110)TOP.aes_core.data_i[127:0]
+(111)TOP.aes_core.data_i[127:0]
+(112)TOP.aes_core.data_i[127:0]
+(113)TOP.aes_core.data_i[127:0]
+(114)TOP.aes_core.data_i[127:0]
+(115)TOP.aes_core.data_i[127:0]
+(116)TOP.aes_core.data_i[127:0]
+(117)TOP.aes_core.data_i[127:0]
+(118)TOP.aes_core.data_i[127:0]
+(119)TOP.aes_core.data_i[127:0]
+(120)TOP.aes_core.data_i[127:0]
+(121)TOP.aes_core.data_i[127:0]
+(122)TOP.aes_core.data_i[127:0]
+(123)TOP.aes_core.data_i[127:0]
+(124)TOP.aes_core.data_i[127:0]
+(125)TOP.aes_core.data_i[127:0]
+(126)TOP.aes_core.data_i[127:0]
+(127)TOP.aes_core.data_i[127:0]
+@1401200
+-group_end
+@22
+TOP.aes_core.data_o[127:0]
+TOP.aes_core.key_i[255:0]
+@200
+-
+@28
+TOP.aes_core.load_i
+TOP.aes_core.busy_o
+@22
+TOP.aes_core.round[3:0]
+TOP.aes_core.state[127:0]
+TOP.aes_core.state_new[127:0]
+@200
+-
+-Sbox layer 
+@22
+TOP.aes_core.sbb_i[127:0]
+TOP.aes_core.sbb_o[127:0]
+@28
+TOP.aes_core.sub_layer_inst.sbox_16way_inst.sbox_inst00.dec
+@22
+TOP.aes_core.sub_layer_inst.sbox_16way_inst.sbox_inst00.byte_in[7:0]
+TOP.aes_core.sub_layer_inst.sbox_16way_inst.sbox_inst00.byte_out[7:0]
+[pattern_trace] 1
+[pattern_trace] 0
