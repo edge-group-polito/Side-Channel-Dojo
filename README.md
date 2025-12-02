@@ -154,7 +154,7 @@ While for HW standalone case is
 > * `self.registers` → `12`
 > * `self.bytecount_size` → `7`
 ---
-
+**manca la spigezione di come si fa il fw, il fatto che se lo aspeta con un nome specifico e con il numero di loop settato nel .c**
 ## 📒 Jupyter SCA notebooks (`sw/notebook`)
 
 Main entry point for **interactive side-channel experiments**.
@@ -255,7 +255,7 @@ In short: `sw/notebook/` is ideal for **interactive exploration**, while `sw/sca
 * [ ] Makefile target to run Python script for **automatic power trace capture**
 * [ ] Makefile target to run Python script for **CPA attacks** end-to-end
 * [ ] Docker image for a fully reproducible SCA environment
-
+* [ ] To add that x-heep comes with vendor and should be used the vendor update script if done changs
 ---
 
 ## 🔍 TO CHECK

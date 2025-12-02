@@ -2,8 +2,8 @@
 
 
 import sys
-sys.path.append( '../sca_scripts' )
-sys.path.append( '../x-heep' )
+sys.path.append( '../../../sca_scripts' )
+sys.path.append( '../../../x-heep' )
 import readFirmware
 import os
 os.system("pip list | grep chipwhisperer")
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import h5py
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_first_round import ascon_first_round
-from analyzer.attack.ascon.xheep_ascon_cpa.ascon_leakage_model import ascon_leakage_model
+from sw.sca_scripts.analyzer.attack.ascon.xheep_ascon_cpa.ascon_std_leakage_model import ascon_leakage_model
 # from analyzer.attack.ascon.xheep_ascon_cpa.ascon_leakage_model_64 import ascon_leakage_model
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
@@ -27,27 +27,27 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
 # Number of traces
 N = 10000
-trace_acquisition = False
+trace_acquisition = True
 save_traces = False
-cpa_phase_1_bit = False
-cpa_phase_full_key = True
+cpa_phase_1_bit = True
+cpa_phase_full_key = False
 
 traces_overlapped_plot = False
 
 sbox_type = "lut_ascon" # Options: lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
 
-bitstream = r"../../hw/fpga/bitstream/xheep/cw305_top.bit"
-verilog_defines = r"../../hw/vendor/cw305-heep/hw/fpga/cw305_aes_defines.v"
+bitstream = r"../../../../hw/fpga/bitstream/xheep/cw305_top.bit"
+verilog_defines = r"../../../../hw/vendor/cw305-heep/hw/fpga/cw305_aes_defines.v"
 
 # Precompiled ASCON firmware for the CW305 board
-firmware = r"../x-heep/ASCON_firmware/ascon_opt32_" + sbox_type + "_" + str(N//1000) + "k.hex"
+firmware = r"../../../x-heep/ASCON_firmware/ascon_opt32_" + sbox_type + "_" + str(N//1000) + "k.hex"
 # To run another firmware compiled with the xheep toolchain, uncomment the following line: 
-#firmware = r"../../hw/vendor/cw305-heep/sw/build/main.hex"
+#firmware = r"../../../../hw/vendor/cw305-heep/sw/build/main.hex"
 
 # Traces file path
-traces_dir  = r"../../build/xheep_test/"
-# traces_file = r"../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
-traces_file = r"../../build/xheep_test/ascon_opt32_" + sbox_type + "_" + str(N//1000) + "k.h5"
+traces_dir  = r"../../../../build/xheep_test/"
+# traces_file = r"../../../../build/xheep_test/ASCON_RV32I_traces_nonces_500k.h5"
+traces_file = r"../../../../build/xheep_test/ascon_opt32_" + sbox_type + "_" + str(N//1000) + "k.h5"
 
 print()
 print("bitstream: ", bitstream)
@@ -231,8 +231,8 @@ try:
             power_plt = sca_plt.power_traces_overlapped(list(traces), sampling_interval)
 
             # Ensure the Graphs directory exists and save the plot
-            os.makedirs("../x-heep/Graphs/ASCON_c", exist_ok=True)
-            power_plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_power_traces_overlapped.png")
+            os.makedirs("../../../x-heep/Graphs/ASCON_c", exist_ok=True)
+            power_plt.savefig("../../../x-heep/Graphs/ASCON_c/ASCON_power_traces_overlapped.png")
             power_plt.close()
 
         if cpa_phase_1_bit:
@@ -309,7 +309,7 @@ try:
             plt.title("Correlation vs Number of traces - Bit {} - S-Box {}".format(bit_index, sbox_type))
             plt.grid()
             plt.legend()
-            plt.savefig("../x-heep/Graphs/ASCON_c/ASCON_correlation_vs_traces" + f"_sbox_{sbox_type}_bit_{bit_index}.png")
+            plt.savefig("../../../x-heep/Graphs/ASCON_c/ASCON_correlation_vs_traces" + f"_sbox_{sbox_type}_bit_{bit_index}.png")
             plt.close()
 
             toc = time.perf_counter()

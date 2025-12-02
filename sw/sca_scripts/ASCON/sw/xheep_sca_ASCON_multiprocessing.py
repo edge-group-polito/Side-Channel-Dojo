@@ -12,7 +12,7 @@ import h5py
 import multiprocessing as mp
 from multiprocessing import shared_memory
 
-from analyzer.attack.ascon.xheep_ascon_cpa.ascon_leakage_model import ascon_leakage_model
+from sw.sca_scripts.analyzer.attack.ascon.xheep_ascon_cpa.ascon_std_leakage_model import ascon_leakage_model
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
 ###################### INITIALIZATION ######################

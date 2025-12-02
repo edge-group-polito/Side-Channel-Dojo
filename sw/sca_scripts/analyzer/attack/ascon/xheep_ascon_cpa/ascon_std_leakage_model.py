@@ -3,7 +3,7 @@
 from .. import ascon_funcs as ascon
 import numpy as np
 
-def ascon_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type, key_0=None):
+def ascon_std_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type, key_0=None):
     """
     This function computes the leakage model for the ASCON cipher.
     The attack point is the activity of the register at the 

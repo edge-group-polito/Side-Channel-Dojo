@@ -5,7 +5,7 @@ import numpy as np
 
 # TODO: FIX the function descriptions. Remove key_0 parameter if not needed anymore.
 
-def ascon_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type, key_0=None):
+def ascon_generic_leakage_model(init_vect, nonce_MSB, nonce_LSB, state_register_index, bit_index, sbox_type, key_0=None):
     """
     This function computes the leakage model for the ASCON cipher.
     The attack point is the activity of the register at the 
