@@ -274,8 +274,6 @@ def run_capture(
     nonce_reversed_hex = "".join(nonce_bytes[::-1])
     nonce_int = int(nonce_reversed_hex, 16)
 
-    iv_int = int(iv_hex, 16)  # currently unused, but kept for completeness
-
     print(f"[ONLINE] Trace acquisition enabled. Target traces: {n_trc}")
     print(f"[ONLINE] Using bitstream      : {BITSTREAM_PATH}")
     print(f"[ONLINE] Firmware             : {firmware_file}")
@@ -345,15 +343,39 @@ def run_capture(
         if save_traces:
             print("[ONLINE] Saving traces to HDF5...")
             with h5py.File(traceset_file, "w") as f_write_traces:
-                f_write_traces.create_dataset("nonces", data=nonces)
-                f_write_traces.create_dataset("traces", data=traces)
-                # Store some metadata as attributes
+                # Datasets
+                d_nonces = f_write_traces.create_dataset("nonces", data=nonces)
+                d_traces = f_write_traces.create_dataset("traces", data=traces)
+
+                # ---- Dataset-level metadata ----
+                # Traces: float64 voltage samples
+                d_traces.attrs["description"] = (
+                    "Power traces: each row is one trace, stored as float64 "
+                    "dynamic voltage samples during ASCON execution."
+                )
+                d_traces.attrs["dtype"] = "float64"
+                d_traces.attrs["units"] = "AC Power"
+
+                # Nonces: 128-bit nonce split into two 64-bit words
+                d_nonces.attrs["description"] = (
+                    "ASCON nonces stored as 2×64-bit integers per trace: "
+                    "nonces[i,0] = least significant 64 bits (LSB half), "
+                    "nonces[i,1] = most significant 64 bits (MSB half). "
+                    "Nonce is first reversed by bytes (little-endian) before splitting."
+                )
+                d_nonces.attrs["layout"] = "nonce[i,0]=LSB64, nonce[i,1]=MSB64"
+                d_nonces.attrs["dtype"] = "uint64"
+
+                # ---- File-level metadata ----
                 f_write_traces.attrs["sampling_interval"] = sampling_interval
-                f_write_traces.attrs["n_traces"] = n_trc
-                f_write_traces.attrs["n_samples"] = n_samples
-                f_write_traces.attrs["key_hex_lsb_first"] = key_reversed_hex
-                f_write_traces.attrs["nonce_initial_hex_lsb_first"] = nonce_reversed_hex
-                f_write_traces.attrs["iv_hex"] = iv_hex
+                f_write_traces.attrs["n_traces"]           = n_trc
+                f_write_traces.attrs["n_samples"]          = n_samples
+                f_write_traces.attrs["key_hex"]            = key_hex
+                f_write_traces.attrs["iv_hex"]             = iv_hex
+                f_write_traces.attrs["description"] = (
+                    "ASCON SCA traceset. Datasets: /traces (float64, n_traces×n_samples), "
+                    "/nonces (uint64, n_traces×2, little-endian 128-bit nonce split)."
+                )
 
             print(f"[ONLINE] Capture completed. Traces saved to: {traceset_file}")
         else:

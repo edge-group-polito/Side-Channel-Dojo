@@ -115,7 +115,7 @@ def prepare_board(firmware):
 # Default sampling interval is 8 ns
 sampling_interval = 8E-9
 
-# Initialize key and nonce
+# Initialize key and nonce (hexadecimal format)
 key   = "000102030405060708090A0B0C0D0E0F"
 nonce = "000102030405060708090A0B0C0D0E0F"
 initialization_vector = "00001000808C0001" # Computed from the ASCON 128A parameters
@@ -325,7 +325,7 @@ try:
             print(f"Number of samples per trace: {traces.shape[1]}")
             print(f"S-box type: {sbox_type}\n")
 
-            # Mapping of sbox_type to key bit indexes
+            # Mapping of sbox_type to key bit indexes (yth)
             key_bit_indexes_0_dict = {
                 "lut_ascon": [32, 13, 34, 4, 6, 54, 36, 0, 33, 63, 7, 16, 55, 19, 17, 41, 1, 40, 8, 48, 24, 39, 14, 31, 58, 49, 56, 47, 37, 29, 15, 46, 57, 11],
                 "lut_bilgin": [4, 51, 7, 63, 31, 40, 32, 3, 43, 23, 59, 16, 13, 47, 36, 0, 41, 34, 44, 33, 6, 54, 48, 19, 17, 1, 10, 39, 56, 60, 18, 38, 11, 57, 49],
