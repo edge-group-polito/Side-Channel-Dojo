@@ -81,11 +81,13 @@ def ascon_generic_leakage_model(init_vect,
 
         return S0
 
-    def split_6bit_to_lists(value):
+    def split_3bit_to_lists(value):
         """
-        Split a 6-bit integer into a list of 6 bits [b5, b4, b3, b2, b1, b0].
+            This function splits a 3-bit integer into a list of 3 elements.
         """
-        bits = f"{value:06b}"
+        # Convert to 3-bit binary string
+        bits = f"{value:03b}"
+        # Convert each half to a list of integers
         return [int(b) for b in bits]
 
     # ------------------------------------------------------------------
@@ -138,12 +140,12 @@ def ascon_generic_leakage_model(init_vect,
     # Round constant for the first permutation round
     round_constant = 0xF0
 
-    # Loop through all possible key guesses (0..63).
-    # Each key guess is a 6-bit value: 3 bits for key_0, 3 bits for key_1.
+    # Loop through all possible 6-bit key guesses (0..63)
+    # Each key guess is a 6-bit value: 3 bits for key_0, 3 bits for key_1
     for key_guess in range(64):
-        key_guess_list = split_6bit_to_lists(key_guess)
-        key_guess_0 = key_guess_list[:3]   # 3 bits from MS half
-        key_guess_1 = key_guess_list[3:]   # 3 bits from LS half
+        # Split the 6-bit key guess into two 3-bit halves
+        key_guess_0 = split_3bit_to_lists((key_guess >> 0) & 0b111)   # bits [2:0]
+        key_guess_1 = split_3bit_to_lists((key_guess >> 3) & 0b111)   # bits [5:3]
 
         # Compute the 5-bit output of the diffusion layer
         Z = ascon_shift_layer(
@@ -159,7 +161,7 @@ def ascon_generic_leakage_model(init_vect,
         )
 
         # Extract the attacked output bit (as Hamming weight 0/1)
-        Z_hw = (Z >> output_bit_pos) & 0x01
+        Z_hw = (Z >> output_bit_pos) & 0x01 
         leakage_model[key_guess] = Z_hw
 
     return leakage_model
