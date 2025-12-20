@@ -3,7 +3,7 @@
 from .. import ascon_funcs as ascon
 import numpy as np
 
-def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg, attacked_bit, sbox_type, key_0=None):
+def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg, attacked_bit, key_0=None):
     """
     This function computes the leakage model for the ASCON cipher.
     The attack point is the activity of the register at the 
@@ -25,15 +25,13 @@ def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg,
         
         attacked_bit (int): The index of the output register bit to be attacked (0 to 63).
 
-        sbox_type (str): The type of S-Box to be used.
-
         key_0 (int): The most significand half of the key. Used when attacking the state 
         register x1, since it has already been recovered from the state register x0.
     Returns:
         leakage_model (numpy array): The leakage model for the ASCON cipher.
     """
 
-    def ascon_substitution_layer(x0, x1, x2, x3, x4, round_constant, row_shift,  bitindex, sbox_type):
+    def ascon_substitution_layer(x0, x1, x2, x3, x4, round_constant, row_shift,  bitindex):
         """
             This function computes the 5-bit S-Box output for the ASCON chipher.
             Inputs:
@@ -45,7 +43,6 @@ def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg,
                 round_constant (int): The round constant for the ASCON cipher.
                 row_shift (list): The row shift values for the ASCON cipher.
                 bitindex (int): The bit index to be processed.
-                sbox_type (str): The type of S-Box to be used.
             Returns:
                 int: The 5-bit S-Box output.
         """
@@ -62,9 +59,9 @@ def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg,
         # Build the 5-bit S-Box input vector
         sbox_input = (x0_bit << 4) | (x1_bit << 3) | (x2_bit << 2) | (x3_bit << 1) | x4_bit
 
-        return ascon.sbox(sbox_type, sbox_input)
+        return ascon.sbox("lut_ascon", sbox_input)
 
-    def ascon_shift_layer(init_vect, key_0, key_1, nonce_0, nonce_1, round_constant, row_shift, bitindex, sbox_type):
+    def ascon_shift_layer(init_vect, key_0, key_1, nonce_0, nonce_1, round_constant, row_shift, bitindex):
         """
             This function computes the 5-bit output of the ASCON linear shift layer.
             Inputs:
@@ -76,13 +73,12 @@ def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg,
                 round_constant (int): The round constant for the ASCON cipher.
                 row_shift (list): The row shift values for the ASCON cipher.
                 bitindex (int): The bit index to be processed.
-                sbox_type (str): The type of S-Box to be used.
             Returns:
                 int: The 5-bit output of the ASCON linear shift layer.
         """
-        S0 = ascon_substitution_layer(init_vect, key_0[0], key_1[0], nonce_0, nonce_1, round_constant, row_shift[0], bitindex, sbox_type) ^ \
-             ascon_substitution_layer(init_vect, key_0[1], key_1[1], nonce_0, nonce_1, round_constant, row_shift[1], bitindex, sbox_type) ^ \
-             ascon_substitution_layer(init_vect, key_0[2], key_1[2], nonce_0, nonce_1, round_constant, row_shift[2], bitindex, sbox_type)
+        S0 = ascon_substitution_layer(init_vect, key_0[0], key_1[0], nonce_0, nonce_1, round_constant, row_shift[0], bitindex) ^ \
+             ascon_substitution_layer(init_vect, key_0[1], key_1[1], nonce_0, nonce_1, round_constant, row_shift[1], bitindex) ^ \
+             ascon_substitution_layer(init_vect, key_0[2], key_1[2], nonce_0, nonce_1, round_constant, row_shift[2], bitindex)
 
         return S0
        
@@ -125,7 +121,7 @@ def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg,
             key_guess_1 = [0, 0, 0] # Fixed to zero according to the paper assumptions
 
             # Compute the output of the linear diffusion layer (5 bits)
-            Z = ascon_shift_layer(init_vect, key_guess_0, key_guess_1, nonce_msb, nonce_lsb, round_constant, row_shift_0, attacked_bit, sbox_type)
+            Z = ascon_shift_layer(init_vect, key_guess_0, key_guess_1, nonce_msb, nonce_lsb, round_constant, row_shift_0, attacked_bit)
             Z_0 = (Z >> 4) & 0x01
 
             leakage_model[key_guess] = Z_0
@@ -136,7 +132,7 @@ def ascon_std_leakage_model(init_vect, nonce_msb, nonce_lsb, attacked_state_reg,
             key_guess_1 = split_3bit_to_lists(key_guess)
 
             # Compute the output of the linear diffusion layer (5 bits)
-            Z = ascon_shift_layer(init_vect, key_guess_0, key_guess_1, nonce_msb, nonce_lsb, round_constant, row_shift_1, attacked_bit, sbox_type)
+            Z = ascon_shift_layer(init_vect, key_guess_0, key_guess_1, nonce_msb, nonce_lsb, round_constant, row_shift_1, attacked_bit)
             Z_1 = (Z >> 3) & 0x01
 
             leakage_model[key_guess] = Z_1

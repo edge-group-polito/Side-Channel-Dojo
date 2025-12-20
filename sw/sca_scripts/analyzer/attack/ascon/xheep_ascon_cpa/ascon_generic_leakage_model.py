@@ -157,11 +157,12 @@ def ascon_generic_leakage_model(init_vect,
             round_constant,
             row_shift_vec,
             attacked_bit,
-            sbox_type,
+            sbox_type,        
         )
 
         # Extract the attacked output bit (as Hamming weight 0/1)
-        Z_hw = (Z >> output_bit_pos) & 0x01 
+        Z_hw = (Z >> output_bit_pos) & 0x01  
         leakage_model[key_guess] = Z_hw
+        # print(f"[DEBUG] k1 {((key_guess >> 3) & 0b111):03b} k0 {((key_guess >> 0) & 0b111):03b}, output column {[((Z >> (4 - b)) & 0x01) for b in range(0, 5)]} with leakage bit = {Z_hw}")
 
     return leakage_model

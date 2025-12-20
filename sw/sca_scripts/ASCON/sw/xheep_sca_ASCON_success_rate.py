@@ -9,7 +9,7 @@ import numpy as np
 import h5py
 import json
 
-from sw.sca_scripts.analyzer.attack.ascon.xheep_ascon_cpa.ascon_std_leakage_model import ascon_leakage_model
+from sw.sca_scripts.analyzer.attack.ascon.xheep_ascon_cpa.ascon_std_leakage_model import ascon_std_leakage_model
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import ascon_cpa
 
 ###################### INITIALIZATION ######################
@@ -168,7 +168,7 @@ try:
                     for n in range(len(partial_nonces)):
                         nonce_MSB = partial_nonces[n][1]
                         nonce_LSB = partial_nonces[n][0]
-                        leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 0, key_bit, sbox_type)
+                        leakage_model_i = ascon_std_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 0, key_bit)
                         H_matrix[n] = leakage_model_i
 
                     # CPA attack
@@ -238,7 +238,7 @@ try:
                     for n in range(len(partial_nonces)):
                         nonce_MSB = partial_nonces[n][1]
                         nonce_LSB = partial_nonces[n][0]
-                        leakage_model_i = ascon_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 1, key_bit, sbox_type, k0)
+                        leakage_model_i = ascon_std_leakage_model(initialization_vector, nonce_MSB, nonce_LSB, 1, key_bit, k0)
                         H_matrix[n] = leakage_model_i
 
                     # CPA attack
