@@ -67,7 +67,7 @@ BASE_PLOT_DIR = DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "plot"
 TRACESET_DIR.mkdir(parents=True, exist_ok=True)
 BASE_PLOT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Make local modules importable without fragile ../ relative paths
+# Make local modules importable 
 sys.path.insert(0, str(ASCON_PY_DIR))
 sys.path.insert(0, str(SCA_DIR))
 sys.path.insert(0, str(XHEEP_DIR))

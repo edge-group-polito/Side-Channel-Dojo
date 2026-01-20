@@ -27,20 +27,17 @@ from tqdm import tqdm
 import h5py
 
 # ---------------------------------------------------------------------------
-# Dataset selection
+# Script configuration
 # ---------------------------------------------------------------------------
 # Supported S-box types:
 #   lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
-sbox_type = "lut_lu_5"
-
+sbox_type = "lut_lu_7"
 # Number of traces in the traceset (will use min(n_trc, traces_in_file))
-n_trc = 150_000
-
+n_trc = 50_000
 # Output control
 save_snr_all_bits = True
-
 # Flow flags
-debug = False
+debug = True
 
 # ---------------------------------------------------------------------------
 # Helper: find repo root
@@ -72,7 +69,7 @@ SCA_DIR      = DOJO_ROOT / "sw" / "sca_scripts"
 BASE_CACHE_DIR = DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "cache"
 TRACESET_DIR   = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "sw"
 
-TRACESET_FILE  = TRACESET_DIR / f"ascon_opt32_{sbox_type}_{n_trc // 1000}k.h5"
+TRACESET_FILE  = TRACESET_DIR / f"ascon_opt32_{sbox_type}_{150_000 // 1000}k.h5"
 CACHE_DIR      = BASE_CACHE_DIR / sbox_type
 SNR_OUT_FILE   = CACHE_DIR / "snr_ranked.h5"
 
@@ -86,11 +83,11 @@ sys.path.insert(0, str(SCA_DIR))
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_first_round import ascon_first_round
 
-n_trc = 10_000
 # ---------------------------------------------------------------------------
 # Print configuration
 # ---------------------------------------------------------------------------
 print("\n================= CONFIGURATION =================")
+print(f"  Script scope           : SNR computation of target bits for ASCON SW with generic S-box")
 print(f"DOJO_ROOT                : {DOJO_ROOT}")
 print()
 print("Target")
@@ -100,7 +97,7 @@ print(f"  Scope                  : SNR ranking for all bits (x0 and x1)")
 print()
 print("Paths")
 print(f"  Traceset file          : {TRACESET_FILE}")
-print(f"  Cache output           : {SNR_OUT_FILE}")
+print(f"  SNR write to           : {SNR_OUT_FILE}")
 print()
 print("SNR configuration")
 print(f" Nr. of analyzed traces  : {n_trc}")

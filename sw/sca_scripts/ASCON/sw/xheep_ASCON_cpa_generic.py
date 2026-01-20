@@ -21,9 +21,10 @@ import h5py
 # Basic configuration
 # ---------------------------------------------------------------------------
 
-sbox_type   = "lut_ascon"   
+sbox_type   = "lut_lu_5"   
 tested_sbox = sbox_type     # alias used later in the printout
-n_trc       = 10_000        # total number of traces in the traceset
+n_trc       = 150_000       # total number of traces used for the attack 
+verbose     = True   # Verbose output during key recovery
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -132,8 +133,6 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # Flow flags
     # -----------------------------------------------------------------------
-    verbose                  = False   # Verbose output during key recovery
-
     # CPA / analysis cache control
     load_attack_results      = False  # Load CPA cache if available
     save_attack_results      = True   # Save CPA results to cache after the run
@@ -153,15 +152,15 @@ def main() -> None:
     print(f"DOJO_ROOT           : {DOJO_ROOT}")
     print()
     print("Target")
-    print(f"  Notebook scope            : Attacked ASCON SW with generic S-box")
+    print(f"  Notebook scope            : CPA attack to ASCON SW with generic S-box")
     print(f"  S-box used                : {tested_sbox}")
     print(f"  Number of used traces     : {n_trc:,}")
     print()
     print("Paths")
     print(f"  Traceset file             : {TRACESET_FILE}")
+    print(f"  SNR file of attacked bits : {SNR_FILE}")
     print(f"  Plot dir                  : {PLOT_DIR}")
     print(f"  CPA cache file            : {CPA_CACHE_FILE}")
-    print(f"  SNR file of attacked bits : {SNR_FILE}")
     print()
     print("Analysis Configuration")
     print(f"  Save plots                : {_yn(save_plots)}")
@@ -254,24 +253,12 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # Decode key/IV and pretty-print expected halves
     # -----------------------------------------------------------------------
-    # Reverse key by bytes (2 hex chars per byte) to match C endianness
-    #key_bytes    = [key_hex[i:i+2] for i in range(0, len(key_hex), 2)]
-    #key_reversed = "".join(key_bytes[::-1])
-    #key_int      = int(key_hex, 16)
-    #k0_int  = (key_int >> 64) & 0xFFFFFFFFFFFFFFFF  # 0001020304050607
-    #k1_int  =  key_int        & 0xFFFFFFFFFFFFFFFF  # 08090A0B0C0D0E0F
-    # Hex strings (big-endian)
-    #k0_hex_str = f"{k0_int:016X}"
-    #k1_hex_str = f"{k1_int:016X}"
-    ## Split into bytes, big-endian: byte 7 .. byte 0
-    #k0_bytes_be = [k0_hex_str[i:i+2] for i in range(0, 16, 2)]
-    #k1_bytes_be = [k1_hex_str[i:i+2] for i in range(0, 16, 2)]
-    
+
     # IV as integer (already in correct endianness)
     iv_int = int(iv_hex, 16)
 
     key_b = bytes.fromhex(key_hex)
-    # Natching how the the C code loads k_0->s[1], k_1->s[2] (little endian)
+    # Matching how the the C code loads k_0->s[1], k_1->s[2] (little endian)
     k0_int = int.from_bytes(key_b[0:8],  byteorder="little")  # 07 06 05 04 03 02 01 00
     k1_int = int.from_bytes(key_b[8:16], byteorder="little")  # 0F 0E 0D 0C 0B 0A 09 08
 
@@ -298,12 +285,7 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # Simple leakage-model sanity check on one attacked bit
     # -----------------------------------------------------------------------
-    #NOTE
-    n = 10_000
-
-    H = np.empty((n, 64), dtype=np.uint8)
-    # questi devono essere presi da un cache file 
-    verbose = True
+    H = np.empty((n_trc, 64), dtype=np.uint8)
 
     # -------------------------------------------------------------------
     # Containers for recovered key bits
@@ -386,7 +368,7 @@ def main() -> None:
         #      - columns = 6-bit key hypotheses [k1_2 k1_1 k1_0 k0_2 k0_1 k0_0]
         # ---------------------------------------------------------------
 
-        for i in range(n):
+        for i in range(n_trc):
             nonce_lsb0 = int(nonces[i, 0])  # LSB 64 bits
             nonce_msb0 = int(nonces[i, 1])  # MSB 64 bits
 
@@ -465,7 +447,7 @@ def main() -> None:
         #      - hypothetical_values: shape (N, K)
         #    Here K = num_groups.
         # ---------------------------------------------------------------
-        R_group   = ascon_cpa(traces[:n], H_group)         # shape (num_groups, n_samples)
+        R_group   = ascon_cpa(traces[:n_trc], H_group)         # shape (num_groups, n_samples)
         corr_group = np.max(np.abs(R_group), axis=1)   # got |corr| per each group
 
         best_group_idx = int(np.argmax(corr_group))
@@ -538,6 +520,7 @@ def main() -> None:
                     k0_rec[idx] = True
                     if verbose:
                         print(f"[INFO] Recovered k0[{idx}]={val0}")
+                        print(f"[WARN] Expected k0[{idx}]={k0_bits[idx]} but got {val0}") if val0 != k0_bits[idx] else None
                 elif k0_rec_bits[idx] != val0 and verbose:
                     print(f"[WARN] Conflicting recovery for k0 bit {idx}: existing={k0_rec_bits[idx]}, new={val0} (ignored)")
 
@@ -547,6 +530,7 @@ def main() -> None:
                     k1_rec[idx] = True
                     if verbose:
                         print(f"[INFO] Recovered k1[{idx}]={val1}")
+                        print(f"[WARN] Expected k1[{idx}]={k1_bits[idx]} but got {val1}") if val1 != k1_bits[idx] else None
                 elif k1_rec_bits[idx] != val1 and verbose:
                     print(f"[WARN] Conflicting recovery for k1 bit {idx}: existing={k1_rec_bits[idx]}, new={val1} (ignored)")
 
@@ -587,6 +571,7 @@ def main() -> None:
                         k0_rec[idx] = True
                         if verbose:
                             print(f"[INFO] Recovered k0[{idx}]={val0}")
+                            print(f"[WARN] Expected k0[{idx}]={k0_bits[idx]} but got {val0}") if val0 != k0_bits[idx] else None
                     elif k0_rec_bits[idx] != val0 and verbose:
                         print(f"[WARN] Conflicting recovery for k0 bit {idx}: existing={k0_rec_bits[idx]}, new={val0} (ignored)")
 
@@ -597,6 +582,7 @@ def main() -> None:
                         k1_rec[idx] = True
                         if verbose:
                             print(f"[INFO] Recovered k1[{idx}]={val1}")
+                            print(f"[WARN] Expected k1[{idx}]={k1_bits[idx]} but got {val1}") if val1 != k1_bits[idx] else None
                     elif k1_rec_bits[idx] != val1 and verbose:
                         print(f"[WARN] Conflicting recovery for k1 bit {idx}: existing={k1_rec_bits[idx]}, new={val1} (ignored)")
 
@@ -608,11 +594,13 @@ def main() -> None:
                         k1_rec_bits[idx] = int(k0_rec_bits[idx] ^ xb)
                         k1_rec[idx] = True
                         print(f"[INFO] Recovered k1[{idx}]={k1_rec_bits[idx]} using k0[{idx}] and k0^k1[{idx}]")
+                        print(f"[WARN] Expected k1[{idx}]={k1_bits[idx]} but got {k1_rec_bits[idx]}") if k1_rec_bits[idx] != k1_bits[idx] else None
 
                     if k1_rec[idx] and not k0_rec[idx] and verbose:
                         k0_rec_bits[idx] = int(k1_rec_bits[idx] ^ xb)
                         k0_rec[idx] = True
                         print(f"[INFO] Recovered k0[{idx}]={k0_rec_bits[idx]} using k1[{idx}] and k0^k1[{idx}]")
+                        print(f"[WARN] Expected k0[{idx}]={k0_bits[idx]} but got {k0_rec_bits[idx]}") if k0_rec_bits[idx] != k0_bits[idx] else None
 
             # ------------------------------
             # Scenario B: XOR-only influence
@@ -633,11 +621,13 @@ def main() -> None:
                             k1_rec_bits[idx] = int(k0_rec_bits[idx] ^ xor_bit)
                             k1_rec[idx] = True
                             print(f"[INFO] Recovered k1[{idx}]={k1_rec_bits[idx]} using k0[{idx}] and k0^k1[{idx}]")
+                            print(f"[WARN] Expected k1[{idx}]={k1_bits[idx]} but got {k1_rec_bits[idx]}") if k1_rec_bits[idx] != k1_bits[idx] else None
 
                         if k1_rec[idx] and not k0_rec[idx] and verbose:
                             k0_rec_bits[idx] = int(k1_rec_bits[idx] ^ xor_bit)
                             k0_rec[idx] = True
                             print(f"[INFO] Recovered k0[{idx}]={k0_rec_bits[idx]} using k1[{idx}] and k0^k1[{idx}]")
+                            print(f"[WARN] Expected k0[{idx}]={k0_bits[idx]} but got {k0_rec_bits[idx]}") if k0_rec_bits[idx] != k0_bits[idx] else None
 
                     elif k0_xor_k1_rec_bits[idx] != xor_bit and verbose:
                         print(f"[WARN] Conflicting recovery for (k0^k1) bit {idx}: "
