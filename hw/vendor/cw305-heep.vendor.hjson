@@ -1,0 +1,18 @@
+// Copyright 2024 Politecnico di Torino
+// Solderpad Hardware License, Version 2.1, see LICENSE.md for details.
+// SPDX-License-Identifier: Apache-2.0 WITH SHL-2.1
+
+{
+  name: "cw305-heep",
+  target_dir: "cw305-heep",
+
+  upstream: {
+    url: "https://github.com/lorecapob/CW305-HEEP.git",
+    rev: "main",
+  }, 
+
+  exclude_from_upstream: [
+    ".github",
+    "ci",
+  ]
+}

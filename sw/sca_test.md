@@ -1,5 +1,5 @@
-## Virtual environment creation for side channel analysis
-### Prerequisites 
+# Virtual environment creation for side channel analysis
+## Prerequisites 
 ```bash
 # Run updates
 sudo apt update && sudo apt upgrade
@@ -20,19 +20,47 @@ echo 'eval "$(pyenv init -)"' >> ~/.bashrc
 echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
 source ~/.bashrc
 ```
+### Install PicoScope drivers
+
+1) Download drivers / SDK  
+- Get the official PicoScope drivers and PicoSDK for Linux from: https://www.picotech.com/downloads/linux  
+- Follow PicoTech installation instructions for your distribution.
+
+2) Known Ubuntu 24.10 issue
+- On Ubuntu 24.10 the apt installation of the picoscope package can fail because of a gtk3-sharp dependency. Workaround:
+```bash
+sudo apt update
+sudo apt install aptitude
+sudo aptitude install picoscope
+```
+(Review aptitude prompts — it may propose alternative dependency resolutions.)
+
+3) USB port / hardware note
+- Some PicoScope models or host/driver combos work more reliably on a USB‑3.0 port. If the device is not detected, try a different port.
+
+Quick device checks
+```bash
+# see if kernel sees the device
+lsusb
+
+# kernel log when plugging device
+dmesg | tail -n 50
+```
+
 ### Python virtual environment creation
 ```bash
 pyenv install 3.9.5
 pyenv virtualenv 3.9.5 cw
 pyenv activate cw
 # rules for the connection to board
-sudo cp hardware/50-newae.rules /etc/udev/rules.d/50-newae.rules
+sudo cp hw/50-newae.rules /etc/udev/rules.d/50-newae.rules
 sudo udevadm control --reload-rules
 sudo groupadd -f chipwhisperer
 sudo usermod -aG chipwhisperer $USER
 sudo usermod -aG plugdev $USER
 # python packages installation
 python -m pip install -r requirements.txt
+# log out and back in for group changes to take effect
 ```
 Install picoscope drivers from:
 https://www.picotech.com/downloads/linux
@@ -47,9 +75,10 @@ Installing chipwhisperer and picoscope python packages
  pip install chipwhisperer
  pip install picosdk
 ```
+
 ## SCA attack overview
 1. **Reference model** 
-    The key is kept fix during the encrpytion tests
+    The key is kept fix during the encrpytion test
     ```python
     import chipwhisperer as cw
     ktp = cw.ktp.Basic()

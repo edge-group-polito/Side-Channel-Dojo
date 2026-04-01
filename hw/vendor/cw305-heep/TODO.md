@@ -1,0 +1,33 @@
+- [x] Instruction register composed of 4 8 bit registers byte addressable. Actually, the size of the instruction register
+      can be defined in the reg block. Each byte can be addressed by the byte count parameter (see interface timings)
+- [x] CU in a separate file
+- [x] Instruction valid bit set as 1 when the whole istruction has been written 
+- [x] Use the #TODO expression when something needs to be completed
+- [x] The new top wrap top level contains both the bridge and xheep
+- [x] The whole wrap simulation requires the exact USB timing show in the whitepaper
+
+- [x] Modify the bridge in a way it can set the exit loop flag. DONE: it's done by writing in a cell memory with the OBI protocol
+- [x] The bridge have to reset the instruction valid flag? Yes
+- [x] Add just the core-v-mini-mcu module or everything else there is inside tb_system? All
+- [x] Add another register for the new address? Yes
+- [x] Remove commented parts in the cw305 files
+- [x] Add exit value output in cw305_top.v (maybe useless)
+- [x] Create SV wrap for the CW305
+- [x] Create C++ testbench for the CW305
+- [x] Create .core file for the CW305 and add commands in makefile
+- [x] Fix the DPI error in the testbench
+- [x] Fix the boot select mode
+- [x] Fix the cw305 read problem
+- [x] Replace the valid with instr_valid for the request class
+- [x] Remove debug printf
+- [x] Fix the UART output for simulation purposes
+- [x] Create core file for synthesis
+- [x] Add constraints file for Vivado
+- [x] Change gr-heep pad ring pins
+- [x] Add author and copyright in all my own files
+- [x] Add 2 extra GPIO to gr_heep_top. GPIO3 (input) will be connected to bridge_status[3] and will be used as input trigger for the program execution (basically, XHEEP polls on GPIO 3 value). GPIO4 (output) will be used as trigger for the picoscope, for data acquisition.
+- [x] Modify the testbench in order to cover the previous case scenario
+- [x] Modify the FPGA pin constraints file
+- [x] Remove mcu-gen reference in the main readme
+- [x] Add an application readme in the sw folder
+- [ ] Fix the top level image in the readme (add colors, specify files etc)

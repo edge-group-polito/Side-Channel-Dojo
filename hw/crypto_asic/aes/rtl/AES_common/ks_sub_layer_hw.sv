@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module ks_sub_layer_hw(
     input   logic [31:0]   state_i,
     output  logic [31:0]   state_o

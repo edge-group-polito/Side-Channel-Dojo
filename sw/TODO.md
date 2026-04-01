@@ -2,3 +2,43 @@ todo:
 - [ ] : create table in utils.py function must become one func
 - [ ] : leakage models as chipwhisperer
 - [ ] : one single func for the attacks. the same organization as with chipwhisperer
+- [x] : move the x-heep folder from the notebook folder to the sw folder and update relative paths in the heep notebook
+- [ ] : fix the symbolic link problem with the CW305 sw folder
+- [x] : modify the makefile to make some commands more explicit and clear
+- [x] : add note in the readme about the parameters that have to be changed in the CW305.py API file provided by the chipwhisperer environement, namely self.registers = 7 and self.bytecount_size = 2
+- [x] : use one of the status register bits as trigger for program execution on xheep (connected to one GPIO). Then modify the code running on xheep in a way that the picoscope is triggered when the program execution starts.
+- [ ] : modify the handshake protocol in a way that also the trigger flag is disabled by xheep when received
+- [x] : add missing sboxes in the file sbox_modified_funcs.py
+- [x] : update precompiled firmware for AES for all SBoxes.
+- [x] : change heep test notebook name to xheep AES notebook
+- [ ] : OPTIONAL: modify AES masked code adding all the SBoxes
+- [x] : OPTIONAL: modify AES masked code adding the code to calculate TVLA and Success Rate
+- [x] : move X-HEEP AES TVLA code in a different notebook (better if it performs trace acquisition with both random and fixed plaintezt automatically)
+- [x] : remove TVLA part in the main xheep AES sca notebook
+- [x] : remove useless comments in the main xheep AES sca notebook
+- [ ] : add some comments about the sw/x-heep folders in the readme
+- [x] : create a single python file for all the code in the AES notebooks (to use with tmux)
+- [x] : make the python scripts for AES sca parametric (parameter for the plots, for the online phase and eventually for calling the scripts for TVLA and Success Rate).
+- [x] : develop the CPA algorithm
+- [ ] : test the UART RX (from PC to board) -----> NOT FEASABLE
+- [x] : add ASCON basic python script
+- [x] : add precompiled ASCON firmware to a specific folder and make the script use that firmware
+- [x] : update the CW305 repo with the ASCON modification and update the vendor folder here
+- [x] : save the traces in a h5 file
+- [x] : update the plaintext generation in the AES C applications. Then vendorize
+- [x] : update the already compiled firmwares
+- [ ] : leave in sw notebook directory a single notebook which does the plain AES attack (cpa custom and capture trace custom) and then folders utils where are added the noetebook for SNR, TVLA, etc.. and examples where are put the noteboooks of x-heep e Ascon cases
+- [ ] : Modify the parameters self.registers = 12  and self.bytecount_size = 7 in CW305.py
+- [x] : Move the X-HEEP's SCA notebooks into sw/notebook/examples/xheep
+- [x] : Update the paths in the SCA notebooks and python scripts, since now the golden models have been moved to a different folder
+- [x] : create a new C program for ASCON that performs only the first round. The state registers 3 and 4 after the round are used as new nonce value
+- [x] : update also the CW305 repo, then vendorize
+- [x] : fix the golden model in the ascon python script
+- [ ] : add support for differnt sboxes in the ascon golden model
+- [x] : collect ASCON traces
+- [x] : develope the leakage model for ascon
+- [x] : develope the CPA algorithm for ascon
+- [ ] : apply multiprocessing on the ascon attack
+- [x] : remove useless stuff from the ascon attack folder (e.g. attack on the XOR etc)
+- [ ] : modify the ascon algorithm in a way to use different sboxes
+- [ ] Clip the power traces captured during sofware execution to only the S-box operation of first round

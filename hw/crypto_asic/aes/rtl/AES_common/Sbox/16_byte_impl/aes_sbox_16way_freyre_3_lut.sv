@@ -4,7 +4,7 @@ module aes_sbox_16way_freyre_3_lut (
     output  logic [127:0]   state_o
 );
 
-aes_sbox_lut_freyre_2 sbox_inst00 (
+aes_sbox_lut_freyre_3 sbox_inst00 (
     .byte_in (state_i[7:0]),
     .dec     (dec),
     .byte_out(state_o[7:0])
