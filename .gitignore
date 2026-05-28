@@ -75,3 +75,34 @@ traceset/
 
 # vendorized components
 hw/vendor/
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# Plots / generated figures
+plot/
+plots/
+**/plot/
+**/plots/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Large analysis outputs
+*.npz
+*.h5
+*.npy
+
+# Generated CPA/SNR results
+cache/
+**/cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local configs
+.codex
+.env
