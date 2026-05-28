@@ -1,0 +1,7 @@
+{
+  "source": "legacy_success_rate",
+  "sbox_type": "lut_ascon",
+  "n_trc": 10000,
+  "resolution": 100,
+  "n_steps": 100
+}

@@ -1,0 +1,132 @@
+{
+  "sbox_type": "lut_ascon",
+  "trace_file": "/home/bfarnaghinejad/Side-Channel-Dojo/sw/traceset/ASCON/sw/ascon_opt32_lut_ascon_1000k.h5",
+  "snr_file": "/home/bfarnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/snr_ranked_lut_ascon_1000k.h5",
+  "snr_trace_file": "/home/bfarnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/snr_traces_lut_ascon_1000k.h5",
+  "n_traces_max": 100,
+  "snr_trace_count": 1000000,
+  "trace_counts": [
+    10,
+    100
+  ],
+  "n_samples": 11500,
+  "chunk_size": 50000,
+  "cpa_sample_window_requested": 201,
+  "cpa_sample_window_effective": 201,
+  "leakage_polarity": "both",
+  "cpa_backend": "cpu",
+  "cpu_threads": 192,
+  "targets_loaded": 1,
+  "targets_processed": 1,
+  "runtime_minutes": 0.00017073404354353745,
+  "target_loop_runtime_minutes": 0.0001679739449173212,
+  "prefix_traces": true,
+  "random_subsets": false,
+  "expected_k0_hex": "0706050403020100",
+  "expected_k1_hex": "0F0E0D0C0B0A0908",
+  "summaries": [
+    {
+      "trace_count": 10,
+      "k0_recovered_count": 3,
+      "k1_recovered_count": 0,
+      "kx_recovered_count": 0,
+      "known_key_bits_count": 3,
+      "k0_correct_recovered_count": 2,
+      "k1_correct_recovered_count": 0,
+      "correct_key_bits_count": 2,
+      "k0_wrong_recovered_count": 1,
+      "k1_wrong_recovered_count": 0,
+      "wrong_recovered_key_bits_count": 1,
+      "recovered_key_bits_percent": 2.34375,
+      "correct_key_bits_percent": 1.5625,
+      "known_bit_accuracy_percent": 66.66666666666667,
+      "all_bits_recovered": false,
+      "full_key_match": false,
+      "recovered_k0_hex": "0000000000000080",
+      "recovered_k1_hex": "0000000000000000",
+      "full_key_hamming_distance_if_filled": 33,
+      "targets_used": 1,
+      "targets_skipped": 0
+    },
+    {
+      "trace_count": 100,
+      "k0_recovered_count": 3,
+      "k1_recovered_count": 0,
+      "kx_recovered_count": 0,
+      "known_key_bits_count": 3,
+      "k0_correct_recovered_count": 3,
+      "k1_correct_recovered_count": 0,
+      "correct_key_bits_count": 3,
+      "k0_wrong_recovered_count": 0,
+      "k1_wrong_recovered_count": 0,
+      "wrong_recovered_key_bits_count": 0,
+      "recovered_key_bits_percent": 2.34375,
+      "correct_key_bits_percent": 2.34375,
+      "known_bit_accuracy_percent": 100.0,
+      "all_bits_recovered": false,
+      "full_key_match": false,
+      "recovered_k0_hex": "0000000000000000",
+      "recovered_k1_hex": "0000000000000000",
+      "full_key_hamming_distance_if_filled": 32,
+      "targets_used": 1,
+      "targets_skipped": 0
+    }
+  ],
+  "target_log": [],
+  "k0_recovered_count": [
+    3,
+    3
+  ],
+  "k1_recovered_count": [
+    0,
+    0
+  ],
+  "kx_recovered_count": [
+    0,
+    0
+  ],
+  "known_key_bits_count": [
+    3,
+    3
+  ],
+  "k0_correct_recovered_count": [
+    2,
+    3
+  ],
+  "k1_correct_recovered_count": [
+    0,
+    0
+  ],
+  "correct_key_bits_count": [
+    2,
+    3
+  ],
+  "wrong_recovered_key_bits_count": [
+    1,
+    0
+  ],
+  "recovered_key_bits_percent": [
+    2.34375,
+    2.34375
+  ],
+  "correct_key_bits_percent": [
+    1.5625,
+    2.34375
+  ],
+  "known_bit_accuracy_percent": [
+    66.66666666666667,
+    100.0
+  ],
+  "full_key_match": [
+    false,
+    false
+  ],
+  "exports": {
+    "values": {
+      "csv": "/home/bfarnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/ASCON_generic_key_recovery_progression_lut_ascon_100.csv",
+      "npz": "/home/bfarnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/ASCON_generic_key_recovery_progression_lut_ascon_100.npz",
+      "json": "/home/bfarnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/ASCON_generic_key_recovery_progression_lut_ascon_100.json"
+    },
+    "plots": {}
+  }
+}

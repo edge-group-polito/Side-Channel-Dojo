@@ -1,0 +1,4 @@
+sbox_type,trace_count,n_trials,successful_trials,full_key_success_rate_percent,avg_k0_bit_correct_percent,avg_k1_bit_correct_percent,avg_full_key_bit_correct_percent,avg_wrong_bit_count,avg_k0_recovered_count,avg_k1_recovered_count,avg_kx_recovered_count
+lut_ascon,50000,2,0,0.0,87.5,68.75,78.125,28.0,12.0,0.0,0.0
+lut_ascon,100000,2,0,0.0,87.5,68.75,78.125,28.0,12.0,0.0,0.0
+lut_ascon,1000000,2,0,0.0,87.5,68.75,78.125,28.0,12.0,0.0,0.0
