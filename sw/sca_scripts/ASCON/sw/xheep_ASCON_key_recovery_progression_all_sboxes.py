@@ -6,36 +6,28 @@ The trace files are streamed from row 0 to N. This keeps memory bounded for the
 large HDF5 trace sets and matches the assumption that trace capture order was
 already randomized.
 
-Environment controls:
-  ASCON_PROGRESS_SBOXES       comma list, or "all"
-  ASCON_PROGRESS_N            max prefix traces to use, default 1000000
-  ASCON_TRACESET_SIZE_K       traceset filename tag, defaults to N//1000
-  ASCON_SNR_N                 SNR cache trace count, defaults to PROGRESS_N
-  ASCON_PROGRESS_RESOLUTION   trace-count step, default 50000
-  ASCON_PROGRESS_COUNTS       comma list of explicit trace counts
-  ASCON_PROGRESS_APPEND_MAX   append max trace count to explicit counts, default 1
-  ASCON_MAX_TARGETS           optional cap on SNR-ranked targets
-  ASCON_CHUNK_SIZE            streaming chunk size, default 20000
-  ASCON_CPA_SAMPLE_WINDOW     0 for full trace, otherwise SNR-peak window width
-  ASCON_LEAKAGE_POLARITY      negative | positive | both, default negative
-  ASCON_CPA_DEVICE            auto | cpu | gpu
-  ASCON_PROGRESS_OUTPUT_DIR   output directory for JSON/CSV/NPZ files
-  ASCON_PROGRESS_PLOT_DIR     output directory for plots
-  ASCON_SAVE_PLOTS            1/0, default 1
-  ASCON_PROGRESS_SAVE_TARGET_LOG 1/0, default 0
+Use --help for command-line options. Environment variables with the old
+ASCON_* names are still accepted as defaults for batch compatibility.
 """
 
+import argparse
 import os
+import subprocess
 
 # ---------------------------------------------------------------------------
 # CPU configuration: set before importing NumPy.
 # ---------------------------------------------------------------------------
+_pre_parser = argparse.ArgumentParser(add_help=False)
+_pre_parser.add_argument("--max-cpu-workers", type=int, default=None)
+_pre_args, _ = _pre_parser.parse_known_args()
+
 _max_cpu_workers_env = os.environ.get("ASCON_MAX_CPU_WORKERS")
-max_cpu_workers = (
-    os.cpu_count() or 1
-    if _max_cpu_workers_env in (None, "")
-    else int(_max_cpu_workers_env)
-)
+if _pre_args.max_cpu_workers is not None:
+    max_cpu_workers = int(_pre_args.max_cpu_workers)
+elif _max_cpu_workers_env not in (None, ""):
+    max_cpu_workers = int(_max_cpu_workers_env)
+else:
+    max_cpu_workers = os.cpu_count() or 1
 
 os.environ["OMP_NUM_THREADS"] = str(max_cpu_workers)
 os.environ["OPENBLAS_NUM_THREADS"] = str(max_cpu_workers)
@@ -52,6 +44,16 @@ from pathlib import Path
 import h5py
 import numpy as np
 from tqdm import tqdm
+
+
+def _progress_bars_enabled() -> bool:
+    value = os.environ.get("ASCON_PROGRESS_BARS")
+    if value in (None, ""):
+        return sys.stderr.isatty()
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+TQDM_DISABLE = not _progress_bars_enabled()
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +82,7 @@ TRACESET_DIR = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "sw"
 BASE_CACHE_DIR = SCA_DIR / "ASCON" / "sw" / "cache"
 DEFAULT_OUTPUT_DIR = BASE_CACHE_DIR / "key_recovery_progression_all_sboxes"
 DEFAULT_PLOT_DIR = SCA_DIR / "ASCON" / "sw" / "plot" / "key_recovery_progression_all_sboxes"
+DEFAULT_SNR_SCRIPT = SCRIPT_DIR / "xheep_ASCON_snr.py"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SCA_DIR))
@@ -91,7 +94,7 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import (  # noqa: E402
     get_cpa_backend_name,
 )
 
-from xheep_ASCON_cpa import (  # noqa: E402
+from xheep_ASCON_cpa_generic_all_registers import (  # noqa: E402
     bits_to_u64,
     compute_H64_chunk,
     find_snr_file,
@@ -138,6 +141,155 @@ def _env_flag(name: str, default: bool) -> bool:
     return value.strip().lower() not in {"0", "false", "no", "off"}
 
 
+def _env_int(name: str, default: int) -> int:
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return int(default)
+    return int(value)
+
+
+def _env_optional_int(name: str):
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return None
+    return int(value)
+
+
+def _build_arg_parser():
+    parser = argparse.ArgumentParser(
+        description="Run ASCON generic key-recovery progression for one or more S-boxes.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--sboxes",
+        default=os.environ.get("ASCON_PROGRESS_SBOXES", "all"),
+        help='Comma-separated S-box list, or "all".',
+    )
+    parser.add_argument(
+        "--max-traces",
+        type=int,
+        default=_env_int("ASCON_PROGRESS_N", 1000000),
+        help="Maximum prefix traces used by CPA.",
+    )
+    parser.add_argument(
+        "--traceset-size-k",
+        type=int,
+        default=_env_optional_int("ASCON_TRACESET_SIZE_K"),
+        help="Trace-file size tag in thousands, e.g. 1000 for *_1000k.h5.",
+    )
+    parser.add_argument(
+        "--snr-traces",
+        type=int,
+        default=_env_optional_int("ASCON_SNR_N"),
+        help="Profiled SNR trace count. Defaults to --max-traces.",
+    )
+    parser.add_argument(
+        "--snr-selection-mode",
+        choices=["profiled", "prefix"],
+        default=os.environ.get("ASCON_SNR_SELECTION_MODE", "profiled"),
+        help="profiled uses one SNR cache; prefix uses a matching SNR cache per trace count.",
+    )
+    parser.add_argument(
+        "--resolution",
+        type=int,
+        default=_env_int("ASCON_PROGRESS_RESOLUTION", 50000),
+        help="Trace-count step.",
+    )
+    parser.add_argument(
+        "--trace-counts",
+        default=os.environ.get("ASCON_PROGRESS_COUNTS"),
+        help="Explicit comma-separated trace counts. Overrides --resolution.",
+    )
+    parser.set_defaults(
+        append_max=_env_flag("ASCON_PROGRESS_APPEND_MAX", True),
+        save_plots=_env_flag("ASCON_SAVE_PLOTS", True),
+        save_target_log=_env_flag("ASCON_PROGRESS_SAVE_TARGET_LOG", False),
+        auto_snr=_env_flag("ASCON_AUTO_SNR", True),
+    )
+    parser.add_argument("--append-max", dest="append_max", action="store_true")
+    parser.add_argument("--no-append-max", dest="append_max", action="store_false")
+    parser.add_argument(
+        "--max-targets",
+        type=int,
+        default=_env_optional_int("ASCON_MAX_TARGETS"),
+        help="Optional cap on SNR-ranked targets.",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=_env_int("ASCON_CHUNK_SIZE", 50000),
+        help="CPA streaming chunk size.",
+    )
+    parser.add_argument(
+        "--sample-window",
+        type=int,
+        default=_env_int("ASCON_CPA_SAMPLE_WINDOW", 201),
+        help="CPA sample window around SNR peak. Use 0 for full trace.",
+    )
+    parser.add_argument(
+        "--polarity",
+        choices=["negative", "positive", "both"],
+        default=os.environ.get("ASCON_LEAKAGE_POLARITY", "negative"),
+        help="Leakage polarity interpretation.",
+    )
+    parser.add_argument(
+        "--cpa-device",
+        choices=["auto", "cpu", "gpu"],
+        default=os.environ.get("ASCON_CPA_DEVICE", "auto"),
+        help="CPA backend.",
+    )
+    parser.add_argument(
+        "--max-cpu-workers",
+        type=int,
+        default=max_cpu_workers,
+        help="NumPy/BLAS thread limit. Parsed early before NumPy import.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=os.environ.get("ASCON_PROGRESS_OUTPUT_DIR"),
+        help="Output directory for JSON/CSV/NPZ files.",
+    )
+    parser.add_argument(
+        "--plot-dir",
+        default=os.environ.get("ASCON_PROGRESS_PLOT_DIR"),
+        help="Output directory for plots.",
+    )
+    parser.add_argument("--save-plots", dest="save_plots", action="store_true")
+    parser.add_argument("--no-save-plots", dest="save_plots", action="store_false")
+    parser.add_argument("--save-target-log", dest="save_target_log", action="store_true")
+    parser.add_argument("--no-save-target-log", dest="save_target_log", action="store_false")
+    parser.add_argument(
+        "--auto-snr",
+        dest="auto_snr",
+        action="store_true",
+        help="Generate missing SNR caches before continuing.",
+    )
+    parser.add_argument(
+        "--no-auto-snr",
+        dest="auto_snr",
+        action="store_false",
+        help="Fail instead of generating missing SNR caches.",
+    )
+    parser.add_argument(
+        "--snr-script",
+        default=os.environ.get("ASCON_SNR_SCRIPT", str(DEFAULT_SNR_SCRIPT)),
+        help="SNR generator script used by --auto-snr.",
+    )
+    parser.add_argument(
+        "--snr-chunk-size",
+        type=int,
+        default=_env_int("ASCON_SNR_CHUNK_SIZE", 10000),
+        help="Chunk size passed to the SNR generator when --auto-snr is enabled.",
+    )
+    parser.add_argument(
+        "--snr-device",
+        choices=["cpu", "gpu", "auto"],
+        default=os.environ.get("ASCON_SNR_DEVICE", "cpu"),
+        help="Device passed to the SNR generator when --auto-snr is enabled.",
+    )
+    return parser
+
+
 def _format_trace_count_tag(trace_count: int) -> str:
     trace_count = int(trace_count)
     if trace_count % 1000 == 0:
@@ -145,10 +297,12 @@ def _format_trace_count_tag(trace_count: int) -> str:
     return str(trace_count)
 
 
-def _build_trace_counts(max_traces: int, resolution: int):
-    explicit = os.environ.get("ASCON_PROGRESS_COUNTS")
+def _result_tag(trace_count: int, snr_selection_mode: str) -> str:
+    return f"{_format_trace_count_tag(trace_count)}_{snr_selection_mode}_snr"
+
+
+def _build_trace_counts(max_traces: int, resolution: int, explicit=None, append_max=True):
     if explicit not in (None, ""):
-        append_max = _env_flag("ASCON_PROGRESS_APPEND_MAX", True)
         counts = sorted({int(x.strip()) for x in explicit.split(",") if x.strip()})
         counts = [count for count in counts if 1 < count <= int(max_traces)]
         if not counts:
@@ -172,12 +326,17 @@ def _attr_to_str(value):
     return str(value)
 
 
-def _find_trace_file(sbox_type: str, traceset_size_k: int, max_traces_requested: int) -> Path:
+def _find_trace_file(
+    sbox_type: str,
+    traceset_size_k: int,
+    max_traces_requested: int,
+    strict_traceset_size: bool = False,
+) -> Path:
     preferred = TRACESET_DIR / f"ascon_opt32_{sbox_type}_{traceset_size_k}k.h5"
     if preferred.exists():
         return preferred
 
-    if os.environ.get("ASCON_TRACESET_SIZE_K") not in (None, ""):
+    if strict_traceset_size:
         return preferred
 
     candidates = sorted(TRACESET_DIR.glob(f"ascon_opt32_{sbox_type}_*.h5"))
@@ -208,6 +367,131 @@ def _find_trace_file(sbox_type: str, traceset_size_k: int, max_traces_requested:
         f"Using available trace file instead: {selected}"
     )
     return selected
+
+
+def _snr_cache_paths_for_count(cache_dir: Path, sbox_type: str, trace_count: int):
+    tag = _format_trace_count_tag(trace_count)
+    return (
+        cache_dir / f"snr_ranked_{sbox_type}_{tag}.h5",
+        cache_dir / f"snr_traces_{sbox_type}_{tag}.h5",
+    )
+
+
+def _snr_cache_is_usable(snr_file: Path, snr_trace_file: Path, sample_window: int) -> bool:
+    if not snr_file.exists():
+        return False
+    if int(sample_window) > 0 and not snr_trace_file.exists():
+        return False
+    return True
+
+
+def _generate_snr_cache(
+    sbox_type: str,
+    trace_count: int,
+    traceset_size_k: int,
+    snr_script: Path,
+    snr_chunk_size: int,
+    snr_device: str,
+):
+    snr_script = Path(snr_script)
+    if not snr_script.is_absolute():
+        snr_script = (DOJO_ROOT / snr_script).resolve()
+
+    if not snr_script.exists():
+        raise FileNotFoundError(f"SNR generator script not found: {snr_script}")
+
+    cmd = [
+        sys.executable,
+        str(snr_script),
+        "--sbox",
+        str(sbox_type),
+        "--n-traces",
+        str(int(trace_count)),
+        "--traceset-size-k",
+        str(int(traceset_size_k)),
+        "--chunk-size",
+        str(int(snr_chunk_size)),
+        "--device",
+        str(snr_device),
+        "--max-cpu-workers",
+        str(int(max_cpu_workers)),
+    ]
+
+    print("[INFO] Missing SNR cache; generating it now:")
+    print("       " + " ".join(cmd))
+    subprocess.run(cmd, cwd=str(DOJO_ROOT), check=True)
+
+
+def _load_snr_targets_for_mode(
+    cache_dir: Path,
+    sbox_type: str,
+    snr_selection_mode: str,
+    trace_count: int,
+    profiled_snr_trace_count: int,
+    sample_window: int,
+    max_targets,
+    traceset_size_k: int,
+    auto_snr: bool,
+    snr_script: Path,
+    snr_chunk_size: int,
+    snr_device: str,
+):
+    if snr_selection_mode == "profiled":
+        snr_count = int(profiled_snr_trace_count)
+    elif snr_selection_mode == "prefix":
+        snr_count = int(trace_count)
+    else:
+        raise ValueError("snr_selection_mode must be one of: profiled, prefix")
+
+    snr_file, snr_trace_file = _snr_cache_paths_for_count(cache_dir, sbox_type, snr_count)
+    if not _snr_cache_is_usable(snr_file, snr_trace_file, sample_window):
+        if auto_snr:
+            _generate_snr_cache(
+                sbox_type=sbox_type,
+                trace_count=snr_count,
+                traceset_size_k=traceset_size_k,
+                snr_script=snr_script,
+                snr_chunk_size=snr_chunk_size,
+                snr_device=snr_device,
+            )
+        elif snr_selection_mode == "profiled":
+            fallback_snr_file = find_snr_file(cache_dir, sbox_type, snr_count)
+            fallback_snr_trace_file = find_snr_trace_file(cache_dir, sbox_type, snr_count)
+            if _snr_cache_is_usable(fallback_snr_file, fallback_snr_trace_file, sample_window):
+                snr_file = fallback_snr_file
+                snr_trace_file = fallback_snr_trace_file
+
+    if not _snr_cache_is_usable(snr_file, snr_trace_file, sample_window):
+        missing = [str(snr_file)]
+        if int(sample_window) > 0:
+            missing.append(str(snr_trace_file))
+        raise FileNotFoundError(
+            "Missing required SNR cache file(s): "
+            + ", ".join(missing)
+            + ". Re-run with --auto-snr or generate them with xheep_ASCON_snr.py."
+        )
+
+    peak_samples = load_snr_peak_samples(snr_trace_file) if sample_window > 0 else {}
+    effective_sample_window = sample_window
+    if sample_window > 0 and not peak_samples:
+        print(
+            f"[WARN] {sbox_type}: no SNR peak samples found in {snr_trace_file}; "
+            "falling back to full trace samples."
+        )
+        effective_sample_window = 0
+
+    targets = load_snr_ranked_targets(
+        snr_file,
+        max_targets=max_targets,
+        peak_samples=peak_samples,
+    )
+
+    return {
+        "snr_file": snr_file,
+        "snr_trace_file": snr_trace_file,
+        "targets": targets,
+        "effective_sample_window": int(effective_sample_window),
+    }
 
 
 def _hamming64(x: int) -> int:
@@ -523,7 +807,11 @@ def _run_target_loop_prefix(
     targets_processed = 0
     tic = time.perf_counter()
 
-    for target in tqdm(targets, desc=f"{sbox_type}: prefix CPA targets"):
+    for target in tqdm(
+        targets,
+        desc=f"{sbox_type}: prefix CPA targets",
+        disable=TQDM_DISABLE,
+    ):
         k_idx = target_to_k_idx(target["reg"], int(target["bit"]))
         active_state_indices = []
         active_counts = []
@@ -631,6 +919,111 @@ def _run_target_loop_prefix(
     return summaries, target_log, int(targets_processed), float((toc - tic) / 60.0)
 
 
+def _run_trace_counts_with_prefix_snr(
+    sbox_type: str,
+    trace_file: Path,
+    nonces: np.ndarray,
+    trace_counts,
+    n_samples: int,
+    iv_int: int,
+    cache_dir: Path,
+    snr_trace_count: int,
+    k0_bits_expected,
+    k1_bits_expected,
+    k0_int_expected: int,
+    k1_int_expected: int,
+    chunk_size: int,
+    cpa_backend: str,
+    sample_window: int,
+    polarity: str,
+    max_targets,
+    traceset_size_k: int,
+    auto_snr: bool,
+    snr_script: Path,
+    snr_chunk_size: int,
+    snr_device: str,
+    save_target_log: bool,
+):
+    summaries = []
+    target_log = []
+    targets_processed_total = 0
+    snr_runs = []
+    tic = time.perf_counter()
+
+    for trace_count in trace_counts:
+        snr_info = _load_snr_targets_for_mode(
+            cache_dir=cache_dir,
+            sbox_type=sbox_type,
+            snr_selection_mode="prefix",
+            trace_count=int(trace_count),
+            profiled_snr_trace_count=snr_trace_count,
+            sample_window=sample_window,
+            max_targets=max_targets,
+            traceset_size_k=traceset_size_k,
+            auto_snr=auto_snr,
+            snr_script=snr_script,
+            snr_chunk_size=snr_chunk_size,
+            snr_device=snr_device,
+        )
+        targets = snr_info["targets"]
+        effective_sample_window = int(snr_info["effective_sample_window"])
+
+        print(
+            f"\n[INFO] {sbox_type}: trace_count={int(trace_count):,}, "
+            f"SNR ranked={snr_info['snr_file']}, targets={len(targets)}, "
+            f"CPA sample window="
+            f"{effective_sample_window if effective_sample_window > 0 else 'full trace'}"
+        )
+
+        one_summaries, one_target_log, one_targets_processed, _ = _run_target_loop_prefix(
+            sbox_type=sbox_type,
+            trace_file=trace_file,
+            nonces=nonces,
+            trace_counts=[int(trace_count)],
+            n_samples=n_samples,
+            iv_int=iv_int,
+            targets=targets,
+            k0_bits_expected=k0_bits_expected,
+            k1_bits_expected=k1_bits_expected,
+            k0_int_expected=k0_int_expected,
+            k1_int_expected=k1_int_expected,
+            chunk_size=chunk_size,
+            cpa_backend=cpa_backend,
+            sample_window=effective_sample_window,
+            polarity=polarity,
+            save_target_log=save_target_log,
+        )
+
+        summary = one_summaries[0]
+        summaries.append(summary)
+        targets_processed_total += int(one_targets_processed)
+        if save_target_log:
+            for item in one_target_log:
+                item["snr_file"] = str(snr_info["snr_file"])
+                item["snr_trace_file"] = str(snr_info["snr_trace_file"])
+            target_log.extend(one_target_log)
+
+        snr_runs.append(
+            {
+                "trace_count": int(trace_count),
+                "snr_file": str(snr_info["snr_file"]),
+                "snr_trace_file": str(snr_info["snr_trace_file"]),
+                "targets_loaded": int(len(targets)),
+                "targets_processed": int(one_targets_processed),
+                "cpa_sample_window_effective": int(effective_sample_window),
+            }
+        )
+
+    toc = time.perf_counter()
+    return (
+        summaries,
+        target_log,
+        int(targets_processed_total),
+        float((toc - tic) / 60.0),
+        snr_runs,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Exports and plotting
 # ---------------------------------------------------------------------------
@@ -660,16 +1053,14 @@ def _format_axes_for_traces(ax, mticker):
 def _save_figure(fig, stem: Path):
     stem.parent.mkdir(parents=True, exist_ok=True)
     png_file = stem.with_suffix(".png")
-    pdf_file = stem.with_suffix(".pdf")
     fig.tight_layout()
     fig.savefig(png_file, dpi=180)
-    fig.savefig(pdf_file)
-    return [str(png_file), str(pdf_file)]
+    return [str(png_file)]
 
 
 def _write_per_sbox_exports(result, cache_dir: Path):
     sbox_type = result["sbox_type"]
-    tag = _format_trace_count_tag(result["n_traces_max"])
+    tag = _result_tag(result["n_traces_max"], result["snr_selection_mode"])
     csv_file = cache_dir / f"ASCON_generic_key_recovery_progression_{sbox_type}_{tag}.csv"
     npz_file = cache_dir / f"ASCON_generic_key_recovery_progression_{sbox_type}_{tag}.npz"
 
@@ -725,7 +1116,7 @@ def _write_per_sbox_exports(result, cache_dir: Path):
 
 
 def _write_combined_exports(combined, output_dir: Path):
-    tag = _format_trace_count_tag(combined["n_traces_max"])
+    tag = _result_tag(combined["n_traces_max"], combined["snr_selection_mode"])
     csv_file = output_dir / f"ASCON_generic_key_recovery_progression_all_sboxes_{tag}.csv"
     json_file = output_dir / f"ASCON_generic_key_recovery_progression_all_sboxes_{tag}.json"
 
@@ -775,7 +1166,7 @@ def _plot_per_sbox_result(result, plot_dir: Path, save_plots: bool):
         return {}
 
     sbox_type = result["sbox_type"]
-    tag = _format_trace_count_tag(result["n_traces_max"])
+    tag = _result_tag(result["n_traces_max"], result["snr_selection_mode"])
     x_vals = np.asarray(result["trace_counts"], dtype=np.int64)
     plot_dir = plot_dir / sbox_type
     plot_paths = {}
@@ -797,21 +1188,6 @@ def _plot_per_sbox_result(result, plot_dir: Path, save_plots: bool):
     )
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(x_vals, result["known_key_bits_count"], marker="o", markersize=3, linewidth=1.8, label="recovered k0+k1")
-    ax.plot(x_vals, result["wrong_recovered_key_bits_count"], marker="s", markersize=3, linewidth=1.8, label="wrong recovered")
-    ax.set_xlabel("Number of prefix traces", fontsize=13)
-    ax.set_ylabel("Recovered key bits", fontsize=13)
-    ax.set_title(f"ASCON generic CPA recovered/wrong bits - {sbox_type}", fontsize=14)
-    ax.set_ylim(bottom=0)
-    _format_axes_for_traces(ax, mticker)
-    ax.legend(loc="best")
-    plot_paths["recovered_and_wrong_key_bits"] = _save_figure(
-        fig,
-        plot_dir / f"ASCON_generic_recovered_and_wrong_key_bits_{sbox_type}_{tag}",
-    )
-    plt.close(fig)
-
     return plot_paths
 
 
@@ -823,7 +1199,7 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
     if plt is None:
         return {}
 
-    tag = _format_trace_count_tag(combined["n_traces_max"])
+    tag = _result_tag(combined["n_traces_max"], combined["snr_selection_mode"])
     plot_dir.mkdir(parents=True, exist_ok=True)
     plot_paths = {}
 
@@ -847,51 +1223,6 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
     plot_paths["correct_recovered_key_bits"] = _save_figure(
         fig,
         plot_dir / f"ASCON_generic_correct_recovered_key_bits_all_sboxes_{tag}",
-    )
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(11, 6.5))
-    for sbox_type, result in combined["results"].items():
-        ax.plot(
-            result["trace_counts"],
-            result["known_key_bits_count"],
-            marker="o",
-            markersize=3,
-            linewidth=1.8,
-            label=sbox_type,
-        )
-    ax.set_xlabel("Number of prefix traces", fontsize=13)
-    ax.set_ylabel("Recovered k0+k1 bits", fontsize=13)
-    ax.set_title("ASCON generic CPA recovered key-bit coverage - all S-boxes", fontsize=14)
-    ax.set_ylim(0, 132)
-    ax.set_yticks(range(0, 129, 16))
-    _format_axes_for_traces(ax, mticker)
-    ax.legend(loc="best")
-    plot_paths["recovered_key_bits"] = _save_figure(
-        fig,
-        plot_dir / f"ASCON_generic_recovered_key_bits_all_sboxes_{tag}",
-    )
-    plt.close(fig)
-
-    fig, ax = plt.subplots(figsize=(11, 6.5))
-    for sbox_type, result in combined["results"].items():
-        ax.plot(
-            result["trace_counts"],
-            result["wrong_recovered_key_bits_count"],
-            marker="o",
-            markersize=3,
-            linewidth=1.8,
-            label=sbox_type,
-        )
-    ax.set_xlabel("Number of prefix traces", fontsize=13)
-    ax.set_ylabel("Wrong recovered key bits", fontsize=13)
-    ax.set_title("ASCON generic CPA wrong recovered bits - all S-boxes", fontsize=14)
-    ax.set_ylim(bottom=0)
-    _format_axes_for_traces(ax, mticker)
-    ax.legend(loc="best")
-    plot_paths["wrong_recovered_key_bits"] = _save_figure(
-        fig,
-        plot_dir / f"ASCON_generic_wrong_recovered_key_bits_all_sboxes_{tag}",
     )
     plt.close(fig)
 
@@ -940,7 +1271,9 @@ def _run_one_sbox(
     sbox_type: str,
     max_traces_requested: int,
     traceset_size_k: int,
+    strict_traceset_size: bool,
     snr_trace_count: int,
+    snr_selection_mode: str,
     trace_counts_requested,
     chunk_size: int,
     sample_window: int,
@@ -951,11 +1284,18 @@ def _run_one_sbox(
     plot_dir: Path,
     save_plots: bool,
     save_target_log: bool,
+    auto_snr: bool,
+    snr_script: Path,
+    snr_chunk_size: int,
+    snr_device: str,
 ):
-    trace_file = _find_trace_file(sbox_type, traceset_size_k, max_traces_requested)
+    trace_file = _find_trace_file(
+        sbox_type,
+        traceset_size_k,
+        max_traces_requested,
+        strict_traceset_size=strict_traceset_size,
+    )
     cache_dir = BASE_CACHE_DIR / sbox_type
-    snr_file = find_snr_file(cache_dir, sbox_type, snr_trace_count)
-    snr_trace_file = find_snr_trace_file(cache_dir, sbox_type, snr_trace_count)
 
     if not trace_file.exists():
         print(f"[WARN] Missing trace file for {sbox_type}: {trace_file}")
@@ -994,55 +1334,113 @@ def _run_one_sbox(
         dtype=np.uint8,
     )
 
-    peak_samples = load_snr_peak_samples(snr_trace_file) if sample_window > 0 else {}
-    effective_sample_window = sample_window
-    if sample_window > 0 and not peak_samples:
-        print(
-            f"[WARN] {sbox_type}: no SNR peak samples found in {snr_trace_file}; "
-            "falling back to full trace samples."
+    profiled_snr_info = None
+    if snr_selection_mode == "profiled":
+        profiled_snr_info = _load_snr_targets_for_mode(
+            cache_dir=cache_dir,
+            sbox_type=sbox_type,
+            snr_selection_mode=snr_selection_mode,
+            trace_count=n_used,
+            profiled_snr_trace_count=snr_trace_count,
+            sample_window=sample_window,
+            max_targets=max_targets,
+            traceset_size_k=traceset_size_k,
+            auto_snr=auto_snr,
+            snr_script=snr_script,
+            snr_chunk_size=snr_chunk_size,
+            snr_device=snr_device,
         )
-        effective_sample_window = 0
-
-    targets = load_snr_ranked_targets(
-        snr_file,
-        max_targets=max_targets,
-        peak_samples=peak_samples,
-    )
 
     print("\n================= SBOX KEY-RECOVERY PROGRESSION =================")
     print(f"S-box                  : {sbox_type}")
     print(f"Trace file             : {trace_file}")
-    print(f"SNR ranked file        : {snr_file}")
-    print(f"SNR traces file        : {snr_trace_file}")
+    print(f"SNR selection mode     : {snr_selection_mode}")
+    if snr_selection_mode == "profiled":
+        print(f"SNR ranked file        : {profiled_snr_info['snr_file']}")
+        print(f"SNR traces file        : {profiled_snr_info['snr_trace_file']}")
+    else:
+        print("SNR ranked file        : one file per trace-count prefix")
+        print("SNR traces file        : one file per trace-count prefix")
     print(f"Available traces       : {total_traces:,}")
     print(f"Used max traces        : {n_used:,}")
     print(f"Trace counts           : {len(trace_counts)} steps, {trace_counts[0]:,}..{trace_counts[-1]:,}")
     print(f"Samples per trace      : {n_samples}")
-    print(f"CPA sample window      : {effective_sample_window if effective_sample_window > 0 else 'full trace'}")
+    if snr_selection_mode == "profiled":
+        effective_sample_window = int(profiled_snr_info["effective_sample_window"])
+        print(f"CPA sample window      : {effective_sample_window if effective_sample_window > 0 else 'full trace'}")
+        print(f"Targets loaded         : {len(profiled_snr_info['targets'])}")
+    else:
+        print(f"CPA sample window      : {sample_window if sample_window > 0 else 'full trace'}")
+        print("Targets loaded         : per trace-count prefix")
     print(f"Leakage polarity       : {polarity}")
-    print(f"Targets loaded         : {len(targets)}")
     print(f"CPA backend            : {cpa_backend}")
     print("==================================================================\n")
 
     total_tic = time.perf_counter()
-    summaries, target_log, targets_processed, runtime_minutes = _run_target_loop_prefix(
-        sbox_type=sbox_type,
-        trace_file=trace_file,
-        nonces=nonces,
-        trace_counts=trace_counts,
-        n_samples=n_samples,
-        iv_int=iv_int,
-        targets=targets,
-        k0_bits_expected=k0_bits_expected,
-        k1_bits_expected=k1_bits_expected,
-        k0_int_expected=k0_int_expected,
-        k1_int_expected=k1_int_expected,
-        chunk_size=chunk_size,
-        cpa_backend=cpa_backend,
-        sample_window=effective_sample_window,
-        polarity=polarity,
-        save_target_log=save_target_log,
-    )
+    if snr_selection_mode == "profiled":
+        effective_sample_window = int(profiled_snr_info["effective_sample_window"])
+        targets = profiled_snr_info["targets"]
+        summaries, target_log, targets_processed, runtime_minutes = _run_target_loop_prefix(
+            sbox_type=sbox_type,
+            trace_file=trace_file,
+            nonces=nonces,
+            trace_counts=trace_counts,
+            n_samples=n_samples,
+            iv_int=iv_int,
+            targets=targets,
+            k0_bits_expected=k0_bits_expected,
+            k1_bits_expected=k1_bits_expected,
+            k0_int_expected=k0_int_expected,
+            k1_int_expected=k1_int_expected,
+            chunk_size=chunk_size,
+            cpa_backend=cpa_backend,
+            sample_window=effective_sample_window,
+            polarity=polarity,
+            save_target_log=save_target_log,
+        )
+        snr_runs = [
+            {
+                "trace_count": int(c),
+                "snr_file": str(profiled_snr_info["snr_file"]),
+                "snr_trace_file": str(profiled_snr_info["snr_trace_file"]),
+                "targets_loaded": int(len(targets)),
+                "targets_processed": int(targets_processed),
+                "cpa_sample_window_effective": int(effective_sample_window),
+            }
+            for c in trace_counts
+        ]
+    else:
+        (
+            summaries,
+            target_log,
+            targets_processed,
+            runtime_minutes,
+            snr_runs,
+        ) = _run_trace_counts_with_prefix_snr(
+            sbox_type=sbox_type,
+            trace_file=trace_file,
+            nonces=nonces,
+            trace_counts=trace_counts,
+            n_samples=n_samples,
+            iv_int=iv_int,
+            cache_dir=cache_dir,
+            snr_trace_count=snr_trace_count,
+            k0_bits_expected=k0_bits_expected,
+            k1_bits_expected=k1_bits_expected,
+            k0_int_expected=k0_int_expected,
+            k1_int_expected=k1_int_expected,
+            chunk_size=chunk_size,
+            cpa_backend=cpa_backend,
+            sample_window=sample_window,
+            polarity=polarity,
+            max_targets=max_targets,
+            traceset_size_k=traceset_size_k,
+            auto_snr=auto_snr,
+            snr_script=snr_script,
+            snr_chunk_size=snr_chunk_size,
+            snr_device=snr_device,
+            save_target_log=save_target_log,
+        )
     total_toc = time.perf_counter()
 
     print(f"\n[INFO] {sbox_type}: key-recovery progression table")
@@ -1057,27 +1455,46 @@ def _run_one_sbox(
             f"{summary['k1_correct_recovered_count']}"
         )
 
+    if snr_selection_mode == "profiled":
+        result_snr_file = str(profiled_snr_info["snr_file"])
+        result_snr_trace_file = str(profiled_snr_info["snr_trace_file"])
+        targets_loaded = int(len(profiled_snr_info["targets"]))
+        effective_window_summary = int(profiled_snr_info["effective_sample_window"])
+    else:
+        result_snr_file = "per-prefix"
+        result_snr_trace_file = "per-prefix"
+        targets_loaded = int(sum(item["targets_loaded"] for item in snr_runs))
+        effective_window_summary = int(
+            max((item["cpa_sample_window_effective"] for item in snr_runs), default=0)
+        )
+
     result = {
         "sbox_type": sbox_type,
         "trace_file": str(trace_file),
-        "snr_file": str(snr_file),
-        "snr_trace_file": str(snr_trace_file),
+        "snr_selection_mode": snr_selection_mode,
+        "snr_file": result_snr_file,
+        "snr_trace_file": result_snr_trace_file,
+        "snr_runs": snr_runs,
         "n_traces_max": int(n_used),
         "snr_trace_count": int(snr_trace_count),
         "trace_counts": [int(c) for c in trace_counts],
         "n_samples": int(n_samples),
         "chunk_size": int(chunk_size),
         "cpa_sample_window_requested": int(sample_window),
-        "cpa_sample_window_effective": int(effective_sample_window),
+        "cpa_sample_window_effective": int(effective_window_summary),
         "leakage_polarity": polarity,
         "cpa_backend": cpa_backend,
         "cpu_threads": int(max_cpu_workers),
-        "targets_loaded": int(len(targets)),
+        "targets_loaded": int(targets_loaded),
         "targets_processed": int(targets_processed),
         "runtime_minutes": float((total_toc - total_tic) / 60.0),
         "target_loop_runtime_minutes": float(runtime_minutes),
         "prefix_traces": True,
         "random_subsets": False,
+        "auto_snr": bool(auto_snr),
+        "snr_script": str(snr_script),
+        "snr_chunk_size": int(snr_chunk_size),
+        "snr_device": str(snr_device),
         "expected_k0_hex": f"{k0_int_expected:016X}",
         "expected_k1_hex": f"{k1_int_expected:016X}",
         "summaries": summaries,
@@ -1099,7 +1516,7 @@ def _run_one_sbox(
     cache_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    tag = _format_trace_count_tag(n_used)
+    tag = _result_tag(n_used, snr_selection_mode)
     json_file = cache_dir / f"ASCON_generic_key_recovery_progression_{sbox_type}_{tag}.json"
     result["exports"] = {
         "values": {
@@ -1120,22 +1537,44 @@ def _run_one_sbox(
 
 
 def main():
-    sboxes = _parse_sboxes(os.environ.get("ASCON_PROGRESS_SBOXES", "all"))
-    max_traces = int(os.environ.get("ASCON_PROGRESS_N", "1000000"))
-    traceset_size_k = int(os.environ.get("ASCON_TRACESET_SIZE_K", str(max_traces // 1000)))
-    snr_trace_count = int(os.environ.get("ASCON_SNR_N", str(max_traces)))
-    resolution = int(os.environ.get("ASCON_PROGRESS_RESOLUTION", "50000"))
-    trace_counts = _build_trace_counts(max_traces, resolution)
-    chunk_size = int(os.environ.get("ASCON_CHUNK_SIZE", "50000"))
-    sample_window = int(os.environ.get("ASCON_CPA_SAMPLE_WINDOW", "201"))
-    polarity = os.environ.get("ASCON_LEAKAGE_POLARITY", "both").strip().lower()
-    cpa_backend = get_cpa_backend_name(os.environ.get("ASCON_CPA_DEVICE", "auto"))
-    max_targets_env = os.environ.get("ASCON_MAX_TARGETS")
-    max_targets = None if max_targets_env in (None, "") else int(max_targets_env)
-    output_dir = Path(os.environ.get("ASCON_PROGRESS_OUTPUT_DIR", str(DEFAULT_OUTPUT_DIR)))
-    plot_dir = Path(os.environ.get("ASCON_PROGRESS_PLOT_DIR", str(DEFAULT_PLOT_DIR)))
-    save_plots = _env_flag("ASCON_SAVE_PLOTS", True)
-    save_target_log = _env_flag("ASCON_PROGRESS_SAVE_TARGET_LOG", False)
+    args = _build_arg_parser().parse_args()
+
+    sboxes = _parse_sboxes(args.sboxes)
+    max_traces = int(args.max_traces)
+    strict_traceset_size = args.traceset_size_k is not None
+    traceset_size_k = int(args.traceset_size_k or (max_traces // 1000))
+    snr_trace_count = int(args.snr_traces or max_traces)
+    snr_selection_mode = args.snr_selection_mode.strip().lower()
+    resolution = int(args.resolution)
+    trace_counts = _build_trace_counts(
+        max_traces,
+        resolution,
+        explicit=args.trace_counts,
+        append_max=bool(args.append_max),
+    )
+    chunk_size = int(args.chunk_size)
+    sample_window = int(args.sample_window)
+    polarity = args.polarity.strip().lower()
+    cpa_backend = get_cpa_backend_name(args.cpa_device)
+    max_targets = args.max_targets
+    output_dir_env = args.output_dir
+    plot_dir_env = args.plot_dir
+    output_dir = (
+        Path(output_dir_env)
+        if output_dir_env not in (None, "")
+        else DEFAULT_OUTPUT_DIR / snr_selection_mode
+    )
+    plot_dir = (
+        Path(plot_dir_env)
+        if plot_dir_env not in (None, "")
+        else DEFAULT_PLOT_DIR / snr_selection_mode
+    )
+    save_plots = bool(args.save_plots)
+    save_target_log = bool(args.save_target_log)
+    auto_snr = bool(args.auto_snr)
+    snr_script = Path(args.snr_script)
+    snr_chunk_size = int(args.snr_chunk_size)
+    snr_device = args.snr_device
 
     if max_traces <= 1:
         raise ValueError("ASCON_PROGRESS_N must be greater than 1")
@@ -1145,11 +1584,16 @@ def main():
         raise ValueError("ASCON_CPA_SAMPLE_WINDOW must be >= 0")
     if polarity not in {"negative", "positive", "both"}:
         raise ValueError("ASCON_LEAKAGE_POLARITY must be one of: negative, positive, both")
+    if snr_selection_mode not in {"profiled", "prefix"}:
+        raise ValueError("ASCON_SNR_SELECTION_MODE must be one of: profiled, prefix")
+    if snr_chunk_size <= 0:
+        raise ValueError("--snr-chunk-size must be positive")
 
     print("\n================= GENERIC KEY-RECOVERY PROGRESSION BATCH =================")
     print(f"S-boxes                : {sboxes}")
     print(f"Max prefix traces      : {max_traces:,}")
     print(f"Traceset size tag      : {traceset_size_k}k")
+    print(f"SNR selection mode     : {snr_selection_mode}")
     print(f"SNR cache trace count  : {snr_trace_count:,}")
     print(f"Trace count steps      : {len(trace_counts)}")
     print(f"First/last count       : {trace_counts[0]:,} / {trace_counts[-1]:,}")
@@ -1159,6 +1603,9 @@ def main():
     print(f"CPA backend            : {cpa_backend}")
     print(f"CPU threads            : {max_cpu_workers}")
     print(f"Max targets            : {max_targets if max_targets is not None else 'all'}")
+    print(f"Auto-generate SNR      : {'yes' if auto_snr else 'no'}")
+    print(f"SNR generator chunk    : {snr_chunk_size}")
+    print(f"SNR generator device   : {snr_device}")
     print(f"Output dir             : {output_dir}")
     print(f"Plot dir               : {plot_dir}")
     print(f"Save plots             : {'yes' if save_plots else 'no'}")
@@ -1173,7 +1620,9 @@ def main():
             sbox_type=sbox_type,
             max_traces_requested=max_traces,
             traceset_size_k=traceset_size_k,
+            strict_traceset_size=strict_traceset_size,
             snr_trace_count=snr_trace_count,
+            snr_selection_mode=snr_selection_mode,
             trace_counts_requested=trace_counts,
             chunk_size=chunk_size,
             sample_window=sample_window,
@@ -1184,6 +1633,10 @@ def main():
             plot_dir=plot_dir,
             save_plots=save_plots,
             save_target_log=save_target_log,
+            auto_snr=auto_snr,
+            snr_script=snr_script,
+            snr_chunk_size=snr_chunk_size,
+            snr_device=snr_device,
         )
         if result is not None:
             results[sbox_type] = result
@@ -1194,11 +1647,14 @@ def main():
     combined = {
         "sboxes": list(results.keys()),
         "n_traces_max": int(max_traces),
+        "snr_selection_mode": snr_selection_mode,
         "trace_counts": [int(c) for c in trace_counts],
         "runtime_minutes": float((batch_toc - batch_tic) / 60.0),
         "config": {
             "chunk_size": int(chunk_size),
             "sample_window": int(sample_window),
+            "snr_selection_mode": snr_selection_mode,
+            "snr_trace_count": int(snr_trace_count),
             "polarity": polarity,
             "cpa_backend": cpa_backend,
             "cpu_threads": int(max_cpu_workers),
@@ -1206,6 +1662,10 @@ def main():
             "prefix_traces": True,
             "random_subsets": False,
             "save_target_log": bool(save_target_log),
+            "auto_snr": bool(auto_snr),
+            "snr_script": str(snr_script),
+            "snr_chunk_size": int(snr_chunk_size),
+            "snr_device": str(snr_device),
         },
         "results": results,
     }
@@ -1215,7 +1675,7 @@ def main():
         "plots": _plot_combined_results(combined, plot_dir, save_plots),
     }
 
-    tag = _format_trace_count_tag(max_traces)
+    tag = _result_tag(max_traces, snr_selection_mode)
     combined_json = output_dir / f"ASCON_generic_key_recovery_progression_all_sboxes_{tag}.json"
     with open(combined_json, "w", encoding="utf-8") as f:
         json.dump(combined, f, indent=2)
