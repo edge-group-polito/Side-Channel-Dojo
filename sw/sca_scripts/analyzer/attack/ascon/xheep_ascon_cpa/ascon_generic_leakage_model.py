@@ -1,168 +1,310 @@
-# This file contains the leakage model for the ASCON cipher, 
+# This file contains the leakage model for the ASCON cipher,
 # specifically for the first round permutation.
-from .. import ascon_funcs as ascon
+
+from functools import lru_cache
+import os
 import numpy as np
 
-def ascon_generic_leakage_model(init_vect,
-                                nonce_MSB,
-                                nonce_LSB,
-                                attacked_state_reg,
-                                attacked_bit,
-                                sbox_type):
+from .. import ascon_funcs as ascon
+
+try:
+    import cupy as cp
+except Exception:
+    cp = None
+
+
+# ---------------------------------------------------------------------------
+# Backend selection
+# ---------------------------------------------------------------------------
+
+def _gpu_available():
+    if cp is None:
+        return False
+    try:
+        return cp.cuda.runtime.getDeviceCount() > 0
+    except Exception:
+        return False
+
+
+def _select_array_backend(backend="cpu"):
     """
-    Compute the leakage model for ASCON in the first round permutation.
-    The attack point is the activity of one output bit of the linear
-    diffusion layer (after the S-box + linear layer), modeled as its
-    Hamming weight (0 or 1).
+    Select NumPy or CuPy backend.
 
-    The model assumes 6 key bits influence the targeted bit
-    (3 from the MS half, 3 from the LS half), so it evaluates all
-    2^6 = 64 key hypotheses and returns a 64-entry vector.
+    backend:
+      cpu  -> NumPy
+      gpu  -> CuPy if available, otherwise NumPy
+      auto -> CuPy if available, otherwise NumPy
 
-    Inputs:
-        init_vect (int): Initialization vector (register x0 at start).
-        nonce_MSB (int): Most significant half of the nonce (register x3).
-        nonce_LSB (int): Least significant half of the nonce (register x4).
-        attacked_state_reg (str): Attacked ASCON state register:
-            "x0", "x1", "x2", "x3", or "x4".
-        attacked_bit (int): Bit index of the attacked state bit (0..63).
-        sbox_type (str): Identifier of the S-box implementation.
-
-    Returns:
-        leakage_model (np.ndarray): Shape (64,), leakage_model[k] ∈ {0,1}
-        is the predicted bit/Hamming weight of the attacked output bit
-        for key hypothesis k (0..63).
+    Environment fallback:
+      ASCON_LEAKAGE_DEVICE=cpu|gpu|auto
     """
+    if backend is None:
+        backend = os.environ.get("ASCON_LEAKAGE_DEVICE", "cpu")
 
-    def ascon_substitution_layer(x0, x1, x2, x3, x4,
-                                 round_constant,
-                                 row_shift,
-                                 bitindex,
-                                 sbox_type):
-        """
-        Compute the 5-bit S-box output for a single "row" (bit position).
-        """
-        # Extract the target bit from each register. Round constant is
-        # added on x2 in this bit-slice formulation.
-        shift = (bitindex + row_shift) % 64
+    backend = str(backend).strip().lower()
 
-        x0_bit = (int(x0) >> shift) & 0x01
-        x1_bit = x1
-        x2_bit = x2 ^ ((round_constant >> shift) & 0x01)
-        x3_bit = (int(x3) >> shift) & 0x01
-        x4_bit = (int(x4) >> shift) & 0x01
+    if backend == "cpu":
+        return np
 
-        # Build the 5-bit S-box input vector
-        sbox_input = (
-            (x0_bit << 4) |
-            (x1_bit << 3) |
-            (x2_bit << 2) |
-            (x3_bit << 1) |
-            x4_bit
-        )
+    if backend == "gpu":
+        return cp if _gpu_available() else np
 
-        return ascon.sbox(sbox_type, sbox_input)
+    if backend == "auto":
+        return cp if _gpu_available() else np
 
-    def ascon_shift_layer(init_vect,
-                          key_0,
-                          key_1,
-                          nonce_0,
-                          nonce_1,
-                          round_constant,
-                          row_shift,
-                          bitindex,
-                          sbox_type):
-        """
-        Compute the 5-bit output of the ASCON linear shift layer.
-        """
-        S0 = ascon_substitution_layer(init_vect, key_0[0], key_1[0], nonce_0, nonce_1, round_constant, row_shift[0], bitindex, sbox_type) ^ \
-             ascon_substitution_layer(init_vect, key_0[1], key_1[1], nonce_0, nonce_1, round_constant, row_shift[1], bitindex, sbox_type) ^ \
-             ascon_substitution_layer(init_vect, key_0[2], key_1[2], nonce_0, nonce_1, round_constant, row_shift[2], bitindex, sbox_type)
+    raise ValueError("backend must be one of: cpu, gpu, auto")
 
-        return S0
 
-    def split_3bit_to_lists(value):
-        """
-            This function splits a 3-bit integer into a list of 3 elements.
-        """
-        # Convert to 3-bit binary string
-        bits = f"{value:03b}"
-        # Convert each half to a list of integers
-        return [int(b) for b in bits]
+# ---------------------------------------------------------------------------
+# Cached constants
+# ---------------------------------------------------------------------------
 
-    # ------------------------------------------------------------------
-    # Sanity checks
-    # ------------------------------------------------------------------
-    if attacked_state_reg not in ("x0", "x1", "x2", "x3", "x4"):
+@lru_cache(maxsize=None)
+def _get_sbox_lut(sbox_type):
+    """
+    Return ASCON S-box LUT for the selected implementation.
+
+    Shape:
+        (32,)
+    """
+    return np.array([ascon.sbox(sbox_type, i) for i in range(32)], dtype=np.uint8)
+
+
+@lru_cache(maxsize=None)
+def _get_key_hypothesis_bits():
+    """
+    Return the 6-bit key hypotheses split into local k0 and k1 bits.
+
+    Hypothesis index:
+        hyp = [k1_2 k1_1 k1_0 k0_2 k0_1 k0_0]
+
+    Returns
+    -------
+    key_guess_0:
+        shape (64, 3)
+
+    key_guess_1:
+        shape (64, 3)
+    """
+    guesses = np.arange(64, dtype=np.uint8)
+
+    key_guess_0 = (
+        (guesses[:, None] >> np.array([2, 1, 0], dtype=np.uint8)) & 0x01
+    ).astype(np.uint8)
+
+    key_guess_1 = (
+        (guesses[:, None] >> np.array([5, 4, 3], dtype=np.uint8)) & 0x01
+    ).astype(np.uint8)
+
+    return key_guess_0, key_guess_1
+
+
+@lru_cache(maxsize=None)
+def _get_target_description(attacked_state_reg, attacked_bit):
+    """
+    Return target-specific row shifts and output-bit position.
+
+    The three shifted bit positions define which key-bit triplet contributes
+    to the selected target bit.
+    """
+    row_shift_map = {
+        "x0": ((0, 19, 28), 4),
+        "x1": ((0, 61, 39), 3),
+        "x2": ((0, 1, 6), 2),
+        "x3": ((0, 10, 17), 1),
+        "x4": ((0, 7, 41), 0),
+    }
+
+    if attacked_state_reg not in row_shift_map:
         raise ValueError(
-            "Invalid attacked_state_reg. Must be one of "
-            '{"x0", "x1", "x2", "x3", "x4"}.'
+            'Invalid attacked_state_reg. Must be one of {"x0", "x1", "x2", "x3", "x4"}.'
         )
+
+    attacked_bit = int(attacked_bit)
 
     if not (0 <= attacked_bit < 64):
+        raise ValueError("Invalid bit index for the attack. Must be between 0 and 63.")
+
+    row_shift_vec, output_bit_pos = row_shift_map[attacked_state_reg]
+    shifts = tuple((attacked_bit + rs) % 64 for rs in row_shift_vec)
+
+    return row_shift_vec, output_bit_pos, shifts
+
+
+# ---------------------------------------------------------------------------
+# Core leakage matrix implementation
+# ---------------------------------------------------------------------------
+
+def _compute_leakage_matrix_impl(
+    init_vect,
+    nonce_MSB,
+    nonce_LSB,
+    attacked_state_reg,
+    attacked_bit,
+    sbox_type,
+    backend="cpu",
+):
+    """
+    Vectorized leakage computation.
+
+    Returns
+    -------
+    leakage:
+        shape (N, 64), dtype uint8
+
+    where:
+        N  = number of nonces
+        64 = number of 6-bit key hypotheses
+    """
+    xp = _select_array_backend(backend)
+
+    _, output_bit_pos, shifts = _get_target_description(
+        attacked_state_reg,
+        attacked_bit,
+    )
+
+    sbox_lut = _get_sbox_lut(sbox_type)
+    key_guess_0, key_guess_1 = _get_key_hypothesis_bits()
+
+    nonce_MSB = xp.asarray(nonce_MSB)
+    nonce_LSB = xp.asarray(nonce_LSB)
+
+    if nonce_MSB.ndim == 0:
+        nonce_MSB = nonce_MSB[None]
+
+    if nonce_LSB.ndim == 0:
+        nonce_LSB = nonce_LSB[None]
+
+    if nonce_MSB.shape[0] != nonce_LSB.shape[0]:
         raise ValueError(
-            "Invalid bit index for the attack. Must be between 0 and 63."
+            f"nonce_MSB and nonce_LSB length mismatch: "
+            f"{nonce_MSB.shape[0]} vs {nonce_LSB.shape[0]}"
         )
 
-    # ------------------------------------------------------------------
-    # Row shifts and output-bit selection per attacked register
-    # ------------------------------------------------------------------
-    # Row shift values for the ASCON cipher
-    row_shift_0 = [0, 19, 28]   # x0
-    row_shift_1 = [0, 61, 39]   # x1
-    row_shift_2 = [0, 1, 6]     # x2
-    row_shift_3 = [0, 10, 17]   # x3
-    row_shift_4 = [0, 7, 41]    # x4
+    shifts_arr = xp.asarray(shifts, dtype=xp.uint64)
 
-    if attacked_state_reg == "x0":
-        row_shift_vec = row_shift_0
-        output_bit_pos = 4
-    elif attacked_state_reg == "x1":
-        row_shift_vec = row_shift_1
-        output_bit_pos = 3
-    elif attacked_state_reg == "x2":
-        row_shift_vec = row_shift_2
-        output_bit_pos = 2
-    elif attacked_state_reg == "x3":
-        row_shift_vec = row_shift_3
-        output_bit_pos = 1
-    elif attacked_state_reg == "x4":
-        row_shift_vec = row_shift_4
-        output_bit_pos = 0
-    else :
-        raise ValueError("Invalid attacked_state_reg value.")
+    x0_bits = xp.asarray(
+        [(int(init_vect) >> int(shift)) & 0x01 for shift in shifts],
+        dtype=xp.uint8,
+    )
 
-    # ------------------------------------------------------------------
-    # Leakage model over all 2^6 = 64 key hypotheses
-    # ------------------------------------------------------------------
-    leakage_model = np.empty(64, dtype=np.uint8)
+    round_constant_bits = xp.asarray(
+        [(0xF0 >> int(shift)) & 0x01 for shift in shifts],
+        dtype=xp.uint8,
+    )
 
-    # Round constant for the first permutation round
-    round_constant = 0xF0
+    nonce_msb_bits = (
+        (nonce_MSB[:, None].astype(xp.uint64) >> shifts_arr) & xp.uint64(1)
+    ).astype(xp.uint8)
 
-    # Loop through all possible 6-bit key guesses (0..63)
-    # Each key guess is a 6-bit value: 3 bits for key_0, 3 bits for key_1
-    for key_guess in range(64):
-        # Split the 6-bit key guess into two 3-bit halves
-        key_guess_0 = split_3bit_to_lists((key_guess >> 0) & 0b111)   # bits [2:0]
-        key_guess_1 = split_3bit_to_lists((key_guess >> 3) & 0b111)   # bits [5:3]
+    nonce_lsb_bits = (
+        (nonce_LSB[:, None].astype(xp.uint64) >> shifts_arr) & xp.uint64(1)
+    ).astype(xp.uint8)
 
-        # Compute the 5-bit output of the diffusion layer
-        Z = ascon_shift_layer(
-            init_vect,
-            key_guess_0,
-            key_guess_1,
-            nonce_MSB,
-            nonce_LSB,
-            round_constant,
-            row_shift_vec,
-            attacked_bit,
-            sbox_type,        
+    lut = xp.asarray(sbox_lut, dtype=xp.uint8)
+    key0 = xp.asarray(key_guess_0, dtype=xp.uint8)
+    key1 = xp.asarray(key_guess_1, dtype=xp.uint8)
+
+    n = nonce_MSB.shape[0]
+
+    z = xp.zeros((n, 64), dtype=xp.uint8)
+
+    for local_pos in range(3):
+        sbox_input = (
+            (x0_bits[local_pos] << 4)
+            | (key0[:, local_pos][None, :] << 3)
+            | ((key1[:, local_pos][None, :] ^ round_constant_bits[local_pos]) << 2)
+            | (nonce_msb_bits[:, local_pos][:, None] << 1)
+            | nonce_lsb_bits[:, local_pos][:, None]
         )
 
-        # Extract the attacked output bit (as Hamming weight 0/1)
-        Z_hw = (Z >> output_bit_pos) & 0x01  
-        leakage_model[key_guess] = Z_hw
-        # print(f"[DEBUG] k1 {((key_guess >> 3) & 0b111):03b} k0 {((key_guess >> 0) & 0b111):03b}, output column {[((Z >> (4 - b)) & 0x01) for b in range(0, 5)]} with leakage bit = {Z_hw}")
+        z ^= lut[sbox_input]
 
-    return leakage_model
+    leakage = ((z >> output_bit_pos) & 0x01).astype(xp.uint8)
+
+    if xp is cp:
+        leakage = cp.asnumpy(leakage)
+
+    return leakage
+
+
+# ---------------------------------------------------------------------------
+# Public APIs
+# ---------------------------------------------------------------------------
+
+def ascon_generic_leakage_matrix(
+    init_vect,
+    nonce_MSB,
+    nonce_LSB,
+    attacked_state_reg,
+    attacked_bit,
+    sbox_type,
+    backend="cpu",
+):
+    """
+    Vectorized generic leakage model for a batch of nonces.
+
+    Parameters
+    ----------
+    init_vect:
+        ASCON initialization vector / x0 initial value.
+
+    nonce_MSB:
+        array-like, shape (N,)
+
+    nonce_LSB:
+        array-like, shape (N,)
+
+    attacked_state_reg:
+        "x0", "x1", "x2", "x3", or "x4"
+
+    attacked_bit:
+        integer 0..63
+
+    sbox_type:
+        selected S-box implementation.
+
+    backend:
+        cpu | gpu | auto
+
+    Returns
+    -------
+    np.ndarray:
+        shape (N, 64), dtype uint8
+    """
+    return _compute_leakage_matrix_impl(
+        init_vect,
+        nonce_MSB,
+        nonce_LSB,
+        attacked_state_reg,
+        attacked_bit,
+        sbox_type,
+        backend=backend,
+    )
+
+
+def ascon_generic_leakage_model(
+    init_vect,
+    nonce_MSB,
+    nonce_LSB,
+    attacked_state_reg,
+    attacked_bit,
+    sbox_type,
+):
+    """
+    Single-nonce leakage model.
+
+    Returns
+    -------
+    np.ndarray:
+        shape (64,), dtype uint8
+    """
+    return _compute_leakage_matrix_impl(
+        init_vect,
+        nonce_MSB,
+        nonce_LSB,
+        attacked_state_reg,
+        attacked_bit,
+        sbox_type,
+        backend="cpu",
+    )[0]
