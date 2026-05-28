@@ -62,14 +62,6 @@ sudo usermod -aG plugdev $USER
 python -m pip install -r requirements.txt
 # log out and back in for group changes to take effect
 ```
-Install picoscope drivers from:
-https://www.picotech.com/downloads/linux
-Known issue with Ubuntu 24.10 with no LTS
-command apt install picoscope, fails due to gtk3-sharp dependency 
-Fix:
-sudo apt update
-sudo apt install aptitude
-sudo aptitude install picoscope
 Installing chipwhisperer and picoscope python packages
 ```
  pip install chipwhisperer
