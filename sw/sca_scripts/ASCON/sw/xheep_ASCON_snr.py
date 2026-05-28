@@ -28,18 +28,23 @@
 #   /snr_traces/sample_index   : uint32 array, 0..n_samples-1
 # =====================================================================
 
+import argparse
 import os
 
 # ---------------------------------------------------------------------------
 # CPU configuration
 # ---------------------------------------------------------------------------
-# None means use all available CPU cores for NumPy/BLAS operations.
-# Set to a number, e.g. 16, if you want to limit CPU usage.
-max_cpu_workers = None
+_pre_parser = argparse.ArgumentParser(add_help=False)
+_pre_parser.add_argument("--max-cpu-workers", type=int, default=None)
+_pre_args, _ = _pre_parser.parse_known_args()
 
-_cpu_count = os.cpu_count() or 1
-if max_cpu_workers is None:
-    max_cpu_workers = _cpu_count
+_max_cpu_workers_env = os.environ.get("ASCON_MAX_CPU_WORKERS")
+if _pre_args.max_cpu_workers is not None:
+    max_cpu_workers = int(_pre_args.max_cpu_workers)
+elif _max_cpu_workers_env not in (None, ""):
+    max_cpu_workers = int(_max_cpu_workers_env)
+else:
+    max_cpu_workers = os.cpu_count() or 1
 
 # These affect NumPy / BLAS / OpenMP-backed operations.
 # They must be set before importing NumPy.
@@ -56,6 +61,17 @@ import numpy as np
 import h5py
 from tqdm import tqdm
 
+
+def _progress_bars_enabled() -> bool:
+    value = os.environ.get("ASCON_PROGRESS_BARS")
+    if value in (None, ""):
+        return sys.stderr.isatty()
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+TQDM_DISABLE = not _progress_bars_enabled()
+
+
 try:
     import cupy as cp
     CUPY_AVAILABLE = True
@@ -68,12 +84,85 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 # Script configuration
 # ---------------------------------------------------------------------------
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="Compute ASCON bit-level SNR caches for x0..x4.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--sbox",
+        default=os.environ.get("ASCON_SBOX_TYPE", "lut_ascon"),
+        help="S-box implementation name.",
+    )
+    parser.add_argument(
+        "--n-traces",
+        type=int,
+        default=int(os.environ.get("ASCON_N_TRC", "1000000")),
+        help="Number of prefix traces used for SNR.",
+    )
+    parser.add_argument(
+        "--traceset-size-k",
+        type=int,
+        default=(
+            int(os.environ["ASCON_TRACESET_SIZE_K"])
+            if os.environ.get("ASCON_TRACESET_SIZE_K") not in (None, "")
+            else None
+        ),
+        help="Trace-file size tag in thousands, e.g. 1000 for *_1000k.h5.",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=int(os.environ.get("ASCON_CHUNK_SIZE", "10000")),
+        help="Streaming chunk size.",
+    )
+    parser.add_argument(
+        "--device",
+        choices=["cpu", "gpu", "auto"],
+        default=os.environ.get("ASCON_SNR_DEVICE", "cpu"),
+        help="Requested compute device. CPU is recommended for this streaming SNR.",
+    )
+    parser.add_argument(
+        "--chunk-dtype",
+        choices=["float32", "float64"],
+        default=os.environ.get("ASCON_SNR_CHUNK_DTYPE", "float64"),
+        help="Working dtype inside each SNR chunk.",
+    )
+    parser.add_argument(
+        "--max-cpu-workers",
+        type=int,
+        default=max_cpu_workers,
+        help="NumPy/BLAS thread limit. Parsed early before NumPy import.",
+    )
+    parser.set_defaults(
+        save_ranked=_env_flag("ASCON_SAVE_SNR_RANKED", True),
+        save_traces=_env_flag("ASCON_SAVE_SNR_TRACES", True),
+        debug=_env_flag("ASCON_SNR_DEBUG", False),
+    )
+    parser.add_argument("--save-ranked", dest="save_ranked", action="store_true")
+    parser.add_argument("--no-save-ranked", dest="save_ranked", action="store_false")
+    parser.add_argument("--save-traces", dest="save_traces", action="store_true")
+    parser.add_argument("--no-save-traces", dest="save_traces", action="store_false")
+    parser.add_argument("--debug", dest="debug", action="store_true")
+    parser.add_argument("--no-debug", dest="debug", action="store_false")
+    return parser.parse_args()
+
+
+ARGS = _parse_args()
+
 # Supported S-box types:
 #   lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
-sbox_type = os.environ.get("ASCON_SBOX_TYPE", "lut_ascon")
+sbox_type = ARGS.sbox
 
 # Number of traces to analyze. The script will use min(n_trc, traces_in_file).
-n_trc = int(os.environ.get("ASCON_N_TRC", "1000000"))
+n_trc = int(ARGS.n_traces)
 
 # If your file name is not based on n_trc, set this separately.
 # Example:
@@ -81,31 +170,32 @@ n_trc = int(os.environ.get("ASCON_N_TRC", "1000000"))
 # gives:
 #   ascon_opt32_lut_lu_4_150k.h5
 #
-# If your real file is ascon_opt32_lut_lu_4_1000k.h5, keep this:
-traceset_size_k = n_trc // 1000
+# If your real file is ascon_opt32_lut_lu_4_1000k.h5, but you only want to
+# compute SNR from a prefix such as 1k traces, use --traceset-size-k 1000.
+traceset_size_k = int(ARGS.traceset_size_k or (n_trc // 1000))
 
 # Chunk size for streaming.
 # Reduce this if RAM usage is too high.
 # Typical safe values: 2_000, 5_000, 10_000, 20_000
-chunk_size = int(os.environ.get("ASCON_CHUNK_SIZE", "10000"))
+chunk_size = int(ARGS.chunk_size)
 
 # Output control
-save_snr_ranked_all_bits = True
-save_snr_traces_all_bits = True
+save_snr_ranked_all_bits = bool(ARGS.save_ranked)
+save_snr_traces_all_bits = bool(ARGS.save_traces)
 
 # Flow flags
-debug = False
+debug = bool(ARGS.debug)
 
 # Compute device:
 # For this streaming version, CPU is recommended.
 # GPU support is intentionally not used by default because 50 GB files should
 # not be copied to GPU memory in full.
-compute_device = os.environ.get("ASCON_SNR_DEVICE", "cpu")   # "cpu" recommended
+compute_device = ARGS.device   # "cpu" recommended
 
 # Numeric precision used while processing each chunk.
 # float64 is safer for SNR accumulation but uses more RAM per chunk.
 # float32 is lighter but slightly less numerically stable.
-chunk_work_dtype = np.float64
+chunk_work_dtype = np.float64 if ARGS.chunk_dtype == "float64" else np.float32
 
 # ---------------------------------------------------------------------------
 # Helper: find repo root
@@ -339,7 +429,11 @@ with h5py.File(TRACESET_FILE, "r") as f_read:
     traces_ds = f_read["traces"]
     nonces_ds = f_read["nonces"]
 
-    for start in tqdm(range(0, n_trc, chunk_size), desc="Streaming SNR accumulation"):
+    for start in tqdm(
+        range(0, n_trc, chunk_size),
+        desc="Streaming SNR accumulation",
+        disable=TQDM_DISABLE,
+    ):
         end = min(start + chunk_size, n_trc)
 
         # Read only one chunk from disk.
@@ -386,7 +480,7 @@ count0 = n_total - count1
 
 snr_flat = np.zeros((n_targets, n_samples), dtype=np.float32)
 
-for target in tqdm(range(n_targets), desc="Finalizing SNR"):
+for target in tqdm(range(n_targets), desc="Finalizing SNR", disable=TQDM_DISABLE):
     n1 = count1[target]
     n0 = count0[target]
 
