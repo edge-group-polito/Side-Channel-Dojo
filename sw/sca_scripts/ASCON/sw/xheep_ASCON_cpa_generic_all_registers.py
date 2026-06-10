@@ -5,9 +5,10 @@ ASCON generic leakage CPA attack using SNR-ranked target bits.
 Memory-friendly / chunked version.
 
 This script:
+  - when run directly, executes all seven S-boxes for negative/positive/both
   - loads only metadata from the trace HDF5 file
   - loads SNR-ranked attack targets for x0..x4
-  - attacks targets in SNR-ranked order
+  - attacks targets in key-dependency-aware order
   - processes traces in chunks, without loading the full trace matrix
   - uses GPU/CuPy for chunked CPA accumulators if available
   - otherwise falls back to CPU/NumPy with maximum available CPU threads
@@ -42,6 +43,9 @@ os.environ["NUMEXPR_NUM_THREADS"] = str(max_cpu_workers)
 import sys
 import time
 import json
+import csv
+import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import h5py
@@ -74,7 +78,7 @@ n_trc = int(os.environ.get("ASCON_N_TRC", "1000000"))
 #   traceset_size_k = 150
 # gives:
 #   ascon_opt32_lut_lu_7_150k.h5
-traceset_size_k = n_trc // 1000
+traceset_size_k = int(os.environ.get("ASCON_TRACESET_SIZE_K", str(n_trc // 1000)))
 
 # Chunk size for trace reading.
 # Reduce if memory is high. Increase if I/O overhead is high.
@@ -83,7 +87,9 @@ chunk_size = int(os.environ.get("ASCON_CHUNK_SIZE", "20000"))
 # Optional sample-window acceleration.
 # 0 means full trace width. A positive value uses only that many samples around
 # the target's SNR peak sample, if the matching snr_traces_*.h5 file exists.
-cpa_sample_window = int(os.environ.get("ASCON_CPA_SAMPLE_WINDOW", "0"))
+# The previous fast CPA runs used 201 samples; keep that as the default because
+# full-width CPA processes about 57x more samples for the current tracesets.
+cpa_sample_window = int(os.environ.get("ASCON_CPA_SAMPLE_WINDOW", "201"))
 if cpa_sample_window < 0:
     raise ValueError("ASCON_CPA_SAMPLE_WINDOW must be >= 0")
 
@@ -109,6 +115,17 @@ leakage_polarity = os.environ.get("ASCON_LEAKAGE_POLARITY", "negative").strip().
 if leakage_polarity not in {"negative", "positive", "both"}:
     raise ValueError("ASCON_LEAKAGE_POLARITY must be one of: negative, positive, both")
 
+# Mixed outputs can strongly correlate with a nearby operation rather than the
+# intended intermediate. Retain several known-key-compatible groups and let
+# overlapping targets decide, instead of committing the largest peak directly.
+mixed_top_groups = int(os.environ.get("ASCON_MIXED_TOP_GROUPS", "3"))
+if mixed_top_groups < 1:
+    raise ValueError("ASCON_MIXED_TOP_GROUPS must be >= 1")
+
+mixed_min_fact_support = int(os.environ.get("ASCON_MIXED_MIN_FACT_SUPPORT", "2"))
+if mixed_min_fact_support < 1:
+    raise ValueError("ASCON_MIXED_MIN_FACT_SUPPORT must be >= 1")
+
 # Flow flags.
 verbose = True
 debug_k_idx = 30
@@ -116,6 +133,24 @@ debug_k_idx = 30
 # Save result JSON.
 save_attack_results = True
 save_results = True
+run_result_file_env = os.environ.get("ASCON_RUN_RESULT_FILE")
+progress_bars_enabled = os.environ.get("ASCON_PROGRESS_BARS", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
+
+ALL_SBOXES = (
+    "lut_ascon",
+    "lut_bilgin",
+    "lut_allouzi",
+    "lut_lu_4",
+    "lut_lu_5",
+    "lut_lu_6",
+    "lut_lu_7",
+)
+ALL_POLARITIES = ("negative", "positive", "both")
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +215,9 @@ sys.path.insert(0, str(SCA_DIR))
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_generic_leakage_model import (
     ascon_generic_leakage_matrix,
+    expand_hypotheses_for_key_dependencies,
+    get_equivalent_key_dependencies,
+    propagate_hypothesis_constraints,
 )
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import (
@@ -224,6 +262,31 @@ def _target_is_useful(k_idx: np.ndarray, k0_rec, k1_rec, k0_xor_k1_rec) -> bool:
     for idx in k_idx:
         if not _idx_done(int(idx), k0_rec, k1_rec, k0_xor_k1_rec):
             return True
+    return False
+
+
+def _target_is_useful_for_dependencies(
+    k_idx: np.ndarray,
+    dependencies,
+    k0_rec,
+    k1_rec,
+    k0_xor_k1_rec,
+) -> bool:
+    """
+    Decide usefulness using the selected S-box output's actual key dependency.
+
+    A k0-only target cannot reveal unresolved k1 bits, and vice versa. Mixed
+    targets retain the generic relation-aware usefulness check.
+    """
+    dependencies = tuple(dependencies)
+    indices = np.asarray(k_idx, dtype=int)
+
+    if dependencies == ("k0",):
+        return not np.all(k0_rec[indices])
+    if dependencies == ("k1",):
+        return not np.all(k1_rec[indices])
+    if dependencies == ("k0", "k1"):
+        return _target_is_useful(indices, k0_rec, k1_rec, k0_xor_k1_rec)
     return False
 
 
@@ -657,6 +720,8 @@ def attack_one_target_chunked(
     cpa_backend: str,
     sample_start: int = 0,
     sample_stop: int = None,
+    compatible_hypotheses=None,
+    dependencies=(),
 ):
     """
     Attack one target bit using chunked CPA.
@@ -741,28 +806,76 @@ def attack_one_target_chunked(
 
     signed_corr = signed_corr_at_samples_from_accumulators(acc, argmax_samples)
     argmax_samples_abs = argmax_samples + sample_start
-    best_group_idx = int(np.argmax(corr_group))
-    best_group = oriented_key_hyp_groups[best_group_idx]
+    compatible_set = (
+        set(range(64))
+        if compatible_hypotheses is None
+        else set(map(int, compatible_hypotheses))
+    )
+    dependencies = tuple(dependencies)
+    ranked_compatible_groups = []
 
-    if leakage_polarity == "both":
-        best_key_group = best_group["all"]
-    elif leakage_polarity == "positive":
-        best_key_group = (
-            best_group["same"]
-            if signed_corr[best_group_idx] > 0.0
-            else best_group["complement"]
+    for group_idx, group in enumerate(oriented_key_hyp_groups):
+        if leakage_polarity == "both":
+            oriented_members = group["all"]
+        elif leakage_polarity == "positive":
+            oriented_members = (
+                group["same"]
+                if signed_corr[group_idx] > 0.0
+                else group["complement"]
+            )
+        else:
+            oriented_members = (
+                group["same"]
+                if signed_corr[group_idx] < 0.0
+                else group["complement"]
+            )
+
+        members = [
+            int(hypothesis)
+            for hypothesis in oriented_members
+            if int(hypothesis) in compatible_set
+        ]
+        polarity_overridden = False
+
+        # Known key facts are stronger than a global leakage-polarity
+        # convention. Allow the opposite orientation when it is the only one
+        # compatible with already recovered bits.
+        if not members:
+            members = [
+                int(hypothesis)
+                for hypothesis in group["all"]
+                if int(hypothesis) in compatible_set
+            ]
+            polarity_overridden = bool(members)
+
+        if members:
+            ranked_compatible_groups.append(
+                {
+                    "group_idx": int(group_idx),
+                    "members": members,
+                    "corr": float(corr_group[group_idx]),
+                    "signed_corr": float(signed_corr[group_idx]),
+                    "sample": int(argmax_samples_abs[group_idx]),
+                    "polarity_overridden": polarity_overridden,
+                }
+            )
+
+    ranked_compatible_groups.sort(key=lambda item: item["corr"], reverse=True)
+    retained_group_count = mixed_top_groups if len(dependencies) == 2 else 1
+    retained_groups = ranked_compatible_groups[:retained_group_count]
+
+    if retained_groups:
+        best_group_idx = retained_groups[0]["group_idx"]
+        best_key_group = sorted(
+            {
+                hypothesis
+                for retained_group in retained_groups
+                for hypothesis in retained_group["members"]
+            }
         )
     else:
-        # Convention used by earlier measurements: the measured bit leakage is
-        # inverted relative to the model bit value.
-        best_key_group = (
-            best_group["same"]
-            if signed_corr[best_group_idx] < 0.0
-            else best_group["complement"]
-        )
-
-    if not best_key_group:
-        best_key_group = best_group["all"]
+        best_group_idx = int(np.argmax(corr_group))
+        best_key_group = []
 
     if debug_k_idx in set(map(int, k_idx)):
         print_top_group_diagnostics(
@@ -789,6 +902,16 @@ def attack_one_target_chunked(
         "best_corr": float(corr_group[best_group_idx]),
         "best_signed_corr": float(signed_corr[best_group_idx]),
         "best_sample": int(argmax_samples_abs[best_group_idx]),
+        "retained_group_indices": [
+            retained_group["group_idx"] for retained_group in retained_groups
+        ],
+        "retained_group_correlations": [
+            retained_group["corr"] for retained_group in retained_groups
+        ],
+        "polarity_overridden": any(
+            retained_group["polarity_overridden"]
+            for retained_group in retained_groups
+        ),
         "sample_start": int(sample_start),
         "sample_stop": int(sample_stop),
         "n_cpa_samples": int(n_cpa_samples),
@@ -1011,6 +1134,7 @@ def commit_attack_result(
     k0_xor_k1_rec_bits,
     k0_xor_k1_rec,
     verbose=True,
+    commit_bits=True,
 ):
     attacked_state_reg = res["attacked_state_reg"]
     attacked_bit = res["attacked_bit"]
@@ -1033,6 +1157,13 @@ def commit_attack_result(
         print(f"[INFO] Best group index : {res.get('best_group_idx', 'N/A')}")
         print(f"[INFO] Best correlation : {res.get('best_corr', float('nan')):.6g}")
         print(f"[INFO] Best sample      : {res.get('best_sample', 'N/A')}")
+        if "retained_group_indices" in res:
+            print(
+                f"[INFO] Retained groups  : "
+                f"{res['retained_group_indices']}"
+            )
+        if res.get("polarity_overridden", False):
+            print("[INFO] Known key facts overrode the configured leakage polarity")
         if "sample_start" in res and "sample_stop" in res:
             print(
                 f"[INFO] CPA sample range : "
@@ -1052,6 +1183,14 @@ def commit_attack_result(
                 group_label = f"{res.get('best_group_idx', -1):5d}" if line_idx == 0 else " " * 5
                 print(f"{group_label}  {int(hyp_idx):3d}  {k1_loc:03b}  {k0_loc:03b}")
         print()
+
+    if not commit_bits:
+        if verbose:
+            print(
+                "[INFO] Mixed-target candidates stored for cross-target "
+                "constraint agreement; no bits committed directly."
+            )
+        return
 
     remaining = propagate_group_constraints(
         best_key_group,
@@ -1103,12 +1242,18 @@ def main() -> None:
 
     snr_file = find_snr_file(cache_dir, sbox_type, n_trc)
     snr_trace_file = find_snr_trace_file(cache_dir, sbox_type, n_trc)
-    cpa_cache_file = cache_dir / f"CPA_results_chunked_{sbox_type}_{n_trc // 1000}k.json"
+    if run_result_file_env:
+        cpa_cache_file = Path(run_result_file_env).expanduser()
+        if not cpa_cache_file.is_absolute():
+            cpa_cache_file = (DOJO_ROOT / cpa_cache_file).resolve()
+    else:
+        cpa_cache_file = cache_dir / f"CPA_results_chunked_{sbox_type}_{n_trc // 1000}k.json"
 
     BASE_PLOT_DIR.mkdir(parents=True, exist_ok=True)
     BASE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     plot_dir.mkdir(parents=True, exist_ok=True)
     cache_dir.mkdir(parents=True, exist_ok=True)
+    cpa_cache_file.parent.mkdir(parents=True, exist_ok=True)
 
     # -----------------------------------------------------------------------
     # Read metadata only
@@ -1174,7 +1319,7 @@ def main() -> None:
     # -----------------------------------------------------------------------
     print("\n================= CONFIGURATION =================")
     print("Script scope")
-    print("  Chunked SNR-ranked generic CPA attack for ASCON SW")
+    print("  Chunked key-dependency-aware CPA attack for ASCON SW")
     print("  Full trace matrix is NOT loaded into RAM")
     print()
     print(f"DOJO_ROOT                  : {DOJO_ROOT}")
@@ -1191,6 +1336,10 @@ def main() -> None:
     print(f"  compute_device           : {compute_device}")
     print(f"  CPA backend              : {cpa_backend}")
     print(f"  Leakage polarity         : {leakage_polarity}")
+    print("  Leakage model            : per-S-box LUT")
+    print("  Key relation handling    : equivalent dependency constraints")
+    print(f"  Mixed retained groups    : {mixed_top_groups}")
+    print(f"  Mixed fact support       : {mixed_min_fact_support} targets")
     print(f"  CuPy available           : {CUPY_AVAILABLE}")
     if not CUPY_AVAILABLE and CUPY_ERROR is not None:
         print(f"  CuPy error               : {CUPY_ERROR}")
@@ -1245,14 +1394,28 @@ def main() -> None:
 
         attacked_targets = load_snr_ranked_targets(
             snr_file,
-            max_targets=max_targets_to_attack,
+            max_targets=None,
             peak_samples=peak_samples,
         )
     except Exception as e:
         print(f"[ERROR] Could not read SNR ranked file: {e}")
         return
 
-    print(f"\n[INFO] Loaded {len(attacked_targets)} SNR-ranked targets from {snr_file}")
+    def equation_priority(target):
+        dependencies = get_equivalent_key_dependencies(sbox_type, target["reg"])
+        if len(dependencies) == 1:
+            return 0
+        if len(dependencies) == 2:
+            return 1
+        return 2
+
+    # Stable sort preserves the original SNR order inside each dependency class.
+    attacked_targets = sorted(attacked_targets, key=equation_priority)
+    if max_targets_to_attack is not None:
+        attacked_targets = attacked_targets[: int(max_targets_to_attack)]
+
+    print(f"\n[INFO] Loaded {len(attacked_targets)} equation-ranked targets from {snr_file}")
+    print("[INFO] Equation-aware order: single-key, mixed-key, then no-key dependencies")
 
     if len(attacked_targets) == 0:
         print("[ERROR] No valid attacked targets were loaded.")
@@ -1283,6 +1446,7 @@ def main() -> None:
 
     k0_xor_k1_rec_bits = np.zeros(64, dtype=np.uint8)
     k0_xor_k1_rec = np.zeros(64, dtype=bool)
+    equation_constraints = []
 
     tic = time.perf_counter()
     print("\n=== Recovering k0 and k1 using chunked SNR-ranked targets ===\n")
@@ -1292,13 +1456,31 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # Chunked attack loop
     # -----------------------------------------------------------------------
-    for t in tqdm(attacked_targets, desc="Attack targets, chunked CPA"):
+    for t in tqdm(
+        attacked_targets,
+        desc="Attack targets, chunked CPA",
+        disable=not progress_bars_enabled,
+    ):
         if np.all(k0_rec) and np.all(k1_rec):
             print("[INFO] Full k0 and k1 recovered. Stopping early.")
             break
 
         attacked_state_reg = t["reg"]
         attacked_bit = t["bit"]
+        dependencies = get_equivalent_key_dependencies(sbox_type, attacked_state_reg)
+        if not dependencies:
+            if verbose:
+                print(
+                    f"\n[INFO] Skipping {attacked_state_reg}[{attacked_bit}] "
+                    "(equivalent equation has no nonce-varying key dependency)"
+                )
+            continue
+        if verbose:
+            print(
+                f"\n[INFO] Equivalent equation for {attacked_state_reg} "
+                f"depends on: {', '.join(dependencies)}"
+            )
+
         sample_start, sample_stop = target_sample_window(
             t,
             n_samples,
@@ -1307,12 +1489,32 @@ def main() -> None:
 
         k_idx = target_to_k_idx(attacked_state_reg, attacked_bit)
 
-        if not _target_is_useful(k_idx, k0_rec, k1_rec, k0_xor_k1_rec):
+        if not _target_is_useful_for_dependencies(
+            k_idx,
+            dependencies,
+            k0_rec,
+            k1_rec,
+            k0_xor_k1_rec,
+        ):
             if verbose:
-                print(f"\n[INFO] Skipping {attacked_state_reg}[{attacked_bit}] because no new bits are expected.")
+                print(
+                    f"\n[INFO] Skipping {attacked_state_reg}[{attacked_bit}] "
+                    f"because its {', '.join(dependencies)} dependencies are "
+                    "already resolved at these indices."
+                )
             continue
 
         try:
+            compatible_hypotheses = filter_hypotheses_by_known_bits(
+                range(64),
+                k_idx,
+                k0_rec_bits,
+                k0_rec,
+                k1_rec_bits,
+                k1_rec,
+                k0_xor_k1_rec_bits,
+                k0_xor_k1_rec,
+            )
             res = attack_one_target_chunked(
                 trace_file=trace_file,
                 nonces=nonces,
@@ -1326,10 +1528,17 @@ def main() -> None:
                 cpa_backend=cpa_backend,
                 sample_start=sample_start,
                 sample_stop=sample_stop,
+                compatible_hypotheses=compatible_hypotheses,
+                dependencies=dependencies,
             )
         except Exception as e:
             print(f"[ERROR] Attack failed for {attacked_state_reg}[{attacked_bit}]: {e}")
             raise
+
+        res["best_key_group"] = expand_hypotheses_for_key_dependencies(
+            res["best_key_group"],
+            dependencies,
+        )
 
         commit_attack_result(
             res,
@@ -1342,15 +1551,43 @@ def main() -> None:
             k0_xor_k1_rec_bits,
             k0_xor_k1_rec,
             verbose=verbose,
+            commit_bits=len(dependencies) == 1,
+        )
+
+        if res["best_key_group"]:
+            equation_constraints.append(
+                {
+                    "target": (attacked_state_reg, int(attacked_bit)),
+                    "dependencies": tuple(dependencies),
+                    "key_indices": k_idx.copy(),
+                    "hypotheses": list(map(int, res["best_key_group"])),
+                }
+            )
+        propagate_hypothesis_constraints(
+            equation_constraints,
+            k0_rec_bits,
+            k0_rec,
+            k1_rec_bits,
+            k1_rec,
+            k0_xor_k1_rec_bits,
+            k0_xor_k1_rec,
+            verbose=verbose,
+            minimum_fact_support=mixed_min_fact_support,
         )
 
         attack_log.append(
             {
                 "target": f"{attacked_state_reg}[{attacked_bit}]",
+                "equivalent_key_dependencies": list(dependencies),
                 "snr": t["snr"],
                 "best_group_idx": res.get("best_group_idx"),
                 "best_corr": res.get("best_corr"),
                 "best_sample": res.get("best_sample"),
+                "retained_group_indices": res.get("retained_group_indices"),
+                "retained_group_correlations": res.get(
+                    "retained_group_correlations"
+                ),
+                "polarity_overridden": res.get("polarity_overridden"),
                 "sample_start": res.get("sample_start"),
                 "sample_stop": res.get("sample_stop"),
                 "n_cpa_samples": res.get("n_cpa_samples"),
@@ -1358,6 +1595,7 @@ def main() -> None:
                 "k0_recovered": int(np.sum(k0_rec)),
                 "k1_recovered": int(np.sum(k1_rec)),
                 "kx_recovered": int(np.sum(k0_xor_k1_rec)),
+                "equation_constraints": int(len(equation_constraints)),
             }
         )
 
@@ -1365,7 +1603,8 @@ def main() -> None:
             f"[INFO] Progress: "
             f"k0={np.sum(k0_rec)}/64, "
             f"k1={np.sum(k1_rec)}/64, "
-            f"k0_xor_k1={np.sum(k0_xor_k1_rec)}/64"
+            f"k0_xor_k1={np.sum(k0_xor_k1_rec)}/64, "
+            f"equation_constraints={len(equation_constraints)}"
         )
 
     toc = time.perf_counter()
@@ -1413,6 +1652,10 @@ def main() -> None:
             "compute_device": compute_device,
             "cpa_backend": cpa_backend,
             "leakage_polarity": leakage_polarity,
+            "leakage_model": "per-sbox-lut",
+            "key_relation_handling": "equivalent-dependency-constraints",
+            "mixed_top_groups": int(mixed_top_groups),
+            "mixed_min_fact_support": int(mixed_min_fact_support),
             "cupy_available": bool(CUPY_AVAILABLE),
             "cpu_threads": int(max_cpu_workers),
             "snr_file": str(snr_file),
@@ -1430,14 +1673,211 @@ def main() -> None:
             "full_key_match": bool((k0_rec_int == k0_int) and (k1_rec_int == k1_int))
             if (np.all(k0_rec) and np.all(k1_rec)) else None,
             "registers_in_snr_file": regs_present,
+            "equation_constraints": [
+                {
+                    "target": f"{constraint['target'][0]}[{constraint['target'][1]}]",
+                    "dependencies": list(constraint.get("dependencies", ())),
+                    "key_indices": [
+                        int(index) for index in constraint["key_indices"]
+                    ],
+                    "remaining_hypotheses": [
+                        int(hypothesis) for hypothesis in constraint["hypotheses"]
+                    ],
+                    "conflict": bool(constraint.get("conflict", False)),
+                    "overlap_conflict": bool(
+                        constraint.get("overlap_conflict", False)
+                    ),
+                }
+                for constraint in equation_constraints
+            ],
             "attack_log": attack_log,
         }
 
-        with open(cpa_cache_file, "w") as f:
+        temporary_file = cpa_cache_file.with_suffix(cpa_cache_file.suffix + ".tmp")
+        with open(temporary_file, "w") as f:
             json.dump(result, f, indent=2)
+            f.write("\n")
+        temporary_file.replace(cpa_cache_file)
 
         print(f"[INFO] Saved attack result summary to: {cpa_cache_file}")
 
 
+def _write_json_atomic(path: Path, value) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(value, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def _write_all_config_manifests(output_dir: Path, records) -> None:
+    _write_json_atomic(output_dir / "manifest.json", records)
+    columns = (
+        "sbox_type",
+        "polarity",
+        "status",
+        "exit_code",
+        "started_at",
+        "finished_at",
+        "elapsed_seconds",
+        "log_file",
+        "result_file",
+    )
+    temporary = output_dir / "manifest.csv.tmp"
+    with temporary.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        for record in records:
+            writer.writerow({column: record.get(column) for column in columns})
+    temporary.replace(output_dir / "manifest.csv")
+
+
+def run_all_sboxes_and_polarities() -> int:
+    """
+    Run exactly 7 S-boxes x 3 leakage-polarity configurations.
+
+    Child processes set ASCON_SINGLE_RUN=1 and execute main() above. Keeping
+    each configuration in a child process isolates GPU/CPU resources and makes
+    every log/result independently resumable and inspectable.
+    """
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    output_env = os.environ.get("ASCON_ALL_RUNS_OUTPUT_DIR")
+    output_dir = (
+        Path(output_env).expanduser()
+        if output_env
+        else BASE_CACHE_DIR / "cpa_generic_dependency_all_configs" / timestamp
+    )
+    if not output_dir.is_absolute():
+        output_dir = (DOJO_ROOT / output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    dry_run = os.environ.get("ASCON_ALL_RUNS_DRY_RUN", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    records = []
+    script_path = Path(__file__).resolve()
+    batch_log_path = output_dir / "all_configs.log"
+
+    config = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "script": str(script_path),
+        "key_relation_handling": "equivalent-dependency-constraints",
+        "sboxes": list(ALL_SBOXES),
+        "polarities": list(ALL_POLARITIES),
+        "total_analyses": len(ALL_SBOXES) * len(ALL_POLARITIES),
+        "n_traces": int(n_trc),
+        "traceset_size_k": int(traceset_size_k),
+        "cpa_sample_window": int(cpa_sample_window),
+        "mixed_top_groups": int(mixed_top_groups),
+        "mixed_min_fact_support": int(mixed_min_fact_support),
+        "dry_run": dry_run,
+    }
+    _write_json_atomic(output_dir / "all_configs.json", config)
+
+    with batch_log_path.open("a", encoding="utf-8") as batch_log:
+        for analysis_index, (selected_sbox, selected_polarity) in enumerate(
+            (
+                (candidate_sbox, candidate_polarity)
+                for candidate_sbox in ALL_SBOXES
+                for candidate_polarity in ALL_POLARITIES
+            ),
+            start=1,
+        ):
+            run_dir = output_dir / selected_sbox / selected_polarity
+            run_dir.mkdir(parents=True, exist_ok=True)
+            log_file = run_dir / "run.log"
+            result_file = run_dir / "result.json"
+            started_at = datetime.now(timezone.utc).isoformat()
+            start = time.monotonic()
+
+            message = (
+                f"[{analysis_index}/21] Starting {selected_sbox} "
+                f"with polarity={selected_polarity}"
+            )
+            print(message, flush=True)
+            batch_log.write(message + "\n")
+            batch_log.flush()
+
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "ASCON_SINGLE_RUN": "1",
+                    "ASCON_SBOX_TYPE": selected_sbox,
+                    "ASCON_LEAKAGE_POLARITY": selected_polarity,
+                    "ASCON_RUN_RESULT_FILE": str(result_file),
+                    "ASCON_PROGRESS_BARS": "0",
+                    "PYTHONUNBUFFERED": "1",
+                }
+            )
+
+            if dry_run:
+                exit_code = None
+                status = "dry_run"
+                log_file.write_text(
+                    "\n".join(
+                        [
+                            "DRY RUN",
+                            f"ASCON_SBOX_TYPE={selected_sbox}",
+                            f"ASCON_LEAKAGE_POLARITY={selected_polarity}",
+                            f"ASCON_RUN_RESULT_FILE={result_file}",
+                        ]
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+            else:
+                with log_file.open("w", encoding="utf-8") as run_log:
+                    completed = subprocess.run(
+                        [sys.executable, str(script_path)],
+                        cwd=DOJO_ROOT,
+                        env=environment,
+                        stdout=run_log,
+                        stderr=subprocess.STDOUT,
+                        check=False,
+                    )
+                exit_code = int(completed.returncode)
+                if exit_code != 0:
+                    status = "failed"
+                elif result_file.exists():
+                    status = "success"
+                else:
+                    status = "failed_missing_result"
+
+            elapsed_seconds = time.monotonic() - start
+            record = {
+                "sbox_type": selected_sbox,
+                "polarity": selected_polarity,
+                "status": status,
+                "exit_code": exit_code,
+                "started_at": started_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "elapsed_seconds": elapsed_seconds,
+                "log_file": str(log_file),
+                "result_file": str(result_file),
+            }
+            records.append(record)
+            _write_all_config_manifests(output_dir, records)
+
+            message = (
+                f"[{analysis_index}/21] Finished {selected_sbox} "
+                f"with polarity={selected_polarity}: {status}, "
+                f"{elapsed_seconds:.1f}s"
+            )
+            print(message, flush=True)
+            batch_log.write(message + "\n")
+            batch_log.flush()
+
+    print(f"[INFO] All-configuration logs and results: {output_dir}")
+    return 1 if any(record["status"].startswith("failed") for record in records) else 0
+
+
 if __name__ == "__main__":
-    main()
+    if os.environ.get("ASCON_SINGLE_RUN") == "1":
+        main()
+    else:
+        raise SystemExit(run_all_sboxes_and_polarities())
