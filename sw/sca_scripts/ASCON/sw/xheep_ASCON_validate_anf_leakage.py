@@ -5,7 +5,7 @@ Validate ANF equations against the ASCON S-box LUTs and leakage model.
 This script checks two things:
   1. The ANF equations in doc/anf_ascon_sboxes.txt reproduce each 5-bit LUT.
   2. The ANF-derived S-box evaluation gives the same leakage matrix as the
-     current generic LUT-based leakage model.
+     generic LUT and per-S-box equivalent-equation leakage models.
 """
 
 import argparse
@@ -34,6 +34,7 @@ sys.path.insert(0, str(SCA_DIR))
 
 from analyzer.attack.ascon import ascon_funcs as ascon  # noqa: E402
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_generic_leakage_model import (  # noqa: E402
+    ascon_equivalent_leakage_matrix,
     ascon_generic_leakage_matrix,
 )
 
@@ -211,15 +212,27 @@ def validate_leakage_models(anf_luts, init_vect: int, num_nonces: int, seed: int
                     bit,
                     anf_lut,
                 )
-                if not np.array_equal(h_lut, h_anf):
-                    mismatch = np.argwhere(h_lut != h_anf)[0]
+                h_equivalent = ascon_equivalent_leakage_matrix(
+                    init_vect,
+                    nonce_msb,
+                    nonce_lsb,
+                    reg,
+                    bit,
+                    sbox_type,
+                    backend="cpu",
+                )
+                if not np.array_equal(h_lut, h_anf) or not np.array_equal(h_lut, h_equivalent):
+                    mismatch_mask = (h_lut != h_anf) | (h_lut != h_equivalent)
+                    mismatch = np.argwhere(mismatch_mask)[0]
                     raise SystemExit(
                         "[FAIL] Leakage mismatch: "
                         f"sbox={sbox_type}, target={reg}[{bit}], "
                         f"nonce_row={int(mismatch[0])}, hypothesis={int(mismatch[1])}"
                     )
 
-        print(f"[PASS] {sbox_type}: ANF-derived leakage equals generic LUT leakage.")
+        print(
+            f"[PASS] {sbox_type}: full ANF, equivalent equation, and LUT leakage agree."
+        )
 
 
 def main():
