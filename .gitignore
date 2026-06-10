@@ -106,3 +106,4 @@ cache/
 # Local configs
 .codex
 .env
+sw/sca_scripts/ASCON/sw/doc
