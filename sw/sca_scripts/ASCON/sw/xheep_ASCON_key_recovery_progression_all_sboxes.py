@@ -84,6 +84,15 @@ DEFAULT_OUTPUT_DIR = BASE_CACHE_DIR / "key_recovery_progression_all_sboxes"
 DEFAULT_PLOT_DIR = SCA_DIR / "ASCON" / "sw" / "plot" / "key_recovery_progression_all_sboxes"
 DEFAULT_SNR_SCRIPT = SCRIPT_DIR / "xheep_ASCON_snr.py"
 
+
+def _repo_relative_path(value, default: Path) -> Path:
+    if value in (None, ""):
+        return Path(default)
+    path = Path(value)
+    if not path.is_absolute():
+        path = (DOJO_ROOT / path).resolve()
+    return path
+
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SCA_DIR))
 
@@ -254,6 +263,11 @@ def _build_arg_parser():
         default=os.environ.get("ASCON_PROGRESS_PLOT_DIR"),
         help="Output directory for plots.",
     )
+    parser.add_argument(
+        "--cache-dir",
+        default=os.environ.get("ASCON_CACHE_DIR"),
+        help="Base directory for per-S-box SNR caches and progression exports.",
+    )
     parser.add_argument("--save-plots", dest="save_plots", action="store_true")
     parser.add_argument("--no-save-plots", dest="save_plots", action="store_false")
     parser.add_argument("--save-target-log", dest="save_target_log", action="store_true")
@@ -389,6 +403,7 @@ def _generate_snr_cache(
     sbox_type: str,
     trace_count: int,
     traceset_size_k: int,
+    base_cache_dir: Path,
     snr_script: Path,
     snr_chunk_size: int,
     snr_device: str,
@@ -409,6 +424,8 @@ def _generate_snr_cache(
         str(int(trace_count)),
         "--traceset-size-k",
         str(int(traceset_size_k)),
+        "--cache-dir",
+        str(base_cache_dir),
         "--chunk-size",
         str(int(snr_chunk_size)),
         "--device",
@@ -431,6 +448,7 @@ def _load_snr_targets_for_mode(
     sample_window: int,
     max_targets,
     traceset_size_k: int,
+    base_cache_dir: Path,
     auto_snr: bool,
     snr_script: Path,
     snr_chunk_size: int,
@@ -450,6 +468,7 @@ def _load_snr_targets_for_mode(
                 sbox_type=sbox_type,
                 trace_count=snr_count,
                 traceset_size_k=traceset_size_k,
+                base_cache_dir=base_cache_dir,
                 snr_script=snr_script,
                 snr_chunk_size=snr_chunk_size,
                 snr_device=snr_device,
@@ -938,6 +957,7 @@ def _run_trace_counts_with_prefix_snr(
     polarity: str,
     max_targets,
     traceset_size_k: int,
+    base_cache_dir: Path,
     auto_snr: bool,
     snr_script: Path,
     snr_chunk_size: int,
@@ -960,6 +980,7 @@ def _run_trace_counts_with_prefix_snr(
             sample_window=sample_window,
             max_targets=max_targets,
             traceset_size_k=traceset_size_k,
+            base_cache_dir=base_cache_dir,
             auto_snr=auto_snr,
             snr_script=snr_script,
             snr_chunk_size=snr_chunk_size,
@@ -1280,6 +1301,7 @@ def _run_one_sbox(
     polarity: str,
     cpa_backend: str,
     max_targets,
+    base_cache_dir: Path,
     output_dir: Path,
     plot_dir: Path,
     save_plots: bool,
@@ -1295,7 +1317,7 @@ def _run_one_sbox(
         max_traces_requested,
         strict_traceset_size=strict_traceset_size,
     )
-    cache_dir = BASE_CACHE_DIR / sbox_type
+    cache_dir = base_cache_dir / sbox_type
 
     if not trace_file.exists():
         print(f"[WARN] Missing trace file for {sbox_type}: {trace_file}")
@@ -1345,6 +1367,7 @@ def _run_one_sbox(
             sample_window=sample_window,
             max_targets=max_targets,
             traceset_size_k=traceset_size_k,
+            base_cache_dir=base_cache_dir,
             auto_snr=auto_snr,
             snr_script=snr_script,
             snr_chunk_size=snr_chunk_size,
@@ -1435,6 +1458,7 @@ def _run_one_sbox(
             polarity=polarity,
             max_targets=max_targets,
             traceset_size_k=traceset_size_k,
+            base_cache_dir=base_cache_dir,
             auto_snr=auto_snr,
             snr_script=snr_script,
             snr_chunk_size=snr_chunk_size,
@@ -1559,10 +1583,12 @@ def main():
     max_targets = args.max_targets
     output_dir_env = args.output_dir
     plot_dir_env = args.plot_dir
+    cache_dir_env = args.cache_dir
+    base_cache_dir = _repo_relative_path(cache_dir_env, BASE_CACHE_DIR)
     output_dir = (
         Path(output_dir_env)
         if output_dir_env not in (None, "")
-        else DEFAULT_OUTPUT_DIR / snr_selection_mode
+        else base_cache_dir / "key_recovery_progression_all_sboxes" / snr_selection_mode
     )
     plot_dir = (
         Path(plot_dir_env)
@@ -1606,6 +1632,7 @@ def main():
     print(f"Auto-generate SNR      : {'yes' if auto_snr else 'no'}")
     print(f"SNR generator chunk    : {snr_chunk_size}")
     print(f"SNR generator device   : {snr_device}")
+    print(f"Base cache dir         : {base_cache_dir}")
     print(f"Output dir             : {output_dir}")
     print(f"Plot dir               : {plot_dir}")
     print(f"Save plots             : {'yes' if save_plots else 'no'}")
@@ -1629,6 +1656,7 @@ def main():
             polarity=polarity,
             cpa_backend=cpa_backend,
             max_targets=max_targets,
+            base_cache_dir=base_cache_dir,
             output_dir=output_dir,
             plot_dir=plot_dir,
             save_plots=save_plots,
