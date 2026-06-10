@@ -141,6 +141,11 @@ def _parse_args():
         default=max_cpu_workers,
         help="NumPy/BLAS thread limit. Parsed early before NumPy import.",
     )
+    parser.add_argument(
+        "--cache-dir",
+        default=os.environ.get("ASCON_CACHE_DIR"),
+        help="Base directory for per-S-box SNR cache files.",
+    )
     parser.set_defaults(
         save_ranked=_env_flag("ASCON_SAVE_SNR_RANKED", True),
         save_traces=_env_flag("ASCON_SAVE_SNR_TRACES", True),
@@ -197,6 +202,13 @@ compute_device = ARGS.device   # "cpu" recommended
 # float32 is lighter but slightly less numerically stable.
 chunk_work_dtype = np.float64 if ARGS.chunk_dtype == "float64" else np.float32
 
+
+def _format_trace_count_tag(trace_count: int) -> str:
+    trace_count = int(trace_count)
+    if trace_count % 1000 == 0:
+        return f"{trace_count // 1000}k"
+    return str(trace_count)
+
 # ---------------------------------------------------------------------------
 # Helper: find repo root
 # ---------------------------------------------------------------------------
@@ -219,20 +231,33 @@ except NameError:
 
 DOJO_ROOT = find_project_root(SCRIPT_DIR)
 
+
+def _repo_relative_path(value, default: Path) -> Path:
+    if value in (None, ""):
+        return Path(default)
+    path = Path(value)
+    if not path.is_absolute():
+        path = (DOJO_ROOT / path).resolve()
+    return path
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 ASCON_PY_DIR = DOJO_ROOT / "sw" / "ciphers" / "ASCON_init_python"
 SCA_DIR      = DOJO_ROOT / "sw" / "sca_scripts"
 
-BASE_CACHE_DIR = DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "cache"
+BASE_CACHE_DIR = _repo_relative_path(
+    ARGS.cache_dir,
+    DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "cache",
+)
 TRACESET_DIR   = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "sw"
 
 TRACESET_FILE = TRACESET_DIR / f"ascon_opt32_{sbox_type}_{traceset_size_k}k.h5"
 
 CACHE_DIR = BASE_CACHE_DIR / sbox_type
-SNR_OUT_FILE = CACHE_DIR / f"snr_ranked_{sbox_type}_{n_trc // 1000}k.h5"
-SNR_TRACE_OUT_FILE = CACHE_DIR / f"snr_traces_{sbox_type}_{n_trc // 1000}k.h5"
+snr_trace_count_tag = _format_trace_count_tag(n_trc)
+SNR_OUT_FILE = CACHE_DIR / f"snr_ranked_{sbox_type}_{snr_trace_count_tag}.h5"
+SNR_TRACE_OUT_FILE = CACHE_DIR / f"snr_traces_{sbox_type}_{snr_trace_count_tag}.h5"
 
 BASE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 TRACESET_DIR.mkdir(parents=True, exist_ok=True)
