@@ -3,7 +3,7 @@
 Validate ANF equations against the ASCON S-box LUTs and leakage model.
 
 This script checks two things:
-  1. The ANF equations in doc/anf_ascon_sboxes.txt reproduce each 5-bit LUT.
+  1. The ANF equations in ../data/anf_ascon_sboxes.txt reproduce each 5-bit LUT.
   2. The ANF-derived S-box evaluation gives the same leakage matrix as the
      generic LUT and per-S-box equivalent-equation leakage models.
 """
@@ -28,7 +28,7 @@ def find_project_root(start: Path, markers=("fusesoc.conf", ".dojo_root")) -> Pa
 SCRIPT_DIR = Path(__file__).resolve().parent
 DOJO_ROOT = find_project_root(SCRIPT_DIR)
 SCA_DIR = DOJO_ROOT / "sw" / "sca_scripts"
-DEFAULT_ANF_FILE = SCRIPT_DIR / "doc" / "anf_ascon_sboxes.txt"
+DEFAULT_ANF_FILE = SCRIPT_DIR.parent / "data" / "anf_ascon_sboxes.txt"
 
 sys.path.insert(0, str(SCA_DIR))
 
@@ -40,13 +40,13 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_generic_leakage_model import ( 
 
 
 SBOX_NAME_MAP = {
-    "sbox_ascon": "lut_ascon",
-    "sbox_bilgin": "lut_bilgin",
-    "sbox_allouzi": "lut_allouzi",
-    "sbox_lu_4": "lut_lu_4",
-    "sbox_lu_5": "lut_lu_5",
-    "sbox_lu_6": "lut_lu_6",
-    "sbox_lu_7": "lut_lu_7",
+    "sbox_ascon": ("lut_ascon", "hw"),
+    "sbox_bilgin": ("lut_bilgin",),
+    "sbox_allouzi": ("lut_allouzi",),
+    "sbox_lu_4": ("lut_lu_4",),
+    "sbox_lu_5": ("lut_lu_5",),
+    "sbox_lu_6": ("lut_lu_6",),
+    "sbox_lu_7": ("lut_lu_7",),
 }
 
 TARGETS = {
@@ -88,8 +88,8 @@ def parse_anf_file(path: Path):
     for block in blocks:
         header = block.split("===", 1)[0].strip()
         source_name = header.split(" S-box", 1)[0].strip()
-        sbox_type = SBOX_NAME_MAP.get(source_name)
-        if sbox_type is None:
+        sbox_types = SBOX_NAME_MAP.get(source_name)
+        if sbox_types is None:
             raise ValueError(f"Unknown S-box name in ANF file: {source_name}")
 
         equations = {}
@@ -100,9 +100,11 @@ def parse_anf_file(path: Path):
                 equations[out_idx] = parse_expression(match.group(2))
 
         if sorted(equations) != [0, 1, 2, 3, 4]:
-            raise ValueError(f"Incomplete ANF equations for {sbox_type}: {sorted(equations)}")
+            raise ValueError(f"Incomplete ANF equations for {source_name}: {sorted(equations)}")
 
-        parsed[sbox_type] = [equations[i] for i in range(5)]
+        parsed_equations = [equations[i] for i in range(5)]
+        for sbox_type in sbox_types:
+            parsed[sbox_type] = parsed_equations
 
     return parsed
 
