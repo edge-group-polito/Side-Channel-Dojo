@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # =====================================================================
-# ASCON SNR ranking (all bits, SW traces) -- streaming/chunked version
+# ASCON SNR ranking (all bits, standalone ASCON_init HW traces)
+# -- streaming/chunked version
 #
 # This script computes the Signal-to-Noise Ratio (SNR) for all 64 bits of
 # all five ASCON state words S0..S4, mapped here as x0..x4, at the end
 # of the first permutation round.
 #
-# It is designed for large HDF5 trace files, e.g., tens of GB.
+# It is designed for large HDF5 trace files, e.g., tens of GB. By default it
+# analyzes only the useful prefix of each trace (1.5 us).
 #
 # Important:
 #   - It does NOT load all traces into RAM.
@@ -36,13 +38,15 @@ import os
 # ---------------------------------------------------------------------------
 _pre_parser = argparse.ArgumentParser(add_help=False)
 _pre_parser.add_argument("--max-cpu-workers", type=int, default=None)
+_pre_parser.add_argument(
+    "--progress-bars",
+    action=argparse.BooleanOptionalAction,
+    default=None,
+)
 _pre_args, _ = _pre_parser.parse_known_args()
 
-_max_cpu_workers_env = os.environ.get("ASCON_MAX_CPU_WORKERS")
 if _pre_args.max_cpu_workers is not None:
     max_cpu_workers = int(_pre_args.max_cpu_workers)
-elif _max_cpu_workers_env not in (None, ""):
-    max_cpu_workers = int(_max_cpu_workers_env)
 else:
     max_cpu_workers = os.cpu_count() or 1
 
@@ -62,14 +66,13 @@ import h5py
 from tqdm import tqdm
 
 
-def _progress_bars_enabled() -> bool:
-    value = os.environ.get("ASCON_PROGRESS_BARS")
-    if value in (None, ""):
+def _progress_bars_enabled(value) -> bool:
+    if value is None:
         return sys.stderr.isatty()
-    return value.strip().lower() not in {"0", "false", "no", "off"}
+    return bool(value)
 
 
-TQDM_DISABLE = not _progress_bars_enabled()
+TQDM_DISABLE = not _progress_bars_enabled(_pre_args.progress_bars)
 
 
 try:
@@ -81,16 +84,6 @@ except Exception as e:
     CUPY_AVAILABLE = False
     CUPY_ERROR = str(e)
 
-# ---------------------------------------------------------------------------
-# Script configuration
-# ---------------------------------------------------------------------------
-def _env_flag(name: str, default: bool) -> bool:
-    value = os.environ.get(name)
-    if value in (None, ""):
-        return default
-    return value.strip().lower() not in {"0", "false", "no", "off"}
-
-
 def _parse_args():
     parser = argparse.ArgumentParser(
         description="Compute ASCON bit-level SNR caches for x0..x4.",
@@ -98,51 +91,45 @@ def _parse_args():
     )
     parser.add_argument(
         "--sbox",
-        default=os.environ.get("ASCON_SBOX_TYPE", "lut_ascon"),
+        default="hw",
         help="S-box implementation name. Defaults to both trace and leakage-model S-box.",
     )
     parser.add_argument(
         "--trace-sbox",
-        default=os.environ.get("ASCON_TRACE_SBOX_TYPE"),
         help="S-box implementation used by the trace file. Defaults to --sbox.",
     )
     parser.add_argument(
         "--leakage-model-sbox",
-        default=os.environ.get("ASCON_LEAKAGE_MODEL_SBOX"),
         help="S-box implementation used to build SNR labels. Defaults to --sbox.",
     )
     parser.add_argument(
         "--n-traces",
         type=int,
-        default=int(os.environ.get("ASCON_N_TRC", "1000000")),
+        default=1000000,
         help="Number of prefix traces used for SNR.",
     )
     parser.add_argument(
         "--traceset-size-k",
         type=int,
-        default=(
-            int(os.environ["ASCON_TRACESET_SIZE_K"])
-            if os.environ.get("ASCON_TRACESET_SIZE_K") not in (None, "")
-            else None
-        ),
+        default=None,
         help="Trace-file size tag in thousands, e.g. 1000 for *_1000k.h5.",
     )
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=int(os.environ.get("ASCON_CHUNK_SIZE", "10000")),
+        default=10000,
         help="Streaming chunk size.",
     )
     parser.add_argument(
         "--device",
         choices=["cpu", "gpu", "auto"],
-        default=os.environ.get("ASCON_SNR_DEVICE", "cpu"),
+        default="cpu",
         help="Requested compute device. CPU is recommended for this streaming SNR.",
     )
     parser.add_argument(
         "--chunk-dtype",
         choices=["float32", "float64"],
-        default=os.environ.get("ASCON_SNR_CHUNK_DTYPE", "float64"),
+        default="float64",
         help="Working dtype inside each SNR chunk.",
     )
     parser.add_argument(
@@ -152,14 +139,26 @@ def _parse_args():
         help="NumPy/BLAS thread limit. Parsed early before NumPy import.",
     )
     parser.add_argument(
+        "--progress-bars",
+        action=argparse.BooleanOptionalAction,
+        default=_pre_args.progress_bars,
+        help="Show tqdm progress bars.",
+    )
+    parser.add_argument(
         "--cache-dir",
-        default=os.environ.get("ASCON_CACHE_DIR"),
+        default=None,
         help="Base directory for per-S-box SNR cache files.",
     )
+    parser.add_argument(
+        "--analysis-max-time-us",
+        type=float,
+        default=1.5,
+        help="Only analyze samples up to this time. Use 0 for the full trace.",
+    )
     parser.set_defaults(
-        save_ranked=_env_flag("ASCON_SAVE_SNR_RANKED", True),
-        save_traces=_env_flag("ASCON_SAVE_SNR_TRACES", True),
-        debug=_env_flag("ASCON_SNR_DEBUG", False),
+        save_ranked=True,
+        save_traces=True,
+        debug=False,
     )
     parser.add_argument("--save-ranked", dest="save_ranked", action="store_true")
     parser.add_argument("--no-save-ranked", dest="save_ranked", action="store_false")
@@ -173,7 +172,7 @@ def _parse_args():
 ARGS = _parse_args()
 
 # Supported S-box types:
-#   lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
+#   hw, lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
 sbox_type = ARGS.sbox
 trace_sbox_type = ARGS.trace_sbox or sbox_type
 leakage_model_sbox = ARGS.leakage_model_sbox or sbox_type
@@ -190,9 +189,9 @@ n_trc = int(ARGS.n_traces)
 # Example:
 #   traceset_size_k = 150
 # gives:
-#   ascon_opt32_lut_lu_4_150k.h5
+#   ascon_init_lut_lu_4_150k.h5
 #
-# If your real file is ascon_opt32_lut_lu_4_1000k.h5, but you only want to
+# If your real file is ascon_init_lut_lu_4_1000k.h5, but you only want to
 # compute SNR from a prefix such as 1k traces, use --traceset-size-k 1000.
 traceset_size_k = int(ARGS.traceset_size_k or (n_trc // 1000))
 
@@ -218,6 +217,10 @@ compute_device = ARGS.device   # "cpu" recommended
 # float64 is safer for SNR accumulation but uses more RAM per chunk.
 # float32 is lighter but slightly less numerically stable.
 chunk_work_dtype = np.float64 if ARGS.chunk_dtype == "float64" else np.float32
+
+analysis_max_time_us = float(ARGS.analysis_max_time_us)
+if analysis_max_time_us < 0:
+    raise SystemExit("[ERROR] --analysis-max-time-us must be >= 0")
 
 
 def _format_trace_count_tag(trace_count: int) -> str:
@@ -265,11 +268,11 @@ SCA_DIR      = DOJO_ROOT / "sw" / "sca_scripts"
 
 BASE_CACHE_DIR = _repo_relative_path(
     ARGS.cache_dir,
-    DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "cache",
+    DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "hw" / "cache" / "ascon_init",
 )
-TRACESET_DIR   = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "sw"
+TRACESET_DIR   = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "hw" / "ascon_init"
 
-TRACESET_FILE = TRACESET_DIR / f"ascon_opt32_{trace_sbox_type}_{traceset_size_k}k.h5"
+TRACESET_FILE = TRACESET_DIR / f"ascon_init_{trace_sbox_type}_{traceset_size_k}k.h5"
 
 CACHE_DIR = BASE_CACHE_DIR / analysis_name
 snr_trace_count_tag = _format_trace_count_tag(n_trc)
@@ -284,7 +287,20 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(ASCON_PY_DIR))
 sys.path.insert(0, str(SCA_DIR))
 
-from analyzer.attack.ascon.xheep_ascon_cpa.ascon_first_round import ascon_first_round
+from operations_init import bytes_to_state, permutation
+
+
+def compute_analysis_sample_stop(n_samples: int, sampling_interval, max_time_us: float) -> int:
+    if max_time_us <= 0:
+        return int(n_samples)
+    if sampling_interval is None:
+        print(
+            "[WARN] --analysis-max-time-us is set, but the traceset has no "
+            "sampling_interval attribute. Falling back to full trace width."
+        )
+        return int(n_samples)
+    stop = int(np.floor(float(max_time_us) * 1e-6 / float(sampling_interval))) + 1
+    return max(1, min(int(n_samples), stop))
 
 # ---------------------------------------------------------------------------
 # Read only metadata first
@@ -298,11 +314,14 @@ try:
         nonces_ds = f_read["nonces"]
 
         total_traces = int(traces_ds.shape[0])
-        n_samples = int(traces_ds.shape[1])
+        total_samples = int(traces_ds.shape[1])
 
         sampling_interval = f_read.attrs.get("sampling_interval", None)
         key_hex = f_read.attrs.get("key_hex", None)
+        key_input_hex = f_read.attrs.get("key_input_hex", None)
         iv_hex = f_read.attrs.get("iv_hex", None)
+        bitstream = f_read.attrs.get("bitstream", None)
+        traceset_sbox = f_read.attrs.get("sbox", None)
 
         n_used = min(n_trc, total_traces)
 
@@ -316,23 +335,43 @@ except Exception as e:
 
 n_trc_requested = n_trc
 n_trc = n_used
+n_samples = compute_analysis_sample_stop(
+    total_samples,
+    sampling_interval,
+    analysis_max_time_us,
+)
 
 if key_hex is None:
     raise SystemExit("[ERROR] HDF5 attribute 'key_hex' not found. Cannot compute ASCON state labels.")
 
-# ---------------------------------------------------------------------------
-# Key setup: endianness match with C
-# ---------------------------------------------------------------------------
-key_bytes = [key_hex[i:i + 2] for i in range(0, len(key_hex), 2)]
-key_reversed = "".join(key_bytes[::-1])
-key_int = int(key_reversed, 16)
+if iv_hex is None:
+    raise SystemExit("[ERROR] HDF5 attribute 'iv_hex' not found. Cannot compute ASCON state labels.")
+
+if key_input_hex is None:
+    key_analysis = bytes.fromhex(str(key_hex))
+    key_input_bytes = key_analysis[:8][::-1] + key_analysis[8:16][::-1]
+    key_input_hex = key_input_bytes.hex()
+else:
+    key_input_bytes = bytes.fromhex(str(key_input_hex))
+
+iv_bytes = bytes.fromhex(str(iv_hex))
+if len(iv_bytes) != 8:
+    raise SystemExit(f"[ERROR] Expected 8-byte IV, got {len(iv_bytes)} bytes.")
+if len(key_input_bytes) != 16:
+    raise SystemExit(f"[ERROR] Expected 16-byte key, got {len(key_input_bytes)} bytes.")
+
+if traceset_sbox is not None and str(traceset_sbox) != str(trace_sbox_type):
+    print(
+        f"[WARN] Requested trace S-box {trace_sbox_type!r}, but traceset metadata says "
+        f"{traceset_sbox!r}."
+    )
 
 # ---------------------------------------------------------------------------
 # Print configuration
 # ---------------------------------------------------------------------------
 print("\n================= CONFIGURATION =================")
 print("Script scope")
-print("  ASCON bit-level SNR computation for all x0..x4 bits")
+print("  ASCON_init HW bit-level SNR computation for all x0..x4 bits")
 print("  Streaming/chunked mode: full trace matrix is NOT loaded into RAM")
 print()
 print(f"DOJO_ROOT                 : {DOJO_ROOT}")
@@ -346,6 +385,8 @@ print(f"  Scope                   : all bits of x0, x1, x2, x3, x4")
 print()
 print("Paths")
 print(f"  Traceset file           : {TRACESET_FILE}")
+if bitstream is not None:
+    print(f"  Bitstream               : {bitstream}")
 print(f"  SNR ranked write to     : {SNR_OUT_FILE}")
 print(f"  SNR traces write to     : {SNR_TRACE_OUT_FILE}")
 print()
@@ -353,9 +394,15 @@ print("Trace information")
 print(f"  Traces in file          : {total_traces}")
 print(f"  Requested traces        : {n_trc_requested}")
 print(f"  Analyzed traces         : {n_trc} (prefix rows 0:{n_trc})")
-print(f"  Samples per trace       : {n_samples}")
+print(f"  Samples per trace       : {total_samples}")
+print(f"  Samples analyzed        : {n_samples}")
+analysis_limit_label = (
+    f"{analysis_max_time_us:g} us" if analysis_max_time_us > 0 else "full trace"
+)
+print(f"  Analysis time limit     : {analysis_limit_label}")
 print(f"  Sampling interval       : {sampling_interval}")
-print(f"  Key                     : 0x{key_hex}")
+print(f"  Key input               : 0x{key_input_hex}")
+print(f"  Key analysis            : 0x{key_hex}")
 if iv_hex is not None:
     print(f"  IV                      : 0x{iv_hex}")
 else:
@@ -380,7 +427,10 @@ n_bits = 64
 n_targets = n_regs * n_bits
 
 
-def compute_state_chunk(nonces_chunk: np.ndarray) -> np.ndarray:
+def compute_state_chunk(
+    nonces_chunk: np.ndarray,
+    nonce_bytes_chunk: np.ndarray | None = None,
+) -> np.ndarray:
     """
     Compute ASCON first-round states for one chunk of nonces.
 
@@ -388,22 +438,30 @@ def compute_state_chunk(nonces_chunk: np.ndarray) -> np.ndarray:
     ----------
     nonces_chunk : array-like, shape (chunk_len, 2)
         Captured nonce layout:
-            nonces[:, 0] = S4 / nonce LSB half used by CPA
-            nonces[:, 1] = S3 / nonce MSB half used by CPA
+            nonces[:, 0] = x4 / nonce LSB half used by CPA
+            nonces[:, 1] = x3 / nonce MSB half used by CPA
+
+    nonce_bytes_chunk : array-like, optional shape (chunk_len, 16)
+        Exact nonce bytes written to the hardware. Preferred when available.
 
     Returns
     -------
     states : np.ndarray, shape (chunk_len, 5), dtype uint64
-        First-round ASCON state words x0..x4.
+        ASCON state words x0..x4 after the first permutation round.
     """
     chunk_len = nonces_chunk.shape[0]
     states = np.empty((chunk_len, 5), dtype=np.uint64)
 
     for i in range(chunk_len):
-        # ascon_first_round() loads S[3] from nonce low 64 bits and S[4]
-        # from nonce high 64 bits, so reconstruct the integer as S4:S3.
-        nonce = (int(nonces_chunk[i][0]) << 64) | int(nonces_chunk[i][1])
-        S = ascon_first_round(key_int, nonce, leakage_model_sbox)
+        if nonce_bytes_chunk is not None:
+            nonce_bytes = bytes(np.asarray(nonce_bytes_chunk[i], dtype=np.uint8))
+        else:
+            x4 = int(nonces_chunk[i][0])
+            x3 = int(nonces_chunk[i][1])
+            nonce_bytes = x3.to_bytes(8, byteorder="big") + x4.to_bytes(8, byteorder="big")
+
+        S = bytes_to_state(iv_bytes + key_input_bytes + nonce_bytes)
+        permutation(S, 0, leakage_model_sbox)
 
         states[i, 0] = np.uint64(S[0])
         states[i, 1] = np.uint64(S[1])
@@ -472,6 +530,7 @@ print("[INFO] No full trace matrix will be loaded into RAM")
 with h5py.File(TRACESET_FILE, "r") as f_read:
     traces_ds = f_read["traces"]
     nonces_ds = f_read["nonces"]
+    nonce_bytes_ds = f_read["nonces_bytes"] if "nonces_bytes" in f_read else None
 
     for start in tqdm(
         range(0, n_trc, chunk_size),
@@ -481,8 +540,11 @@ with h5py.File(TRACESET_FILE, "r") as f_read:
         end = min(start + chunk_size, n_trc)
 
         # Read only one chunk from disk.
-        traces_chunk = traces_ds[start:end]
+        traces_chunk = traces_ds[start:end, :n_samples]
         nonces_chunk = nonces_ds[start:end]
+        nonce_bytes_chunk = (
+            nonce_bytes_ds[start:end] if nonce_bytes_ds is not None else None
+        )
 
         # Convert only this chunk for computation.
         x = traces_chunk.astype(chunk_work_dtype, copy=False)
@@ -495,7 +557,7 @@ with h5py.File(TRACESET_FILE, "r") as f_read:
         total_sumsq += np.sum(x2, axis=0, dtype=np.float64)
 
         # Compute ASCON states and labels for this chunk only.
-        states_chunk = compute_state_chunk(nonces_chunk)
+        states_chunk = compute_state_chunk(nonces_chunk, nonce_bytes_chunk)
         labels = build_labels_flat(states_chunk, dtype=chunk_work_dtype)
 
         # Count class-1 occurrences for each target bit.
@@ -510,7 +572,7 @@ with h5py.File(TRACESET_FILE, "r") as f_read:
         sumsq1 += labels.T @ x2
 
         # Drop references to large per-chunk arrays.
-        del traces_chunk, nonces_chunk, x, x2, states_chunk, labels
+        del traces_chunk, nonces_chunk, nonce_bytes_chunk, x, x2, states_chunk, labels
 
 print("[INFO] Finished streaming accumulation")
 
@@ -603,18 +665,25 @@ if save_snr_ranked_all_bits:
         f.attrs["trace_sbox_type"] = trace_sbox_type
         f.attrs["leakage_model_sbox"] = leakage_model_sbox
         f.attrs["n_traces"] = n_trc
+        f.attrs["n_samples_total"] = total_samples
         f.attrs["n_samples"] = n_samples
+        f.attrs["analysis_max_time_us"] = analysis_max_time_us
         f.attrs["snr_model"] = "binary bit-level SNR"
         f.attrs["snr_formula"] = "Var(E[T|bit]) / E[Var(T|bit)]"
         f.attrs["chunk_size"] = chunk_size
-        f.attrs["nonce_layout"] = "nonces[:,0]=S4/nonce_lsb, nonces[:,1]=S3/nonce_msb"
+        f.attrs["nonce_layout"] = "nonces[:,0]=x4/nonce_lsb, nonces[:,1]=x3/nonce_msb"
+        f.attrs["implementation"] = "standalone hardware ASCON_init"
 
         if sampling_interval is not None:
             f.attrs["sampling_interval"] = sampling_interval
         if key_hex is not None:
             f.attrs["key_hex"] = key_hex
+        if key_input_hex is not None:
+            f.attrs["key_input_hex"] = key_input_hex
         if iv_hex is not None:
             f.attrs["iv_hex"] = iv_hex
+        if bitstream is not None:
+            f.attrs["bitstream"] = bitstream
 
         g = f.create_group("ranked")
         g.create_dataset("register", data=rank_regs)
@@ -634,18 +703,25 @@ if save_snr_traces_all_bits:
         f.attrs["trace_sbox_type"] = trace_sbox_type
         f.attrs["leakage_model_sbox"] = leakage_model_sbox
         f.attrs["n_traces"] = n_trc
+        f.attrs["n_samples_total"] = total_samples
         f.attrs["n_samples"] = n_samples
+        f.attrs["analysis_max_time_us"] = analysis_max_time_us
         f.attrs["snr_model"] = "binary bit-level SNR"
         f.attrs["snr_formula"] = "Var(E[T|bit]) / E[Var(T|bit)]"
         f.attrs["chunk_size"] = chunk_size
-        f.attrs["nonce_layout"] = "nonces[:,0]=S4/nonce_lsb, nonces[:,1]=S3/nonce_msb"
+        f.attrs["nonce_layout"] = "nonces[:,0]=x4/nonce_lsb, nonces[:,1]=x3/nonce_msb"
+        f.attrs["implementation"] = "standalone hardware ASCON_init"
 
         if sampling_interval is not None:
             f.attrs["sampling_interval"] = sampling_interval
         if key_hex is not None:
             f.attrs["key_hex"] = key_hex
+        if key_input_hex is not None:
+            f.attrs["key_input_hex"] = key_input_hex
         if iv_hex is not None:
             f.attrs["iv_hex"] = iv_hex
+        if bitstream is not None:
+            f.attrs["bitstream"] = bitstream
 
         g = f.create_group("snr_traces")
 

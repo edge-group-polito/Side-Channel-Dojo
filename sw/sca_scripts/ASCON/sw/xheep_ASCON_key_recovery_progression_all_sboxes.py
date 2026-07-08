@@ -11,14 +11,19 @@ ASCON_* names are still accepted as defaults for batch compatibility.
 """
 
 import argparse
+import importlib
 import os
 import subprocess
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib-ascon")
 
 # ---------------------------------------------------------------------------
 # CPU configuration: set before importing NumPy.
 # ---------------------------------------------------------------------------
 _pre_parser = argparse.ArgumentParser(add_help=False)
 _pre_parser.add_argument("--max-cpu-workers", type=int, default=None)
+_pre_parser.add_argument("--implementation", choices=["sw", "hw"], default="sw")
+_pre_parser.add_argument("--include-comb", action=argparse.BooleanOptionalAction, default=True)
 _pre_args, _ = _pre_parser.parse_known_args()
 
 _max_cpu_workers_env = os.environ.get("ASCON_MAX_CPU_WORKERS")
@@ -78,11 +83,30 @@ except NameError:
 
 DOJO_ROOT = find_project_root(SCRIPT_DIR)
 SCA_DIR = DOJO_ROOT / "sw" / "sca_scripts"
-TRACESET_DIR = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "sw"
-BASE_CACHE_DIR = SCA_DIR / "ASCON" / "sw" / "cache"
-DEFAULT_OUTPUT_DIR = BASE_CACHE_DIR / "key_recovery_progression_all_sboxes"
-DEFAULT_PLOT_DIR = SCA_DIR / "ASCON" / "sw" / "plot" / "key_recovery_progression_all_sboxes"
-DEFAULT_SNR_SCRIPT = SCRIPT_DIR / "xheep_ASCON_snr.py"
+ASCON_SCRIPT_DIR = SCA_DIR / "ASCON"
+
+IMPLEMENTATION = _pre_args.implementation
+
+if IMPLEMENTATION == "hw":
+    TRACESET_DIR = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "hw" / "ascon_init"
+    BASE_CACHE_DIR = ASCON_SCRIPT_DIR / "hw" / "cache" / "ascon_init"
+    DEFAULT_OUTPUT_DIR = BASE_CACHE_DIR / "key_recovery_progression_all_sboxes"
+    DEFAULT_PLOT_DIR = ASCON_SCRIPT_DIR / "hw" / "plot" / "ascon_init_key_recovery_progression_all_sboxes"
+    DEFAULT_SNR_SCRIPT = ASCON_SCRIPT_DIR / "hw" / "ascon_init_ASCON_snr.py"
+    TRACE_FILE_PREFIX = "ascon_init"
+    CPA_HELPER_DIR = ASCON_SCRIPT_DIR / "hw"
+    CPA_HELPER_MODULE = "ascon_init_ASCON_cpa_generic_all_registers"
+    DEFAULT_ANALYSIS_MAX_TIME_US = 1.5
+else:
+    TRACESET_DIR = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "sw"
+    BASE_CACHE_DIR = ASCON_SCRIPT_DIR / "sw" / "cache"
+    DEFAULT_OUTPUT_DIR = BASE_CACHE_DIR / "key_recovery_progression_all_sboxes"
+    DEFAULT_PLOT_DIR = ASCON_SCRIPT_DIR / "sw" / "plot" / "key_recovery_progression_all_sboxes"
+    DEFAULT_SNR_SCRIPT = SCRIPT_DIR / "xheep_ASCON_snr.py"
+    TRACE_FILE_PREFIX = "ascon_opt32"
+    CPA_HELPER_DIR = SCRIPT_DIR
+    CPA_HELPER_MODULE = "xheep_ASCON_cpa_generic_all_registers"
+    DEFAULT_ANALYSIS_MAX_TIME_US = 0.0
 
 
 def _repo_relative_path(value, default: Path) -> Path:
@@ -93,7 +117,9 @@ def _repo_relative_path(value, default: Path) -> Path:
         path = (DOJO_ROOT / path).resolve()
     return path
 
+sys.path.insert(0, str(CPA_HELPER_DIR))
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(ASCON_SCRIPT_DIR))
 sys.path.insert(0, str(SCA_DIR))
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import (  # noqa: E402
@@ -103,32 +129,44 @@ from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import (  # noqa: E402
     get_cpa_backend_name,
 )
 
-from xheep_ASCON_cpa_generic_all_registers import (  # noqa: E402
-    bits_to_u64,
-    compute_H64_chunk,
-    find_snr_file,
-    find_snr_trace_file,
-    load_snr_peak_samples,
-    load_snr_ranked_targets,
-    propagate_group_constraints,
-    signed_corr_at_samples_from_accumulators,
-    target_sample_window,
-    target_to_k_idx,
+from ascon_plot_style import (  # noqa: E402
+    KEY_COLORS,
+    SBOX_ORDER_HW,
+    SBOX_ORDER_SW,
+    apply_plot_style,
+    save_figure,
+    sbox_color,
 )
+
+_CPA_HELPERS = importlib.import_module(CPA_HELPER_MODULE)
+bits_to_u64 = _CPA_HELPERS.bits_to_u64
+compute_H64_chunk = _CPA_HELPERS.compute_H64_chunk
+find_snr_file = _CPA_HELPERS.find_snr_file
+find_snr_trace_file = _CPA_HELPERS.find_snr_trace_file
+load_snr_peak_samples = _CPA_HELPERS.load_snr_peak_samples
+load_snr_ranked_targets = _CPA_HELPERS.load_snr_ranked_targets
+load_snr_ranked_targets_from_traces = getattr(
+    _CPA_HELPERS,
+    "load_snr_ranked_targets_from_traces",
+    None,
+)
+compute_analysis_sample_stop = getattr(
+    _CPA_HELPERS,
+    "compute_analysis_sample_stop",
+    lambda n_samples, sampling_interval, max_time_us: int(n_samples),
+)
+propagate_group_constraints = _CPA_HELPERS.propagate_group_constraints
+signed_corr_at_samples_from_accumulators = _CPA_HELPERS.signed_corr_at_samples_from_accumulators
+target_sample_window = _CPA_HELPERS.target_sample_window
+target_to_k_idx = _CPA_HELPERS.target_to_k_idx
 
 
 # ---------------------------------------------------------------------------
 # Configuration helpers
 # ---------------------------------------------------------------------------
-ALL_SBOXES = [
-    "lut_ascon",
-    "lut_bilgin",
-    "lut_allouzi",
-    "lut_lu_4",
-    "lut_lu_5",
-    "lut_lu_6",
-    "lut_lu_7",
-]
+INCLUDE_COMB = bool(_pre_args.include_comb)
+
+ALL_SBOXES = list(SBOX_ORDER_HW if IMPLEMENTATION == "hw" and INCLUDE_COMB else SBOX_ORDER_SW)
 
 
 def _parse_sboxes(value: str):
@@ -170,6 +208,18 @@ def _build_arg_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
+        "--implementation",
+        choices=["sw", "hw"],
+        default=IMPLEMENTATION,
+        help="Trace implementation family.",
+    )
+    parser.add_argument(
+        "--include-comb",
+        action=argparse.BooleanOptionalAction,
+        default=INCLUDE_COMB,
+        help="Include the combinational HW S-box when --implementation hw and --sboxes all.",
+    )
+    parser.add_argument(
         "--sboxes",
         default=os.environ.get("ASCON_PROGRESS_SBOXES", "all"),
         help='Comma-separated S-box list, or "all".',
@@ -195,7 +245,7 @@ def _build_arg_parser():
     parser.add_argument(
         "--snr-selection-mode",
         choices=["profiled", "prefix"],
-        default=os.environ.get("ASCON_SNR_SELECTION_MODE", "profiled"),
+        default=os.environ.get("ASCON_SNR_SELECTION_MODE", "prefix"),
         help="profiled uses one SNR cache; prefix uses a matching SNR cache per trace count.",
     )
     parser.add_argument(
@@ -208,6 +258,35 @@ def _build_arg_parser():
         "--trace-counts",
         default=os.environ.get("ASCON_PROGRESS_COUNTS"),
         help="Explicit comma-separated trace counts. Overrides --resolution.",
+    )
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Load an existing combined JSON and regenerate exports/plots without CPA.",
+    )
+    parser.add_argument(
+        "--plot-input-json",
+        default=os.environ.get("ASCON_PROGRESS_PLOT_INPUT_JSON"),
+        help="Existing combined JSON used by --plot-only.",
+    )
+    parser.add_argument(
+        "--replace-result-json",
+        default=os.environ.get("ASCON_PROGRESS_REPLACE_RESULT_JSON"),
+        help=(
+            "Comma-separated per-S-box or combined JSON result(s) to merge into "
+            "--plot-input-json during --plot-only."
+        ),
+    )
+    parser.add_argument(
+        "--plot-x-scale",
+        choices=["linear", "log"],
+        default=os.environ.get("ASCON_PROGRESS_PLOT_X_SCALE", "log"),
+        help="X-axis scale for progression plots.",
+    )
+    parser.add_argument(
+        "--drop-trace-counts",
+        default=os.environ.get("ASCON_PROGRESS_DROP_TRACE_COUNTS"),
+        help="Comma-separated trace counts to remove from loaded plot-only results.",
     )
     parser.set_defaults(
         append_max=_env_flag("ASCON_PROGRESS_APPEND_MAX", True),
@@ -234,6 +313,12 @@ def _build_arg_parser():
         type=int,
         default=_env_int("ASCON_CPA_SAMPLE_WINDOW", 201),
         help="CPA sample window around SNR peak. Use 0 for full trace.",
+    )
+    parser.add_argument(
+        "--analysis-max-time-us",
+        type=float,
+        default=float(os.environ.get("ASCON_ANALYSIS_MAX_TIME_US", DEFAULT_ANALYSIS_MAX_TIME_US)),
+        help="Only analyze samples up to this time when supported. Use 0 for the full trace.",
     )
     parser.add_argument(
         "--polarity",
@@ -334,6 +419,18 @@ def _build_trace_counts(max_traces: int, resolution: int, explicit=None, append_
     return counts
 
 
+def _parse_trace_count_set(value):
+    if value in (None, ""):
+        return set()
+    return {int(x.strip()) for x in str(value).split(",") if x.strip()}
+
+
+def _parse_path_list(value):
+    if value in (None, ""):
+        return []
+    return [item.strip() for item in str(value).split(",") if item.strip()]
+
+
 def _attr_to_str(value):
     if isinstance(value, bytes):
         return value.decode("utf-8")
@@ -346,14 +443,14 @@ def _find_trace_file(
     max_traces_requested: int,
     strict_traceset_size: bool = False,
 ) -> Path:
-    preferred = TRACESET_DIR / f"ascon_opt32_{sbox_type}_{traceset_size_k}k.h5"
+    preferred = TRACESET_DIR / f"{TRACE_FILE_PREFIX}_{sbox_type}_{traceset_size_k}k.h5"
     if preferred.exists():
         return preferred
 
     if strict_traceset_size:
         return preferred
 
-    candidates = sorted(TRACESET_DIR.glob(f"ascon_opt32_{sbox_type}_*.h5"))
+    candidates = sorted(TRACESET_DIR.glob(f"{TRACE_FILE_PREFIX}_{sbox_type}_*.h5"))
     if not candidates:
         return preferred
 
@@ -391,10 +488,46 @@ def _snr_cache_paths_for_count(cache_dir: Path, sbox_type: str, trace_count: int
     )
 
 
-def _snr_cache_is_usable(snr_file: Path, snr_trace_file: Path, sample_window: int) -> bool:
+def _snr_cache_metadata_matches(
+    path: Path,
+    expected_n_traces=None,
+    expected_n_samples=None,
+) -> bool:
+    try:
+        with h5py.File(path, "r") as f:
+            if expected_n_traces is not None and "n_traces" in f.attrs:
+                if int(f.attrs["n_traces"]) != int(expected_n_traces):
+                    return False
+            if expected_n_samples is not None and "n_samples" in f.attrs:
+                if int(f.attrs["n_samples"]) != int(expected_n_samples):
+                    return False
+    except OSError:
+        return False
+    return True
+
+
+def _snr_cache_is_usable(
+    snr_file: Path,
+    snr_trace_file: Path,
+    sample_window: int,
+    expected_n_traces=None,
+    expected_n_samples=None,
+) -> bool:
     if not snr_file.exists():
         return False
+    if not _snr_cache_metadata_matches(
+        snr_file,
+        expected_n_traces=expected_n_traces,
+        expected_n_samples=expected_n_samples,
+    ):
+        return False
     if int(sample_window) > 0 and not snr_trace_file.exists():
+        return False
+    if int(sample_window) > 0 and not _snr_cache_metadata_matches(
+        snr_trace_file,
+        expected_n_traces=expected_n_traces,
+        expected_n_samples=expected_n_samples,
+    ):
         return False
     return True
 
@@ -407,6 +540,7 @@ def _generate_snr_cache(
     snr_script: Path,
     snr_chunk_size: int,
     snr_device: str,
+    analysis_max_time_us: float,
 ):
     snr_script = Path(snr_script)
     if not snr_script.is_absolute():
@@ -419,6 +553,10 @@ def _generate_snr_cache(
         sys.executable,
         str(snr_script),
         "--sbox",
+        str(sbox_type),
+        "--trace-sbox",
+        str(sbox_type),
+        "--leakage-model-sbox",
         str(sbox_type),
         "--n-traces",
         str(int(trace_count)),
@@ -433,6 +571,8 @@ def _generate_snr_cache(
         "--max-cpu-workers",
         str(int(max_cpu_workers)),
     ]
+    if IMPLEMENTATION == "hw":
+        cmd.extend(["--analysis-max-time-us", str(float(analysis_max_time_us))])
 
     print("[INFO] Missing SNR cache; generating it now:")
     print("       " + " ".join(cmd))
@@ -453,6 +593,8 @@ def _load_snr_targets_for_mode(
     snr_script: Path,
     snr_chunk_size: int,
     snr_device: str,
+    analysis_sample_stop,
+    analysis_max_time_us: float,
 ):
     if snr_selection_mode == "profiled":
         snr_count = int(profiled_snr_trace_count)
@@ -462,7 +604,14 @@ def _load_snr_targets_for_mode(
         raise ValueError("snr_selection_mode must be one of: profiled, prefix")
 
     snr_file, snr_trace_file = _snr_cache_paths_for_count(cache_dir, sbox_type, snr_count)
-    if not _snr_cache_is_usable(snr_file, snr_trace_file, sample_window):
+    expected_n_samples = analysis_sample_stop if int(sample_window) > 0 else None
+    if not _snr_cache_is_usable(
+        snr_file,
+        snr_trace_file,
+        sample_window,
+        expected_n_traces=snr_count,
+        expected_n_samples=expected_n_samples,
+    ):
         if auto_snr:
             _generate_snr_cache(
                 sbox_type=sbox_type,
@@ -472,15 +621,28 @@ def _load_snr_targets_for_mode(
                 snr_script=snr_script,
                 snr_chunk_size=snr_chunk_size,
                 snr_device=snr_device,
+                analysis_max_time_us=analysis_max_time_us,
             )
         elif snr_selection_mode == "profiled":
             fallback_snr_file = find_snr_file(cache_dir, sbox_type, snr_count)
             fallback_snr_trace_file = find_snr_trace_file(cache_dir, sbox_type, snr_count)
-            if _snr_cache_is_usable(fallback_snr_file, fallback_snr_trace_file, sample_window):
+            if _snr_cache_is_usable(
+                fallback_snr_file,
+                fallback_snr_trace_file,
+                sample_window,
+                expected_n_traces=snr_count,
+                expected_n_samples=expected_n_samples,
+            ):
                 snr_file = fallback_snr_file
                 snr_trace_file = fallback_snr_trace_file
 
-    if not _snr_cache_is_usable(snr_file, snr_trace_file, sample_window):
+    if not _snr_cache_is_usable(
+        snr_file,
+        snr_trace_file,
+        sample_window,
+        expected_n_traces=snr_count,
+        expected_n_samples=expected_n_samples,
+    ):
         missing = [str(snr_file)]
         if int(sample_window) > 0:
             missing.append(str(snr_trace_file))
@@ -490,7 +652,16 @@ def _load_snr_targets_for_mode(
             + ". Re-run with --auto-snr or generate them with xheep_ASCON_snr.py."
         )
 
-    peak_samples = load_snr_peak_samples(snr_trace_file) if sample_window > 0 else {}
+    peak_samples = {}
+    if sample_window > 0:
+        try:
+            peak_samples = load_snr_peak_samples(
+                snr_trace_file,
+                sample_stop=analysis_sample_stop,
+            )
+        except TypeError:
+            peak_samples = load_snr_peak_samples(snr_trace_file)
+
     effective_sample_window = sample_window
     if sample_window > 0 and not peak_samples:
         print(
@@ -499,11 +670,18 @@ def _load_snr_targets_for_mode(
         )
         effective_sample_window = 0
 
-    targets = load_snr_ranked_targets(
-        snr_file,
-        max_targets=max_targets,
-        peak_samples=peak_samples,
-    )
+    if load_snr_ranked_targets_from_traces is not None and snr_trace_file.exists():
+        targets = load_snr_ranked_targets_from_traces(
+            snr_trace_file,
+            max_targets=max_targets,
+            sample_stop=analysis_sample_stop,
+        )
+    else:
+        targets = load_snr_ranked_targets(
+            snr_file,
+            max_targets=max_targets,
+            peak_samples=peak_samples,
+        )
 
     return {
         "snr_file": snr_file,
@@ -963,6 +1141,8 @@ def _run_trace_counts_with_prefix_snr(
     snr_chunk_size: int,
     snr_device: str,
     save_target_log: bool,
+    analysis_sample_stop,
+    analysis_max_time_us: float,
 ):
     summaries = []
     target_log = []
@@ -985,6 +1165,8 @@ def _run_trace_counts_with_prefix_snr(
             snr_script=snr_script,
             snr_chunk_size=snr_chunk_size,
             snr_device=snr_device,
+            analysis_sample_stop=analysis_sample_stop,
+            analysis_max_time_us=analysis_max_time_us,
         )
         targets = snr_info["targets"]
         effective_sample_window = int(snr_info["effective_sample_window"])
@@ -1056,13 +1238,32 @@ def _import_matplotlib():
         import matplotlib.pyplot as plt
         import matplotlib.ticker as mticker
 
+        apply_plot_style(plt)
         return plt, mticker
     except Exception as exc:
         print(f"[WARN] Plotting disabled: could not import matplotlib ({exc})")
         return None, None
 
 
-def _format_axes_for_traces(ax, mticker):
+def _format_trace_tick(value, _position):
+    value = int(round(float(value)))
+    if value >= 1_000_000 and value % 1_000_000 == 0:
+        return f"{value // 1_000_000}M"
+    if value >= 1_000 and value % 1_000 == 0:
+        return f"{value // 1_000}k"
+    return str(value)
+
+
+def _format_axes_for_traces(ax, mticker, x_scale: str):
+    if x_scale == "log":
+        ax.set_xscale("log")
+        ax.xaxis.set_major_locator(mticker.LogLocator(base=10))
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(_format_trace_tick))
+        ax.xaxis.set_minor_locator(mticker.LogLocator(base=10, subs=range(2, 10)))
+        ax.xaxis.set_minor_formatter(mticker.NullFormatter())
+        ax.grid(True, alpha=0.30, which="both")
+        return
+
     formatter = mticker.ScalarFormatter(useMathText=True)
     formatter.set_powerlimits((0, 0))
     ax.xaxis.set_major_formatter(formatter)
@@ -1074,8 +1275,7 @@ def _format_axes_for_traces(ax, mticker):
 def _save_figure(fig, stem: Path):
     stem.parent.mkdir(parents=True, exist_ok=True)
     png_file = stem.with_suffix(".png")
-    fig.tight_layout()
-    fig.savefig(png_file, dpi=180)
+    save_figure(fig, png_file, dpi=300)
     return [str(png_file)]
 
 
@@ -1178,7 +1378,217 @@ def _write_combined_exports(combined, output_dir: Path):
     return {"csv": str(csv_file), "json": str(json_file)}
 
 
-def _plot_per_sbox_result(result, plot_dir: Path, save_plots: bool):
+_SUMMARY_SERIES_FIELDS = (
+    "k0_recovered_count",
+    "k1_recovered_count",
+    "kx_recovered_count",
+    "known_key_bits_count",
+    "k0_correct_recovered_count",
+    "k1_correct_recovered_count",
+    "correct_key_bits_count",
+    "wrong_recovered_key_bits_count",
+    "recovered_key_bits_percent",
+    "correct_key_bits_percent",
+    "known_bit_accuracy_percent",
+    "full_key_match",
+)
+
+
+def _refresh_result_series(result: dict) -> None:
+    summaries = result.get("summaries", [])
+    result["trace_counts"] = [int(summary["trace_count"]) for summary in summaries]
+    for field in _SUMMARY_SERIES_FIELDS:
+        result[field] = [summary.get(field) for summary in summaries]
+
+
+def _filter_result_trace_counts(result: dict, drop_trace_counts: set[int]) -> None:
+    if not drop_trace_counts:
+        _refresh_result_series(result)
+        return
+
+    result["summaries"] = [
+        summary
+        for summary in result.get("summaries", [])
+        if int(summary.get("trace_count", -1)) not in drop_trace_counts
+    ]
+    result["snr_runs"] = [
+        item
+        for item in result.get("snr_runs", [])
+        if int(item.get("trace_count", -1)) not in drop_trace_counts
+    ]
+    result["target_log"] = [
+        item
+        for item in result.get("target_log", [])
+        if int(item.get("trace_count", -1)) not in drop_trace_counts
+    ]
+    _refresh_result_series(result)
+
+
+def _filter_combined_trace_counts(combined: dict, drop_trace_counts: set[int]) -> None:
+    combined["trace_counts"] = [
+        int(count)
+        for count in combined.get("trace_counts", [])
+        if int(count) not in drop_trace_counts
+    ]
+    for result in combined.get("results", {}).values():
+        _filter_result_trace_counts(result, drop_trace_counts)
+
+
+def _merge_result_by_trace_count(existing: dict, replacement: dict) -> None:
+    existing_by_count = {
+        int(summary["trace_count"]): summary
+        for summary in existing.get("summaries", [])
+    }
+    for summary in replacement.get("summaries", []):
+        existing_by_count[int(summary["trace_count"])] = summary
+    existing["summaries"] = [
+        existing_by_count[count]
+        for count in sorted(existing_by_count)
+    ]
+
+    existing_snr_by_count = {
+        int(item["trace_count"]): item
+        for item in existing.get("snr_runs", [])
+        if "trace_count" in item
+    }
+    for item in replacement.get("snr_runs", []):
+        if "trace_count" in item:
+            existing_snr_by_count[int(item["trace_count"])] = item
+    existing["snr_runs"] = [
+        existing_snr_by_count[count]
+        for count in sorted(existing_snr_by_count)
+    ]
+
+    if replacement.get("target_log"):
+        replacement_counts = {
+            int(item["trace_count"])
+            for item in replacement.get("target_log", [])
+            if "trace_count" in item
+        }
+        existing["target_log"] = [
+            item
+            for item in existing.get("target_log", [])
+            if int(item.get("trace_count", -1)) not in replacement_counts
+        ] + replacement.get("target_log", [])
+
+    _refresh_result_series(existing)
+
+
+def _replacement_results_from_json(path: Path) -> list[dict]:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if "results" in data:
+        return list(data.get("results", {}).values())
+    return [data]
+
+
+def _merge_replacement_results(combined: dict, replacement_jsons, base_cache_dir: Path) -> None:
+    for replacement_json in replacement_jsons:
+        path = _repo_relative_path(replacement_json, Path(replacement_json))
+        if not path.exists():
+            raise FileNotFoundError(f"--replace-result-json file not found: {path}")
+        for replacement in _replacement_results_from_json(path):
+            _refresh_result_series(replacement)
+            sbox_type = replacement["sbox_type"]
+            results = combined.setdefault("results", {})
+            if sbox_type not in results:
+                results[sbox_type] = replacement
+                continue
+            _merge_result_by_trace_count(results[sbox_type], replacement)
+
+    combined["sboxes"] = list(combined.get("results", {}).keys())
+    combined["trace_counts"] = sorted(
+        {
+            int(count)
+            for result in combined.get("results", {}).values()
+            for count in result.get("trace_counts", [])
+        }
+    )
+
+
+def _per_sbox_cache_dir_from_result(result: dict, base_cache_dir: Path) -> Path:
+    json_path = (
+        result.get("exports", {})
+        .get("values", {})
+        .get("json")
+    )
+    if json_path:
+        return Path(json_path).parent
+    return base_cache_dir / result["sbox_type"]
+
+
+def _write_per_sbox_result_files(result: dict, base_cache_dir: Path, plot_dir: Path, save_plots: bool, plot_x_scale: str) -> None:
+    cache_dir = _per_sbox_cache_dir_from_result(result, base_cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    tag = _result_tag(result["n_traces_max"], result["snr_selection_mode"])
+    json_file = cache_dir / f"ASCON_generic_key_recovery_progression_{result['sbox_type']}_{tag}.json"
+    result["exports"] = {
+        "values": {
+            **_write_per_sbox_exports(result, cache_dir),
+            "json": str(json_file),
+        },
+        "plots": _plot_per_sbox_result(result, plot_dir, save_plots, plot_x_scale),
+    }
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+
+
+def _run_plot_only(args, base_cache_dir: Path, output_dir: Path, plot_dir: Path) -> None:
+    input_json = args.plot_input_json
+    if input_json in (None, ""):
+        tag = _result_tag(int(args.max_traces), args.snr_selection_mode.strip().lower())
+        input_json = output_dir / f"ASCON_generic_key_recovery_progression_all_sboxes_{tag}.json"
+    input_json = _repo_relative_path(input_json, Path(input_json))
+    if not input_json.exists():
+        raise FileNotFoundError(f"--plot-only input JSON not found: {input_json}")
+
+    with open(input_json, "r", encoding="utf-8") as f:
+        combined = json.load(f)
+
+    drop_trace_counts = _parse_trace_count_set(args.drop_trace_counts)
+    _filter_combined_trace_counts(combined, drop_trace_counts)
+    replacement_jsons = _parse_path_list(args.replace_result_json)
+    _merge_replacement_results(combined, replacement_jsons, base_cache_dir)
+
+    save_plots = bool(args.save_plots)
+    plot_x_scale = args.plot_x_scale.strip().lower()
+    combined.setdefault("config", {})["plot_x_scale"] = plot_x_scale
+    combined.setdefault("config", {})["plot_only_drop_trace_counts"] = sorted(drop_trace_counts)
+    combined.setdefault("config", {})["plot_only_replacement_jsons"] = replacement_jsons
+    for result in combined.get("results", {}).values():
+        _write_per_sbox_result_files(
+            result,
+            base_cache_dir=base_cache_dir,
+            plot_dir=plot_dir,
+            save_plots=save_plots,
+            plot_x_scale=plot_x_scale,
+        )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    combined["exports"] = {
+        "values": _write_combined_exports(combined, output_dir),
+        "plots": _plot_combined_results(combined, plot_dir, save_plots, plot_x_scale),
+    }
+    combined_json = Path(combined["exports"]["values"]["json"])
+    with open(combined_json, "w", encoding="utf-8") as f:
+        json.dump(combined, f, indent=2)
+
+    print("\n[INFO] Plot-only key-recovery progression export finished")
+    print(f"[INFO] Input JSON    : {input_json}")
+    if drop_trace_counts:
+        print(f"[INFO] Dropped traces: {sorted(drop_trace_counts)}")
+    if replacement_jsons:
+        print("[INFO] Replacement JSONs:")
+        for path in replacement_jsons:
+            print(f"       {path}")
+    print(f"[INFO] X-axis scale  : {plot_x_scale}")
+    print(f"[INFO] Combined JSON : {combined_json}")
+    print(f"[INFO] Combined CSV  : {combined['exports']['values']['csv']}")
+    if save_plots:
+        print(f"[INFO] Combined plots: {plot_dir}")
+
+
+def _plot_per_sbox_result(result, plot_dir: Path, save_plots: bool, x_scale: str):
     if not save_plots:
         return {}
 
@@ -1193,15 +1603,39 @@ def _plot_per_sbox_result(result, plot_dir: Path, save_plots: bool):
     plot_paths = {}
 
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(x_vals, result["k0_correct_recovered_count"], marker="o", markersize=3, linewidth=1.8, label="k0 correct")
-    ax.plot(x_vals, result["k1_correct_recovered_count"], marker="s", markersize=3, linewidth=1.8, label="k1 correct")
-    ax.plot(x_vals, result["correct_key_bits_count"], marker="^", markersize=3, linewidth=2.2, label="k0+k1 correct")
+    ax.plot(
+        x_vals,
+        result["k0_correct_recovered_count"],
+        marker="o",
+        markersize=3,
+        linewidth=1.8,
+        color=KEY_COLORS["k0"],
+        label="k0 correct",
+    )
+    ax.plot(
+        x_vals,
+        result["k1_correct_recovered_count"],
+        marker="s",
+        markersize=3,
+        linewidth=1.8,
+        color=KEY_COLORS["k1"],
+        label="k1 correct",
+    )
+    ax.plot(
+        x_vals,
+        result["correct_key_bits_count"],
+        marker="^",
+        markersize=3,
+        linewidth=2.2,
+        color=KEY_COLORS["combined"],
+        label="k0+k1 correct",
+    )
     ax.set_xlabel("Number of prefix traces", fontsize=13)
     ax.set_ylabel("Correct recovered key bits", fontsize=13)
     ax.set_title(f"ASCON generic CPA key-recovery progression - {sbox_type}", fontsize=14)
     ax.set_ylim(0, 132)
     ax.set_yticks(range(0, 129, 16))
-    _format_axes_for_traces(ax, mticker)
+    _format_axes_for_traces(ax, mticker, x_scale)
     ax.legend(loc="best")
     plot_paths["correct_recovered_key_bits"] = _save_figure(
         fig,
@@ -1212,7 +1646,7 @@ def _plot_per_sbox_result(result, plot_dir: Path, save_plots: bool):
     return plot_paths
 
 
-def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
+def _plot_combined_results(combined, plot_dir: Path, save_plots: bool, x_scale: str):
     if not save_plots:
         return {}
 
@@ -1232,6 +1666,7 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
             marker="o",
             markersize=3,
             linewidth=1.8,
+            color=sbox_color(sbox_type),
             label=sbox_type,
         )
     ax.set_xlabel("Number of prefix traces", fontsize=13)
@@ -1239,11 +1674,110 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
     ax.set_title("ASCON generic CPA key-recovery progression - all S-boxes", fontsize=14)
     ax.set_ylim(0, 132)
     ax.set_yticks(range(0, 129, 16))
-    _format_axes_for_traces(ax, mticker)
+    _format_axes_for_traces(ax, mticker, x_scale)
     ax.legend(loc="best")
     plot_paths["correct_recovered_key_bits"] = _save_figure(
         fig,
         plot_dir / f"ASCON_generic_correct_recovered_key_bits_all_sboxes_{tag}",
+    )
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    for sbox_type, result in combined["results"].items():
+        ax.plot(
+            result["trace_counts"],
+            result["correct_key_bits_count"],
+            marker="o",
+            markersize=3,
+            linewidth=1.8,
+            color=sbox_color(sbox_type),
+            label=sbox_type,
+        )
+    ax.set_xlabel("Number of prefix traces", fontsize=13)
+    ax.set_ylabel("Correct recovered key bits", fontsize=13)
+    ax.set_title(
+        "ASCON generic CPA key-recovery progression - all S-boxes (zoom)",
+        fontsize=14,
+    )
+    zoom_lower = 64 if combined.get("implementation", IMPLEMENTATION) == "hw" else 96
+    ax.set_ylim(zoom_lower, 130)
+    ax.set_yticks(range(zoom_lower, 129, 4 if zoom_lower >= 96 else 8))
+    _format_axes_for_traces(ax, mticker, x_scale)
+    ax.legend(loc="best", ncol=2)
+    zoom_key = f"correct_recovered_key_bits_zoom_{zoom_lower}_128"
+    plot_paths[zoom_key] = _save_figure(
+        fig,
+        plot_dir / f"ASCON_generic_correct_recovered_key_bits_all_sboxes_{tag}_zoom_{zoom_lower}_128",
+    )
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(11.5, 6.8))
+    all_values = []
+    for sbox_type, result in combined["results"].items():
+        trace_counts = result["trace_counts"]
+        correct_counts = result["correct_key_bits_count"]
+        known_counts = result["known_key_bits_count"]
+        all_values.extend(correct_counts)
+        all_values.extend(known_counts)
+        color = sbox_color(sbox_type)
+        ax.plot(
+            trace_counts,
+            correct_counts,
+            marker="o",
+            markersize=3,
+            linewidth=1.9,
+            color=color,
+            label=sbox_type,
+        )
+        ax.plot(
+            trace_counts,
+            known_counts,
+            marker="s",
+            markersize=2.8,
+            linewidth=1.5,
+            linestyle="--",
+            alpha=0.75,
+            color=color,
+        )
+
+    y_min = 0
+    if all_values:
+        y_min = max(0, int(np.floor((min(all_values) - 8) / 8.0) * 8))
+    ax.set_ylim(y_min, 132)
+    ax.set_yticks(range(y_min, 129, 8))
+    ax.set_xlabel("Number of prefix traces", fontsize=13)
+    ax.set_ylabel("Recovered key bits", fontsize=13)
+    ax.set_title(
+        "ASCON generic CPA recovered vs correct recovered key bits - all S-boxes",
+        fontsize=14,
+    )
+    _format_axes_for_traces(ax, mticker, x_scale)
+
+    from matplotlib.lines import Line2D
+
+    style_legend = [
+        Line2D(
+            [0],
+            [0],
+            color=KEY_COLORS["text"],
+            linewidth=1.9,
+            label="correct recovered bits",
+        ),
+        Line2D(
+            [0],
+            [0],
+            color=KEY_COLORS["text"],
+            linewidth=1.5,
+            linestyle="--",
+            label="recovered bits",
+        ),
+    ]
+    sbox_legend = ax.legend(loc="lower right", ncol=2, title="S-box")
+    ax.add_artist(sbox_legend)
+    ax.legend(handles=style_legend, loc="lower left", title="Line meaning")
+    plot_paths["correct_vs_recovered_key_bits"] = _save_figure(
+        fig,
+        plot_dir / f"ASCON_generic_correct_vs_recovered_key_bits_all_sboxes_{tag}",
     )
     plt.close(fig)
 
@@ -1255,6 +1789,7 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
             marker="o",
             markersize=3,
             linewidth=1.6,
+            color=sbox_color(sbox_type),
             label=sbox_type,
         )
         axes[1].plot(
@@ -1263,6 +1798,7 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
             marker="o",
             markersize=3,
             linewidth=1.6,
+            color=sbox_color(sbox_type),
             label=sbox_type,
         )
 
@@ -1272,7 +1808,7 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool):
     for ax in axes:
         ax.set_ylim(0, 67)
         ax.set_yticks(range(0, 65, 8))
-        _format_axes_for_traces(ax, mticker)
+        _format_axes_for_traces(ax, mticker, x_scale)
     axes[0].set_title("ASCON generic CPA k0/k1 recovery - all S-boxes", fontsize=14)
     axes[0].legend(loc="best", ncol=2)
     plot_paths["k0_k1_correct_recovered_bits"] = _save_figure(
@@ -1310,6 +1846,8 @@ def _run_one_sbox(
     snr_script: Path,
     snr_chunk_size: int,
     snr_device: str,
+    analysis_max_time_us: float,
+    plot_x_scale: str,
 ):
     trace_file = _find_trace_file(
         sbox_type,
@@ -1330,7 +1868,15 @@ def _run_one_sbox(
         traces_ds = f["traces"]
         nonces_ds = f["nonces"]
         total_traces = int(traces_ds.shape[0])
-        n_samples = int(traces_ds.shape[1])
+        total_samples = int(traces_ds.shape[1])
+        sampling_interval = f.attrs.get("sampling_interval", None)
+        n_samples = int(
+            compute_analysis_sample_stop(
+                total_samples,
+                sampling_interval,
+                analysis_max_time_us,
+            )
+        )
         key_hex = _attr_to_str(f.attrs.get("key_hex", ""))
         iv_hex = _attr_to_str(f.attrs.get("iv_hex", ""))
         n_used = min(int(max_traces_requested), total_traces)
@@ -1372,6 +1918,8 @@ def _run_one_sbox(
             snr_script=snr_script,
             snr_chunk_size=snr_chunk_size,
             snr_device=snr_device,
+            analysis_sample_stop=n_samples,
+            analysis_max_time_us=analysis_max_time_us,
         )
 
     print("\n================= SBOX KEY-RECOVERY PROGRESSION =================")
@@ -1387,7 +1935,10 @@ def _run_one_sbox(
     print(f"Available traces       : {total_traces:,}")
     print(f"Used max traces        : {n_used:,}")
     print(f"Trace counts           : {len(trace_counts)} steps, {trace_counts[0]:,}..{trace_counts[-1]:,}")
-    print(f"Samples per trace      : {n_samples}")
+    print(f"Samples per trace      : {total_samples}")
+    print(f"Samples analyzed       : {n_samples}")
+    if float(analysis_max_time_us) > 0:
+        print(f"Analysis time limit    : {analysis_max_time_us:g} us")
     if snr_selection_mode == "profiled":
         effective_sample_window = int(profiled_snr_info["effective_sample_window"])
         print(f"CPA sample window      : {effective_sample_window if effective_sample_window > 0 else 'full trace'}")
@@ -1464,6 +2015,8 @@ def _run_one_sbox(
             snr_chunk_size=snr_chunk_size,
             snr_device=snr_device,
             save_target_log=save_target_log,
+            analysis_sample_stop=n_samples,
+            analysis_max_time_us=analysis_max_time_us,
         )
     total_toc = time.perf_counter()
 
@@ -1502,7 +2055,9 @@ def _run_one_sbox(
         "n_traces_max": int(n_used),
         "snr_trace_count": int(snr_trace_count),
         "trace_counts": [int(c) for c in trace_counts],
+        "n_samples_total": int(total_samples),
         "n_samples": int(n_samples),
+        "analysis_max_time_us": float(analysis_max_time_us),
         "chunk_size": int(chunk_size),
         "cpa_sample_window_requested": int(sample_window),
         "cpa_sample_window_effective": int(effective_window_summary),
@@ -1547,7 +2102,7 @@ def _run_one_sbox(
             **_write_per_sbox_exports(result, cache_dir),
             "json": str(json_file),
         },
-        "plots": _plot_per_sbox_result(result, plot_dir, save_plots),
+        "plots": _plot_per_sbox_result(result, plot_dir, save_plots, plot_x_scale),
     }
 
     with open(json_file, "w", encoding="utf-8") as f:
@@ -1601,6 +2156,20 @@ def main():
     snr_script = Path(args.snr_script)
     snr_chunk_size = int(args.snr_chunk_size)
     snr_device = args.snr_device
+    analysis_max_time_us = float(args.analysis_max_time_us)
+    plot_x_scale = args.plot_x_scale.strip().lower()
+
+    if plot_x_scale not in {"linear", "log"}:
+        raise ValueError("--plot-x-scale must be one of: linear, log")
+
+    if args.plot_only:
+        _run_plot_only(
+            args,
+            base_cache_dir=base_cache_dir,
+            output_dir=output_dir,
+            plot_dir=plot_dir,
+        )
+        return
 
     if max_traces <= 1:
         raise ValueError("ASCON_PROGRESS_N must be greater than 1")
@@ -1614,8 +2183,11 @@ def main():
         raise ValueError("ASCON_SNR_SELECTION_MODE must be one of: profiled, prefix")
     if snr_chunk_size <= 0:
         raise ValueError("--snr-chunk-size must be positive")
+    if analysis_max_time_us < 0:
+        raise ValueError("--analysis-max-time-us must be >= 0")
 
     print("\n================= GENERIC KEY-RECOVERY PROGRESSION BATCH =================")
+    print(f"Implementation         : {IMPLEMENTATION}")
     print(f"S-boxes                : {sboxes}")
     print(f"Max prefix traces      : {max_traces:,}")
     print(f"Traceset size tag      : {traceset_size_k}k")
@@ -1625,6 +2197,7 @@ def main():
     print(f"First/last count       : {trace_counts[0]:,} / {trace_counts[-1]:,}")
     print(f"Chunk size             : {chunk_size}")
     print(f"CPA sample window      : {sample_window if sample_window > 0 else 'full trace'}")
+    print(f"Analysis time limit    : {analysis_max_time_us:g} us" if analysis_max_time_us > 0 else "Analysis time limit    : full trace")
     print(f"Leakage polarity       : {polarity}")
     print(f"CPA backend            : {cpa_backend}")
     print(f"CPU threads            : {max_cpu_workers}")
@@ -1635,6 +2208,7 @@ def main():
     print(f"Base cache dir         : {base_cache_dir}")
     print(f"Output dir             : {output_dir}")
     print(f"Plot dir               : {plot_dir}")
+    print(f"Plot x-axis scale      : {plot_x_scale}")
     print(f"Save plots             : {'yes' if save_plots else 'no'}")
     print(f"Save target log        : {'yes' if save_target_log else 'no'}")
     print("============================================================================\n")
@@ -1665,6 +2239,8 @@ def main():
             snr_script=snr_script,
             snr_chunk_size=snr_chunk_size,
             snr_device=snr_device,
+            analysis_max_time_us=analysis_max_time_us,
+            plot_x_scale=plot_x_scale,
         )
         if result is not None:
             results[sbox_type] = result
@@ -1674,6 +2250,7 @@ def main():
 
     combined = {
         "sboxes": list(results.keys()),
+        "implementation": IMPLEMENTATION,
         "n_traces_max": int(max_traces),
         "snr_selection_mode": snr_selection_mode,
         "trace_counts": [int(c) for c in trace_counts],
@@ -1681,6 +2258,7 @@ def main():
         "config": {
             "chunk_size": int(chunk_size),
             "sample_window": int(sample_window),
+            "analysis_max_time_us": float(analysis_max_time_us),
             "snr_selection_mode": snr_selection_mode,
             "snr_trace_count": int(snr_trace_count),
             "polarity": polarity,
@@ -1694,13 +2272,14 @@ def main():
             "snr_script": str(snr_script),
             "snr_chunk_size": int(snr_chunk_size),
             "snr_device": str(snr_device),
+            "plot_x_scale": plot_x_scale,
         },
         "results": results,
     }
 
     combined["exports"] = {
         "values": _write_combined_exports(combined, output_dir),
-        "plots": _plot_combined_results(combined, plot_dir, save_plots),
+        "plots": _plot_combined_results(combined, plot_dir, save_plots, plot_x_scale),
     }
 
     tag = _result_tag(max_traces, snr_selection_mode)

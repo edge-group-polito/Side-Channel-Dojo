@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-ASCON generic leakage CPA attack using SNR-ranked target bits.
+ASCON_init hardware generic leakage CPA attack using SNR-ranked target bits.
 
 Memory-friendly / chunked version.
 
 This script:
-  - when run directly, executes all seven S-boxes for negative/positive/both
+  - when run directly, executes all selected hardware S-box bitstreams for
+    negative/positive/both leakage polarity
   - loads only metadata from the trace HDF5 file
   - loads SNR-ranked attack targets for x0..x4
   - attacks targets in key-dependency-aware order
@@ -13,6 +14,7 @@ This script:
   - uses GPU/CuPy for chunked CPA accumulators if available
   - otherwise falls back to CPU/NumPy with maximum available CPU threads
   - supports all five ASCON state registers: x0, x1, x2, x3, x4
+  - analyzes only the useful trace prefix by default (1.5 us)
 
 Expected SNR ranked file:
   /ranked/register   : UTF-8 strings, e.g., x0..x4
@@ -66,9 +68,17 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 # Basic configuration
 # ---------------------------------------------------------------------------
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
 # Supported S-box types:
-#   lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
-sbox_type = os.environ.get("ASCON_SBOX_TYPE", "lut_ascon")
+#   hw, lut_ascon, lut_bilgin, lut_allouzi, lut_lu_4, lut_lu_5, lut_lu_6, lut_lu_7
+# The "hw" option is the standard ASCON S-box implemented as combinational logic.
+sbox_type = os.environ.get("ASCON_SBOX_TYPE", "hw")
 trace_sbox_type = os.environ.get("ASCON_TRACE_SBOX_TYPE", sbox_type)
 leakage_model_sbox = os.environ.get("ASCON_LEAKAGE_MODEL_SBOX", sbox_type)
 analysis_name = (
@@ -97,7 +107,7 @@ n_trc = int(os.environ.get("ASCON_N_TRC", "1000000"))
 # Example:
 #   traceset_size_k = 150
 # gives:
-#   ascon_opt32_lut_lu_7_150k.h5
+#   ascon_init_lut_lu_7_150k.h5
 traceset_size_k = int(os.environ.get("ASCON_TRACESET_SIZE_K", str(n_trc // 1000)))
 
 # Chunk size for trace reading.
@@ -112,6 +122,11 @@ chunk_size = int(os.environ.get("ASCON_CHUNK_SIZE", "20000"))
 cpa_sample_window = int(os.environ.get("ASCON_CPA_SAMPLE_WINDOW", "201"))
 if cpa_sample_window < 0:
     raise ValueError("ASCON_CPA_SAMPLE_WINDOW must be >= 0")
+
+# Ignore samples after this timestamp. Set to 0 for the full trace.
+analysis_max_time_us = float(os.environ.get("ASCON_ANALYSIS_MAX_TIME_US", "1.5"))
+if analysis_max_time_us < 0:
+    raise ValueError("ASCON_ANALYSIS_MAX_TIME_US must be >= 0")
 
 # Compute device:
 #   "auto" -> use GPU/CuPy if available, otherwise CPU
@@ -161,7 +176,10 @@ progress_bars_enabled = os.environ.get("ASCON_PROGRESS_BARS", "1").strip().lower
     "off",
 }
 
+INCLUDE_COMB = True
 ALL_SBOXES = (
+    (("hw",) if INCLUDE_COMB else ())
+    + (
     "lut_ascon",
     "lut_bilgin",
     "lut_allouzi",
@@ -169,6 +187,7 @@ ALL_SBOXES = (
     "lut_lu_5",
     "lut_lu_6",
     "lut_lu_7",
+    )
 )
 ALL_POLARITIES = ("negative", "positive", "both")
 
@@ -238,13 +257,13 @@ SCA_DIR = DOJO_ROOT / "sw" / "sca_scripts"
 
 BASE_PLOT_DIR = _repo_relative_path(
     os.environ.get("ASCON_PLOT_DIR"),
-    DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "plot",
+    DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "hw" / "plot" / "ascon_init_cpa",
 )
 BASE_CACHE_DIR = _repo_relative_path(
     os.environ.get("ASCON_CACHE_DIR"),
-    DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "cache",
+    DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "hw" / "cache" / "ascon_init",
 )
-TRACESET_DIR = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "sw"
+TRACESET_DIR = DOJO_ROOT / "sw" / "traceset" / "ASCON" / "hw" / "ascon_init"
 
 sys.path.insert(0, str(ASCON_PY_DIR))
 sys.path.insert(0, str(SCA_DIR))
@@ -343,6 +362,27 @@ def decode_h5_strings(arr) -> List[str]:
     return out
 
 
+def format_trace_count_tag(trace_count: int) -> str:
+    trace_count = int(trace_count)
+    if trace_count % 1000 == 0:
+        return f"{trace_count // 1000}k"
+    return str(trace_count)
+
+
+def compute_analysis_sample_stop(n_samples: int, sampling_interval, max_time_us: float) -> int:
+    if max_time_us <= 0:
+        return int(n_samples)
+    if sampling_interval is None:
+        print(
+            "[WARN] ASCON_ANALYSIS_MAX_TIME_US is set, but the traceset has no "
+            "sampling_interval attribute. Falling back to full trace width."
+        )
+        return int(n_samples)
+
+    stop = int(np.floor(float(max_time_us) * 1e-6 / float(sampling_interval))) + 1
+    return max(1, min(int(n_samples), stop))
+
+
 def bits_to_u64(bits_lsb0: np.ndarray) -> int:
     x = 0
     for i in range(64):
@@ -382,8 +422,9 @@ def find_snr_file(cache_dir: Path, sbox_type: str, n_trc: int) -> Path:
     """
     Prefer the new filename, but fall back to the old filename if needed.
     """
+    tag = format_trace_count_tag(n_trc)
     candidates = [
-        cache_dir / f"snr_ranked_{sbox_type}_{n_trc // 1000}k.h5",
+        cache_dir / f"snr_ranked_{sbox_type}_{tag}.h5",
         cache_dir / "snr_ranked.h5",
     ]
 
@@ -395,8 +436,9 @@ def find_snr_file(cache_dir: Path, sbox_type: str, n_trc: int) -> Path:
 
 
 def find_snr_trace_file(cache_dir: Path, sbox_type: str, n_trc: int) -> Path:
+    tag = format_trace_count_tag(n_trc)
     candidates = [
-        cache_dir / f"snr_traces_{sbox_type}_{n_trc // 1000}k.h5",
+        cache_dir / f"snr_traces_{sbox_type}_{tag}.h5",
         cache_dir / "snr_traces.h5",
     ]
 
@@ -407,7 +449,7 @@ def find_snr_trace_file(cache_dir: Path, sbox_type: str, n_trc: int) -> Path:
     return candidates[0]
 
 
-def load_snr_peak_samples(snr_trace_file: Path):
+def load_snr_peak_samples(snr_trace_file: Path, sample_stop: int | None = None):
     """
     Load per-target SNR peak sample indices from the full SNR trace cache.
 
@@ -423,6 +465,11 @@ def load_snr_peak_samples(snr_trace_file: Path):
 
         g = f["snr_traces"]
         values = g["value"]
+        sample_limit = values.shape[2]
+        if sample_stop is not None:
+            sample_limit = min(sample_limit, int(sample_stop))
+        if sample_limit <= 0:
+            return {}
 
         if "register_names" in g:
             reg_names = decode_h5_strings(g["register_names"][:])
@@ -441,9 +488,70 @@ def load_snr_peak_samples(snr_trace_file: Path):
             for bit_i, bit in enumerate(bits):
                 if bit_i >= values.shape[1]:
                     break
-                peak_samples[(str(reg), int(bit))] = int(np.argmax(values[reg_i, bit_i, :]))
+                snr_trace = np.asarray(values[reg_i, bit_i, :sample_limit])
+                peak_samples[(str(reg), int(bit))] = int(np.argmax(snr_trace))
 
     return peak_samples
+
+
+def load_snr_ranked_targets_from_traces(
+    snr_trace_file: Path,
+    max_targets=None,
+    sample_stop: int | None = None,
+):
+    """
+    Build ranked targets from full SNR traces, optionally restricted to a
+    useful sample prefix. This keeps target ordering consistent with the
+    samples used by CPA.
+    """
+    if not snr_trace_file.exists():
+        raise FileNotFoundError(f"SNR trace file not found: {snr_trace_file}")
+
+    with h5py.File(snr_trace_file, "r") as f:
+        if "snr_traces/value" not in f:
+            raise KeyError("SNR trace file is missing 'snr_traces/value'")
+
+        g = f["snr_traces"]
+        values = g["value"]
+        sample_limit = values.shape[2]
+        if sample_stop is not None:
+            sample_limit = min(sample_limit, int(sample_stop))
+        if sample_limit <= 0:
+            raise ValueError("sample_stop leaves no SNR samples to rank")
+
+        if "register_names" in g:
+            reg_names = decode_h5_strings(g["register_names"][:])
+        else:
+            reg_names = ["x0", "x1", "x2", "x3", "x4"]
+
+        if "bits" in g:
+            bits = g["bits"][:].astype(int)
+        else:
+            bits = np.arange(values.shape[1], dtype=int)
+
+        targets = []
+        for reg_i, reg in enumerate(reg_names):
+            if reg_i >= values.shape[0]:
+                break
+            for bit_i, bit in enumerate(bits):
+                if bit_i >= values.shape[1]:
+                    break
+                snr_trace = np.asarray(values[reg_i, bit_i, :sample_limit])
+                peak_sample = int(np.argmax(snr_trace))
+                targets.append(
+                    {
+                        "order_idx": len(targets),
+                        "reg": str(reg),
+                        "bit": int(bit),
+                        "snr": float(snr_trace[peak_sample]),
+                        "snr_peak_sample": peak_sample,
+                    }
+                )
+
+    targets.sort(key=lambda target: target["snr"], reverse=True)
+    if max_targets is not None:
+        targets = targets[: int(max_targets)]
+    return targets
 
 
 def load_snr_ranked_targets(snr_file: Path, max_targets=None, peak_samples=None):
@@ -1271,19 +1379,20 @@ def target_sample_window(target: dict, n_samples: int, window_size: int):
 # Main
 # ---------------------------------------------------------------------------
 def main() -> None:
-    trace_file = TRACESET_DIR / f"ascon_opt32_{trace_sbox_type}_{traceset_size_k}k.h5"
+    trace_file = TRACESET_DIR / f"ascon_init_{trace_sbox_type}_{traceset_size_k}k.h5"
 
     plot_dir = BASE_PLOT_DIR / analysis_name
     cache_dir = BASE_CACHE_DIR / analysis_name
 
     snr_file = find_snr_file(cache_dir, analysis_name, n_trc)
     snr_trace_file = find_snr_trace_file(cache_dir, analysis_name, n_trc)
+    trace_count_tag = format_trace_count_tag(n_trc)
     if run_result_file_env:
         cpa_cache_file = Path(run_result_file_env).expanduser()
         if not cpa_cache_file.is_absolute():
             cpa_cache_file = (DOJO_ROOT / cpa_cache_file).resolve()
     else:
-        cpa_cache_file = cache_dir / f"CPA_results_chunked_{analysis_name}_{n_trc // 1000}k.json"
+        cpa_cache_file = cache_dir / f"CPA_results_chunked_{analysis_name}_{trace_count_tag}.json"
 
     BASE_PLOT_DIR.mkdir(parents=True, exist_ok=True)
     BASE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -1303,11 +1412,13 @@ def main() -> None:
             nonces_ds = f["nonces"]
 
             total_traces = int(traces_ds.shape[0])
-            n_samples = int(traces_ds.shape[1])
+            total_samples = int(traces_ds.shape[1])
 
             sampling_interval = f.attrs.get("sampling_interval", None)
             key_hex = f.attrs.get("key_hex", None)
             iv_hex = f.attrs.get("iv_hex", None)
+            traceset_sbox = f.attrs.get("sbox", None)
+            bitstream = f.attrs.get("bitstream", None)
 
             n_used = min(int(n_trc), total_traces)
             first_nonce = nonces_ds[0]
@@ -1327,6 +1438,18 @@ def main() -> None:
     if iv_hex is None:
         print("[ERROR] Missing iv_hex in HDF5 attributes.")
         return
+
+    n_samples = compute_analysis_sample_stop(
+        total_samples,
+        sampling_interval,
+        analysis_max_time_us,
+    )
+
+    if traceset_sbox is not None and str(traceset_sbox) != str(trace_sbox_type):
+        print(
+            f"[WARN] Requested trace S-box {trace_sbox_type!r}, but traceset metadata says "
+            f"{traceset_sbox!r}."
+        )
 
     # Nonce convention used in the old attack code:
     #   nonces[:, 0] = nonce LSB
@@ -1356,9 +1479,9 @@ def main() -> None:
     print("\n================= CONFIGURATION =================")
     print("Script scope")
     if cpa_recovery_policy == "baseline":
-        print("  Chunked baseline SNR-ranked generic CPA attack for ASCON SW")
+        print("  Chunked baseline SNR-ranked generic CPA attack for standalone ASCON_init HW")
     else:
-        print("  Chunked key-dependency-aware CPA attack for ASCON SW")
+        print("  Chunked key-dependency-aware CPA attack for standalone ASCON_init HW")
     print("  Full trace matrix is NOT loaded into RAM")
     print()
     print(f"DOJO_ROOT                  : {DOJO_ROOT}")
@@ -1370,7 +1493,12 @@ def main() -> None:
     print(f"  Requested traces         : {n_trc:,}")
     print(f"  Traces in file           : {total_traces:,}")
     print(f"  Used traces              : {n_used:,} (prefix rows 0:{n_used})")
-    print(f"  Samples per trace        : {n_samples}")
+    print(f"  Samples per trace        : {total_samples}")
+    print(f"  Samples analyzed         : {n_samples}")
+    analysis_limit_label = (
+        f"{analysis_max_time_us:g} us" if analysis_max_time_us > 0 else "full trace"
+    )
+    print(f"  Analysis time limit      : {analysis_limit_label}")
     print(f"  Traceset size in name    : {traceset_size_k}k")
     print()
     print("Compute")
@@ -1395,6 +1523,8 @@ def main() -> None:
     print()
     print("Paths")
     print(f"  Traceset file            : {trace_file}")
+    if bitstream is not None:
+        print(f"  Bitstream                : {bitstream}")
     print(f"  SNR ranked file          : {snr_file}")
     print(f"  SNR trace file           : {snr_trace_file}")
     print(f"  Plot dir                 : {plot_dir}")
@@ -1428,7 +1558,10 @@ def main() -> None:
     # Load SNR-ranked targets
     # -----------------------------------------------------------------------
     try:
-        peak_samples = load_snr_peak_samples(snr_trace_file) if cpa_sample_window > 0 else {}
+        peak_samples = (
+            load_snr_peak_samples(snr_trace_file, sample_stop=n_samples)
+            if cpa_sample_window > 0 else {}
+        )
         if cpa_sample_window > 0 and not peak_samples:
             print(
                 "[WARN] CPA sample window requested, but no SNR peak samples "
@@ -1438,11 +1571,18 @@ def main() -> None:
         else:
             effective_sample_window = cpa_sample_window
 
-        attacked_targets = load_snr_ranked_targets(
-            snr_file,
-            max_targets=None,
-            peak_samples=peak_samples,
-        )
+        if snr_trace_file.exists():
+            attacked_targets = load_snr_ranked_targets_from_traces(
+                snr_trace_file,
+                max_targets=None,
+                sample_stop=n_samples,
+            )
+        else:
+            attacked_targets = load_snr_ranked_targets(
+                snr_file,
+                max_targets=None,
+                peak_samples=peak_samples,
+            )
     except Exception as e:
         print(f"[ERROR] Could not read SNR ranked file: {e}")
         return
@@ -1727,7 +1867,9 @@ def main() -> None:
             "leakage_model_sbox": leakage_model_sbox,
             "analysis_name": analysis_name,
             "n_traces": int(n_used),
-            "n_samples": int(n_samples),
+            "n_samples_total": int(total_samples),
+            "n_samples_analyzed": int(n_samples),
+            "analysis_max_time_us": float(analysis_max_time_us),
             "chunk_size": int(chunk_size),
             "cpa_sample_window_requested": int(cpa_sample_window),
             "cpa_sample_window_effective": int(effective_sample_window),
@@ -1753,6 +1895,7 @@ def main() -> None:
             "snr_file": str(snr_file),
             "snr_trace_file": str(snr_trace_file),
             "trace_file": str(trace_file),
+            "bitstream": str(bitstream) if bitstream is not None else None,
             "expected_k0_hex": f"{k0_int:016X}",
             "expected_k1_hex": f"{k1_int:016X}",
             "recovered_k0_hex": f"{k0_rec_int:016X}",
@@ -1860,11 +2003,13 @@ def run_all_sboxes_and_polarities() -> int:
         "script": str(script_path),
         "key_relation_handling": "equivalent-dependency-constraints",
         "sboxes": list(ALL_SBOXES),
+        "include_comb": bool(INCLUDE_COMB),
         "polarities": list(ALL_POLARITIES),
         "total_analyses": len(ALL_SBOXES) * len(ALL_POLARITIES),
         "n_traces": int(n_trc),
         "traceset_size_k": int(traceset_size_k),
         "cpa_sample_window": int(cpa_sample_window),
+        "analysis_max_time_us": float(analysis_max_time_us),
         "mixed_top_groups": int(mixed_top_groups),
         "mixed_min_fact_support": int(mixed_min_fact_support),
         "dry_run": dry_run,
@@ -1957,7 +2102,7 @@ def run_all_sboxes_and_polarities() -> int:
             _write_all_config_manifests(output_dir, records)
 
             message = (
-                f"[{analysis_index}/21] Finished {selected_sbox} "
+                f"[{analysis_index}/{total_analyses}] Finished {selected_sbox} "
                 f"with polarity={selected_polarity}: {status}, "
                 f"{elapsed_seconds:.1f}s"
             )

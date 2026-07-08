@@ -8,25 +8,27 @@
 #   /snr_traces/bits
 #   /snr_traces/sample_index
 #
-# This script compares multiple SNR files using:
-#   - peak SNR distribution
-#   - mean peak SNR
-#   - max peak SNR
-#   - integrated SNR
-#   - leakage sample count above thresholds
-#   - per-register leakage statistics
-#   - mean SNR trace over time
+# The default output is a recommended compact set:
+#   - peak SNR heatmap
+#   - max / mean / median / top-k peak SNR summary
+#   - peak SNR CCDF
 #   - maximum-over-target SNR trace over time
+#   - clipped integrated SNR distribution
+#   - compact summary CSV
+#
+# Dense diagnostic plots, including PDF/KDE views of all SNR values, are kept
+# behind --include-appendix because they are less direct for a compact figure
+# set.
 # =====================================================================
 
-import os
+import argparse
+import csv
+import sys
 from pathlib import Path
 
 import h5py
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 
 
 # ---------------------------------------------------------------------------
@@ -51,18 +53,132 @@ except NameError:
     SCRIPT_DIR = Path.cwd()
 
 DOJO_ROOT = find_project_root(SCRIPT_DIR)
-BASE_CACHE_DIR = DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "cache"
-DEFAULT_OUT_DIR = DOJO_ROOT / "sw" / "sca_scripts" / "ASCON" / "sw" / "plot" / "snr_comparison_plots"
+ASCON_SCRIPT_DIR = DOJO_ROOT / "sw" / "sca_scripts" / "ASCON"
+sys.path.insert(0, str(ASCON_SCRIPT_DIR))
 
-ALL_SBOXES = [
-    "lut_ascon",
-    "lut_bilgin",
-    "lut_allouzi",
-    "lut_lu_4",
-    "lut_lu_5",
-    "lut_lu_6",
-    "lut_lu_7",
-]
+from ascon_plot_style import (  # noqa: E402
+    NAVY_CMAP,
+    SBOX_ORDER_HW,
+    SBOX_ORDER_SW,
+    apply_plot_style,
+    save_figure,
+    sbox_color,
+)
+
+apply_plot_style(plt)
+
+def _format_trace_count_tag(trace_count: int) -> str:
+    trace_count = int(trace_count)
+    if trace_count % 1000 == 0:
+        return f"{trace_count // 1000}k"
+    return str(trace_count)
+
+
+def _parse_thresholds(value: str):
+    thresholds = [float(item.strip()) for item in str(value).split(",") if item.strip()]
+    if not thresholds:
+        raise ValueError("--thresholds must contain at least one value")
+    return thresholds
+
+
+def _parse_args():
+    parser = argparse.ArgumentParser(
+        description="Compare ASCON SNR caches across S-box implementations.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--implementation",
+        choices=["sw", "hw"],
+        default="sw",
+        help="Trace implementation family to compare.",
+    )
+    parser.add_argument(
+        "--sboxes",
+        default="all",
+        help="Comma-separated S-box list, or 'all'.",
+    )
+    parser.add_argument(
+        "--n-traces",
+        type=int,
+        default=1000000,
+        help="Trace count used to derive the default SNR cache tag.",
+    )
+    parser.add_argument(
+        "--tag",
+        default=None,
+        help="SNR cache tag, e.g. 1000k. Defaults to --n-traces formatted as a tag.",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default=None,
+        help="Base directory containing per-S-box SNR cache folders.",
+    )
+    parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Directory where plots and CSV files are written.",
+    )
+    parser.add_argument(
+        "--plot-set",
+        choices=["main", "full"],
+        default="main",
+        help="main keeps the compact recommended set; full also enables secondary and appendix plots.",
+    )
+    parser.add_argument(
+        "--include-secondary",
+        action="store_true",
+        help="Also write CDF, mean-trace, and integrated-CCDF plots.",
+    )
+    parser.add_argument(
+        "--include-appendix",
+        action="store_true",
+        help="Also write dense diagnostic plots such as PDF/KDE and per-register plots.",
+    )
+    parser.add_argument(
+        "--include-comb",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Include the combinational HW S-box when --implementation hw and --sboxes all.",
+    )
+    parser.add_argument(
+        "--thresholds",
+        default="0.001,0.005,0.01,0.02,0.05",
+        help="Comma-separated SNR thresholds used for summary counts.",
+    )
+    parser.add_argument("--hist-bins", type=int, default=80)
+    parser.add_argument("--top-k", type=int, default=20)
+    parser.add_argument("--peak-snr-zoom-max", type=float, default=0.25)
+    parser.add_argument("--clip-percentile", type=float, default=99.0)
+    parser.add_argument("--max-values-per-sbox", type=int, default=2_000_000)
+    parser.add_argument("--time-plot-downsample", type=int, default=1)
+    parser.add_argument("--dpi", type=int, default=300)
+    parser.add_argument(
+        "--strict-missing-files",
+        action="store_true",
+        help="Fail on missing SNR cache files instead of skipping them.",
+    )
+    return parser.parse_args()
+
+
+ARGS = _parse_args()
+IMPLEMENTATION = ARGS.implementation
+
+DEFAULT_CACHE_DIR = (
+    ASCON_SCRIPT_DIR / "hw" / "cache" / "ascon_init"
+    if IMPLEMENTATION == "hw"
+    else ASCON_SCRIPT_DIR / "sw" / "cache"
+)
+DEFAULT_OUT_DIR = (
+    ASCON_SCRIPT_DIR / "hw" / "plot" / "ascon_init_snr_comparison_plots"
+    if IMPLEMENTATION == "hw"
+    else ASCON_SCRIPT_DIR / "sw" / "plot" / "snr_comparison_plots"
+)
+BASE_CACHE_DIR = Path(ARGS.cache_dir) if ARGS.cache_dir else DEFAULT_CACHE_DIR
+OUT_DIR = Path(ARGS.out_dir) if ARGS.out_dir else DEFAULT_OUT_DIR
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+INCLUDE_COMB = bool(ARGS.include_comb)
+ALL_SBOXES = list(SBOX_ORDER_HW if IMPLEMENTATION == "hw" and INCLUDE_COMB else SBOX_ORDER_SW)
 
 
 def parse_sboxes(value: str):
@@ -77,24 +193,23 @@ def parse_sboxes(value: str):
     return sboxes
 
 
-SBOXES_TO_COMPARE = parse_sboxes(os.environ.get("SNR_COMPARE_SBOXES", "all"))
-SNR_TRACE_COUNT = int(os.environ.get("SNR_COMPARE_N", "1000000"))
-SNR_TRACE_TAG = os.environ.get("SNR_COMPARE_TAG", f"{SNR_TRACE_COUNT // 1000}k")
+SBOXES_TO_COMPARE = parse_sboxes(ARGS.sboxes)
+SNR_TRACE_COUNT = int(ARGS.n_traces)
+SNR_TRACE_TAG = ARGS.tag or _format_trace_count_tag(SNR_TRACE_COUNT)
+INCLUDE_SECONDARY_PLOTS = bool(ARGS.include_secondary or ARGS.plot_set == "full")
+INCLUDE_APPENDIX_PLOTS = bool(ARGS.include_appendix or ARGS.plot_set == "full")
 
 SNR_FILES = {
     sbox: BASE_CACHE_DIR / sbox / f"snr_traces_{sbox}_{SNR_TRACE_TAG}.h5"
     for sbox in SBOXES_TO_COMPARE
 }
 
-OUT_DIR = Path(os.environ.get("SNR_COMPARE_OUT_DIR", str(DEFAULT_OUT_DIR)))
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-
 # Thresholds used to count leaking samples.
 # You may tune these after inspecting your SNR scale.
-SNR_THRESHOLDS = [0.001, 0.005, 0.01, 0.02, 0.05]
+SNR_THRESHOLDS = _parse_thresholds(ARGS.thresholds)
 
 # Histogram/PDF settings.
-HIST_BINS = 80
+HIST_BINS = int(ARGS.hist_bins)
 SHOW_LOG_DISTRIBUTION_HISTOGRAM = False
 
 # Skew-aware plot settings.
@@ -102,44 +217,18 @@ SHOW_LOG_DISTRIBUTION_HISTOGRAM = False
 # values. Log distributions expose multiplicative differences, zoomed plots
 # show the dense near-zero region, and CCDFs make tail behavior visible.
 EPS = 1e-12
-TOP_K = 20
-PEAK_SNR_ZOOM_MAX = 0.25
-HEATMAP_CLIP_PERCENTILE = 99.0
-MAX_VALUES_PER_SBOX = 2_000_000
-SKIP_MISSING_FILES = True
+TOP_K = int(ARGS.top_k)
+PEAK_SNR_ZOOM_MAX = float(ARGS.peak_snr_zoom_max)
+HEATMAP_CLIP_PERCENTILE = float(ARGS.clip_percentile)
+MAX_VALUES_PER_SBOX = int(ARGS.max_values_per_sbox)
+SKIP_MISSING_FILES = not bool(ARGS.strict_missing_files)
 
 # If there are too many samples, plot every Nth sample for time-domain curves.
 # Use 1 to plot all samples.
-TIME_PLOT_DOWNSAMPLE = 1
+TIME_PLOT_DOWNSAMPLE = int(ARGS.time_plot_downsample)
 
 # Save figures with this DPI.
-FIG_DPI = 300
-
-SBOX_COLORS = {
-    "lut_ascon": "#1f77b4",
-    "lut_allouzi": "#ff7f0e",
-    "lut_bilgin": "#2ca02c",
-    "lut_lu_4": "#d62728",
-    "lut_lu_5": "#9467bd",
-    "lut_lu_6": "#8c564b",
-    "lut_lu_7": "#e377c2",
-}
-
-NAVY_CMAP = LinearSegmentedColormap.from_list(
-    "snr_navy",
-    ["#f7fbff", "#deebf7", "#9ecae1", "#3182bd", "#08306b", "#001f4d"],
-)
-
-plt.rcParams.update({
-    "font.family": "serif",
-    "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
-    "axes.labelsize": 14,
-    "axes.titlesize": 16,
-    "xtick.labelsize": 16,
-    "ytick.labelsize": 16,
-    "figure.titlesize": 16,
-    "legend.fontsize": 12,
-})
+FIG_DPI = int(ARGS.dpi)
 
 
 # ---------------------------------------------------------------------------
@@ -231,16 +320,26 @@ def compute_metrics(name, d, thresholds):
 
     integrated_per_target = np.sum(snr, axis=2)    # (5, 64)
 
+    def mean_top_k(values, k):
+        values = np.sort(finite_values(values))[::-1]
+        if values.size == 0:
+            return float("nan")
+        return float(np.mean(values[:min(int(k), values.size)]))
+
     rows = []
 
     global_row = {
         "sbox": name,
         "scope": "global",
         "register": "all",
+        "n_targets": int(peak_per_target.size),
         "mean_peak_snr": float(np.mean(peak_per_target)),
         "median_peak_snr": float(np.median(peak_per_target)),
         "max_peak_snr": float(np.max(peak_per_target)),
+        "mean_top5_peak_snr": mean_top_k(peak_per_target, 5),
+        "mean_top10_peak_snr": mean_top_k(peak_per_target, 10),
         "std_peak_snr": float(np.std(peak_per_target)),
+        "max_integrated_snr": float(np.max(integrated_per_target)),
         "mean_integrated_snr": float(np.mean(integrated_per_target)),
         "sum_integrated_snr": float(np.sum(snr)),
         "mean_snr_all_values": float(np.mean(snr)),
@@ -248,6 +347,8 @@ def compute_metrics(name, d, thresholds):
     }
 
     for th in thresholds:
+        global_row[f"count_peak_snr_gt_{th}"] = int(np.sum(peak_per_target > th))
+        global_row[f"fraction_peak_snr_gt_{th}"] = float(np.mean(peak_per_target > th))
         global_row[f"count_snr_gt_{th}"] = int(np.sum(snr > th))
         global_row[f"fraction_snr_gt_{th}"] = float(np.mean(snr > th))
 
@@ -262,10 +363,14 @@ def compute_metrics(name, d, thresholds):
             "sbox": name,
             "scope": "register",
             "register": reg_name,
+            "n_targets": int(peak_reg.size),
             "mean_peak_snr": float(np.mean(peak_reg)),
             "median_peak_snr": float(np.median(peak_reg)),
             "max_peak_snr": float(np.max(peak_reg)),
+            "mean_top5_peak_snr": mean_top_k(peak_reg, 5),
+            "mean_top10_peak_snr": mean_top_k(peak_reg, 10),
             "std_peak_snr": float(np.std(peak_reg)),
+            "max_integrated_snr": float(np.max(integrated_reg)),
             "mean_integrated_snr": float(np.mean(integrated_reg)),
             "sum_integrated_snr": float(np.sum(snr_reg)),
             "mean_snr_all_values": float(np.mean(snr_reg)),
@@ -273,6 +378,8 @@ def compute_metrics(name, d, thresholds):
         }
 
         for th in thresholds:
+            row[f"count_peak_snr_gt_{th}"] = int(np.sum(peak_reg > th))
+            row[f"fraction_peak_snr_gt_{th}"] = float(np.mean(peak_reg > th))
             row[f"count_snr_gt_{th}"] = int(np.sum(snr_reg > th))
             row[f"fraction_snr_gt_{th}"] = float(np.mean(snr_reg > th))
 
@@ -297,19 +404,79 @@ def compute_metrics(name, d, thresholds):
 
 def savefig(name):
     path = OUT_DIR / name
-    plt.tight_layout()
-    plt.savefig(path, dpi=FIG_DPI)
+    save_figure(plt.gcf(), path, dpi=FIG_DPI)
     plt.close()
     print(f"[INFO] Saved plot: {path}")
-
-
-def sbox_color(name):
-    return SBOX_COLORS.get(name, "#4c566a")
 
 
 def finite_values(values):
     values = np.asarray(values, dtype=np.float64).reshape(-1)
     return values[np.isfinite(values)]
+
+
+def legend_if_labeled(ax=None):
+    ax = ax if ax is not None else plt.gca()
+    handles, labels = ax.get_legend_handles_labels()
+    if handles and labels:
+        ax.legend()
+
+
+def boxplot_with_labels(ax, values, labels, **kwargs):
+    try:
+        return ax.boxplot(values, tick_labels=labels, **kwargs)
+    except TypeError:
+        return ax.boxplot(values, labels=labels, **kwargs)
+
+
+def write_csv_rows(path: Path, rows):
+    rows = list(rows)
+    if not rows:
+        path.write_text("", encoding="utf-8")
+        return
+
+    columns = []
+    for row in rows:
+        for key in row.keys():
+            if key not in columns:
+                columns.append(key)
+
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({column: row.get(column, "") for column in columns})
+
+
+def global_summary_rows(summary_rows, names=None):
+    rows = [row.copy() for row in summary_rows if row.get("scope") == "global"]
+    if names is None:
+        return rows
+
+    order = {name: index for index, name in enumerate(names)}
+    return sorted(rows, key=lambda row: order.get(row.get("sbox"), len(order)))
+
+
+def main_summary_rows(summary_rows, names=None):
+    rows = global_summary_rows(summary_rows, names)
+    threshold_cols = sorted(
+        [key for key in rows[0].keys() if key.startswith("count_peak_snr_gt_")] if rows else [],
+        key=lambda key: float(key.replace("count_peak_snr_gt_", "")),
+    )
+    columns = [
+        "sbox",
+        "n_targets",
+        "max_peak_snr",
+        "mean_peak_snr",
+        "median_peak_snr",
+        "mean_top5_peak_snr",
+        "mean_top10_peak_snr",
+        "max_integrated_snr",
+    ] + threshold_cols
+
+    return [
+        {column: row.get(column, "") for column in columns}
+        for row in rows
+    ]
 
 
 def get_kde():
@@ -378,7 +545,7 @@ def plot_log_distribution(values_by_name, xlabel, title, filename):
     plt.xlabel(xlabel)
     plt.ylabel("Density")
     plt.title(title)
-    plt.legend()
+    legend_if_labeled()
     plt.grid(True, alpha=0.3)
     savefig(filename)
 
@@ -440,7 +607,160 @@ def plot_peak_cdf(metrics):
     savefig("peak_snr_cdf.png")
 
 
-def plot_mean_snr_trace(data, metrics):
+def plot_main_peak_snr_heatmap(data, metrics):
+    names = list(metrics.keys())
+    all_peak = np.concatenate([m["peak_flat"] for m in metrics.values()])
+    peak_vmax = float(np.max(all_peak))
+
+    fig, axes = plt.subplots(
+        len(names),
+        1,
+        figsize=(13, max(3.0 * len(names), 5.0)),
+        sharex=True,
+        squeeze=False,
+    )
+    axes = axes[:, 0]
+    im = None
+
+    for ax, name in zip(axes, names):
+        reg_names = data[name]["reg_names"]
+        values = metrics[name]["peak_per_target"]
+        im = ax.imshow(
+            values,
+            aspect="auto",
+            interpolation="nearest",
+            vmin=0.0,
+            vmax=peak_vmax,
+            cmap=NAVY_CMAP,
+        )
+        ax.set_yticks(np.arange(len(reg_names)))
+        ax.set_yticklabels(reg_names)
+        ax.set_ylabel(name)
+
+    bits = data[names[0]]["bits"]
+    axes[-1].set_xticks(np.arange(len(bits))[::4])
+    axes[-1].set_xticklabels(bits[::4])
+    axes[-1].set_xlabel("Bit")
+    fig.suptitle("Peak SNR Heatmap Across S-boxes")
+    fig.colorbar(im, ax=axes, label="Peak SNR", fraction=0.025, pad=0.015)
+    fig.subplots_adjust(left=0.08, right=0.94, top=0.95, bottom=0.08, hspace=0.35)
+
+    out_path = OUT_DIR / "figure1_peak_snr_heatmap.png"
+    save_figure(fig, out_path, dpi=FIG_DPI, tight=False)
+    plt.close(fig)
+    print(f"[INFO] Saved plot: {out_path}")
+
+
+def plot_main_peak_summary_bars(summary_rows, names):
+    rows = global_summary_rows(summary_rows, names)
+    if not rows:
+        return
+
+    x = np.arange(len(rows))
+    labels = [row["sbox"] for row in rows]
+    colors = [sbox_color(name) for name in labels]
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 8))
+    ax_max, ax_typical, ax_top, ax_integrated = axes.reshape(-1)
+
+    ax_max.bar(x, [row["max_peak_snr"] for row in rows], color=colors)
+    ax_max.set_xticks(x)
+    ax_max.set_xticklabels(labels, rotation=30, ha="right")
+    ax_max.set_ylabel("Max peak SNR")
+    ax_max.set_title("Worst-case leakage")
+    ax_max.grid(True, axis="y", alpha=0.3)
+
+    width = 0.36
+    ax_typical.bar(
+        x - width / 2,
+        [row["mean_peak_snr"] for row in rows],
+        width=width,
+        color=colors,
+        alpha=0.85,
+        label="mean",
+    )
+    ax_typical.bar(
+        x + width / 2,
+        [row["median_peak_snr"] for row in rows],
+        width=width,
+        color=colors,
+        alpha=0.42,
+        label="median",
+    )
+    ax_typical.set_xticks(x)
+    ax_typical.set_xticklabels(labels, rotation=30, ha="right")
+    ax_typical.set_ylabel("Peak SNR")
+    ax_typical.set_title("Typical leakage")
+    ax_typical.grid(True, axis="y", alpha=0.3)
+    ax_typical.legend()
+
+    ax_top.bar(
+        x - width / 2,
+        [row["mean_top5_peak_snr"] for row in rows],
+        width=width,
+        color=colors,
+        alpha=0.85,
+        label="top 5 mean",
+    )
+    ax_top.bar(
+        x + width / 2,
+        [row["mean_top10_peak_snr"] for row in rows],
+        width=width,
+        color=colors,
+        alpha=0.42,
+        label="top 10 mean",
+    )
+    ax_top.set_xticks(x)
+    ax_top.set_xticklabels(labels, rotation=30, ha="right")
+    ax_top.set_ylabel("Peak SNR")
+    ax_top.set_title("Dangerous-bit group leakage")
+    ax_top.grid(True, axis="y", alpha=0.3)
+    ax_top.legend()
+
+    ax_integrated.bar(x, [row["max_integrated_snr"] for row in rows], color=colors)
+    ax_integrated.set_xticks(x)
+    ax_integrated.set_xticklabels(labels, rotation=30, ha="right")
+    ax_integrated.set_ylabel("Max integrated SNR")
+    ax_integrated.set_title("Most spread-out target leakage")
+    ax_integrated.grid(True, axis="y", alpha=0.3)
+
+    fig.suptitle("Main Summary Metrics")
+    out_path = OUT_DIR / "main_peak_snr_summary_bars.png"
+    save_figure(fig, out_path, dpi=FIG_DPI, tight=True)
+    plt.close(fig)
+    print(f"[INFO] Saved plot: {out_path}")
+
+
+def plot_integrated_snr_clipped_distribution(metrics):
+    all_integrated = np.concatenate([finite_values(m["integrated_flat"]) for m in metrics.values()])
+    xmax = float(np.percentile(all_integrated, HEATMAP_CLIP_PERCENTILE))
+    if xmax <= 0.0:
+        print("[WARN] Cannot plot clipped integrated SNR distribution: non-positive range.")
+        return
+
+    plt.figure(figsize=(8, 5))
+    for name, m in metrics.items():
+        plt.hist(
+            m["integrated_flat"],
+            bins=HIST_BINS,
+            range=(0.0, xmax),
+            density=True,
+            histtype="step",
+            linewidth=1.8,
+            color=sbox_color(name),
+            label=name,
+        )
+
+    plt.xlim(0.0, xmax)
+    plt.xlabel("Integrated SNR per target bit")
+    plt.ylabel("Density")
+    plt.title(f"Integrated SNR Distribution Clipped at P{HEATMAP_CLIP_PERCENTILE:g}")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    savefig("figure4_integrated_snr_clipped_p99.png")
+
+
+def plot_mean_snr_trace(data, metrics, filename="mean_snr_trace.png", title="Mean SNR Trace Over Time"):
     plt.figure(figsize=(10, 5))
 
     for name, m in metrics.items():
@@ -451,13 +771,13 @@ def plot_mean_snr_trace(data, metrics):
 
     plt.xlabel("Sample index")
     plt.ylabel("Mean SNR over all 5×64 targets")
-    plt.title("Mean SNR Trace Over Time")
+    plt.title(title)
     plt.legend()
     plt.grid(True, alpha=0.3)
-    savefig("mean_snr_trace.png")
+    savefig(filename)
 
 
-def plot_max_snr_trace(data, metrics):
+def plot_max_snr_trace(data, metrics, filename="max_snr_trace.png", title="Maximum Target SNR Trace Over Time"):
     plt.figure(figsize=(10, 5))
 
     for name, m in metrics.items():
@@ -468,10 +788,10 @@ def plot_max_snr_trace(data, metrics):
 
     plt.xlabel("Sample index")
     plt.ylabel("Max SNR over all 5×64 targets")
-    plt.title("Maximum Target SNR Trace Over Time")
+    plt.title(title)
     plt.legend()
     plt.grid(True, alpha=0.3)
-    savefig("max_snr_trace.png")
+    savefig(filename)
 
 
 def plot_per_register_mean_peak(data, metrics):
@@ -652,7 +972,13 @@ def plot_log_boxplots(metrics):
     ]:
         values = [np.maximum(finite_values(metrics[name][key]), 0.0) + EPS for name in names]
         plt.figure(figsize=(9, 5))
-        box = plt.boxplot(values, labels=names, showfliers=True, patch_artist=True)
+        box = boxplot_with_labels(
+            plt.gca(),
+            values,
+            names,
+            showfliers=True,
+            patch_artist=True,
+        )
         for patch, name in zip(box["boxes"], names):
             patch.set_facecolor(sbox_color(name))
             patch.set_alpha(0.35)
@@ -665,15 +991,17 @@ def plot_log_boxplots(metrics):
         savefig(filename)
 
 
-def plot_threshold_counts(summary_df):
-    global_df = summary_df[summary_df["scope"] == "global"].copy()
+def plot_threshold_counts(summary_rows):
+    global_rows = global_summary_rows(summary_rows)
+    if not global_rows:
+        return
 
-    count_cols = [c for c in global_df.columns if c.startswith("count_snr_gt_")]
+    count_cols = [c for c in global_rows[0].keys() if c.startswith("count_snr_gt_")]
     thresholds = [float(c.replace("count_snr_gt_", "")) for c in count_cols]
 
     plt.figure(figsize=(8, 5))
 
-    for _, row in global_df.iterrows():
+    for row in global_rows:
         y = [row[c] for c in count_cols]
         plt.plot(
             thresholds,
@@ -762,10 +1090,10 @@ def plot_heatmaps(data, metrics):
         axes[-1].set_xlabel("Bit")
         fig.suptitle(title)
         fig.colorbar(im, ax=axes, label=colorbar_label, fraction=0.025, pad=0.015)
-        fig.tight_layout(rect=[0, 0, 0.96, 0.98])
+        fig.subplots_adjust(left=0.08, right=0.94, top=0.95, bottom=0.08, hspace=0.35)
 
         out_path = OUT_DIR / filename
-        fig.savefig(out_path, dpi=FIG_DPI)
+        save_figure(fig, out_path, dpi=FIG_DPI, tight=False)
         plt.close(fig)
         print(f"[INFO] Saved plot: {out_path}")
 
@@ -833,7 +1161,7 @@ def save_top_target_tables(data, metrics, top_k=TOP_K):
     print(f"[INFO] Top-{top_k} target CSV export disabled")
 
 
-def plot_comparison_dashboard(data, metrics, summary_df):
+def plot_comparison_dashboard(data, metrics, summary_rows):
     """
     One dashboard figure containing:
       1. mean_peak_snr
@@ -845,11 +1173,7 @@ def plot_comparison_dashboard(data, metrics, summary_df):
     """
 
     names = list(metrics.keys())
-    global_df = summary_df[summary_df["scope"] == "global"].copy()
-
-    # Keep same ordering as SNR_FILES / metrics
-    global_df["sbox"] = pd.Categorical(global_df["sbox"], categories=names, ordered=True)
-    global_df = global_df.sort_values("sbox")
+    global_rows = global_summary_rows(summary_rows, names)
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
@@ -866,7 +1190,7 @@ def plot_comparison_dashboard(data, metrics, summary_df):
     # ------------------------------------------------------------
     # 1. Mean peak SNR
     # ------------------------------------------------------------
-    ax_mean_peak.bar(x, global_df["mean_peak_snr"].values, color=bar_colors)
+    ax_mean_peak.bar(x, [row["mean_peak_snr"] for row in global_rows], color=bar_colors)
     ax_mean_peak.set_xticks(x)
     ax_mean_peak.set_xticklabels(names, rotation=30, ha="right")
     ax_mean_peak.set_ylabel("Mean peak SNR")
@@ -876,7 +1200,7 @@ def plot_comparison_dashboard(data, metrics, summary_df):
     # ------------------------------------------------------------
     # 2. Max peak SNR
     # ------------------------------------------------------------
-    ax_max_peak.bar(x, global_df["max_peak_snr"].values, color=bar_colors)
+    ax_max_peak.bar(x, [row["max_peak_snr"] for row in global_rows], color=bar_colors)
     ax_max_peak.set_xticks(x)
     ax_max_peak.set_xticklabels(names, rotation=30, ha="right")
     ax_max_peak.set_ylabel("Max peak SNR")
@@ -886,7 +1210,7 @@ def plot_comparison_dashboard(data, metrics, summary_df):
     # ------------------------------------------------------------
     # 3. Sum integrated SNR
     # ------------------------------------------------------------
-    ax_integrated.bar(x, global_df["sum_integrated_snr"].values, color=bar_colors)
+    ax_integrated.bar(x, [row["sum_integrated_snr"] for row in global_rows], color=bar_colors)
     ax_integrated.set_xticks(x)
     ax_integrated.set_xticklabels(names, rotation=30, ha="right")
     ax_integrated.set_ylabel("Sum integrated SNR")
@@ -897,7 +1221,7 @@ def plot_comparison_dashboard(data, metrics, summary_df):
     # 4. Fraction of samples above SNR thresholds
     # ------------------------------------------------------------
     fraction_cols = [
-        c for c in global_df.columns
+        c for c in global_rows[0].keys()
         if c.startswith("fraction_snr_gt_")
     ]
 
@@ -911,7 +1235,7 @@ def plot_comparison_dashboard(data, metrics, summary_df):
     thresholds = [p[0] for p in sorted_pairs]
     fraction_cols = [p[1] for p in sorted_pairs]
 
-    for _, row in global_df.iterrows():
+    for row in global_rows:
         y = [row[c] for c in fraction_cols]
         ax_fraction.plot(
             thresholds,
@@ -965,43 +1289,40 @@ def plot_comparison_dashboard(data, metrics, summary_df):
 
     fig.suptitle("SNR Comparison Dashboard Across S-box Implementations", fontsize=16)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-
     out_path = OUT_DIR / "snr_comparison_dashboard.png"
-    plt.savefig(out_path, dpi=FIG_DPI)
+    save_figure(plt.gcf(), out_path, dpi=FIG_DPI, tight=True)
     plt.close()
 
     print(f"[INFO] Saved plot: {out_path}")
 
 
-def plot_comparison_dashboard_improved(data, metrics, summary_df):
+def plot_comparison_dashboard_improved(data, metrics, summary_rows):
     names = list(metrics.keys())
-    global_df = summary_df[summary_df["scope"] == "global"].copy()
-    global_df["sbox"] = pd.Categorical(global_df["sbox"], categories=names, ordered=True)
-    global_df = global_df.sort_values("sbox")
+    global_rows = global_summary_rows(summary_rows, names)
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
     ax_mean_peak, ax_max_peak, ax_box, ax_ccdf, ax_trace, ax_counts = axes.reshape(-1)
     x = np.arange(len(names))
     bar_colors = [sbox_color(name) for name in names]
 
-    ax_mean_peak.bar(x, global_df["mean_peak_snr"].values, color=bar_colors)
+    ax_mean_peak.bar(x, [row["mean_peak_snr"] for row in global_rows], color=bar_colors)
     ax_mean_peak.set_xticks(x)
     ax_mean_peak.set_xticklabels(names, rotation=30, ha="right")
     ax_mean_peak.set_ylabel("Mean peak SNR")
     ax_mean_peak.set_title("Mean Peak SNR")
     ax_mean_peak.grid(True, axis="y", alpha=0.3)
 
-    ax_max_peak.bar(x, global_df["max_peak_snr"].values, color=bar_colors)
+    ax_max_peak.bar(x, [row["max_peak_snr"] for row in global_rows], color=bar_colors)
     ax_max_peak.set_xticks(x)
     ax_max_peak.set_xticklabels(names, rotation=30, ha="right")
     ax_max_peak.set_ylabel("Max peak SNR")
     ax_max_peak.set_title("Maximum Peak SNR")
     ax_max_peak.grid(True, axis="y", alpha=0.3)
 
-    box = ax_box.boxplot(
+    box = boxplot_with_labels(
+        ax_box,
         [np.maximum(metrics[name]["peak_flat"], 0.0) + EPS for name in names],
-        labels=names,
+        names,
         showfliers=True,
         patch_artist=True,
     )
@@ -1044,7 +1365,7 @@ def plot_comparison_dashboard_improved(data, metrics, summary_df):
     ax_trace.grid(True, alpha=0.3)
     ax_trace.legend()
 
-    count_cols = [c for c in global_df.columns if c.startswith("count_snr_gt_")]
+    count_cols = [c for c in global_rows[0].keys() if c.startswith("count_snr_gt_")]
     sorted_pairs = sorted(
         [(float(c.replace("count_snr_gt_", "")), c) for c in count_cols],
         key=lambda p: p[0],
@@ -1052,7 +1373,7 @@ def plot_comparison_dashboard_improved(data, metrics, summary_df):
     thresholds = [p[0] for p in sorted_pairs]
     count_cols = [p[1] for p in sorted_pairs]
 
-    for _, row in global_df.iterrows():
+    for row in global_rows:
         y = [row[c] for c in count_cols]
         ax_counts.plot(
             thresholds,
@@ -1069,10 +1390,8 @@ def plot_comparison_dashboard_improved(data, metrics, summary_df):
     ax_counts.legend()
 
     fig.suptitle("Improved SNR Comparison Dashboard", fontsize=16)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-
     out_path = OUT_DIR / "snr_comparison_dashboard_improved.png"
-    plt.savefig(out_path, dpi=FIG_DPI)
+    save_figure(plt.gcf(), out_path, dpi=FIG_DPI, tight=True)
     plt.close()
     print(f"[INFO] Saved plot: {out_path}")
 
@@ -1158,8 +1477,7 @@ def plot_snr_pdf_kde(metrics, mode="peak", num_points=1000):
     plt.legend()
 
     out_path = OUT_DIR / f"pdf_kde_{mode}_snr.png"
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=FIG_DPI)
+    save_figure(plt.gcf(), out_path, dpi=FIG_DPI)
     plt.close()
 
     print(f"[INFO] Saved plot: {out_path}")
@@ -1237,8 +1555,7 @@ def plot_full_snr_pdf_kde(data, num_points=1000, max_values_per_sbox=2_000_000):
     plt.legend()
 
     out_path = OUT_DIR / "pdf_kde_all_snr_values.png"
-    plt.tight_layout()
-    plt.savefig(out_path, dpi=FIG_DPI)
+    save_figure(plt.gcf(), out_path, dpi=FIG_DPI)
     plt.close()
 
     print(f"[INFO] Saved plot: {out_path}")
@@ -1272,11 +1589,14 @@ def main():
         metrics[name] = compute_metrics(name, d, SNR_THRESHOLDS)
         all_rows.extend(metrics[name]["rows"])
 
-    summary_df = pd.DataFrame(all_rows)
-
     summary_csv = OUT_DIR / "snr_summary_metrics.csv"
-    summary_df.to_csv(summary_csv, index=False)
+    write_csv_rows(summary_csv, all_rows)
     print(f"[INFO] Saved summary CSV: {summary_csv}")
+
+    main_rows = main_summary_rows(all_rows, list(metrics.keys()))
+    main_summary_csv = OUT_DIR / "snr_main_summary_metrics.csv"
+    write_csv_rows(main_summary_csv, main_rows)
+    print(f"[INFO] Saved main summary CSV: {main_summary_csv}")
 
     # Also save target-level peak SNR table.
     target_rows = []
@@ -1287,41 +1607,70 @@ def main():
 
         for reg_i in range(peak.shape[0]):
             for bit_i in range(peak.shape[1]):
+                peak_sample_position = int(m["peak_sample_idx"][reg_i, bit_i])
+                peak_sample = int(data[name]["sample_index"][peak_sample_position])
                 target_rows.append({
                     "sbox": name,
                     "register": f"x{reg_i}",
                     "bit": bit_i,
                     "peak_snr": float(peak[reg_i, bit_i]),
+                    "peak_sample_index": peak_sample,
                     "integrated_snr": float(integrated[reg_i, bit_i]),
                 })
 
-    target_df = pd.DataFrame(target_rows)
-    target_df = target_df.sort_values(["sbox", "peak_snr"], ascending=[True, False])
+    target_rows = sorted(
+        target_rows,
+        key=lambda row: (row["sbox"], -float(row["peak_snr"])),
+    )
 
     target_csv = OUT_DIR / "snr_target_level_metrics.csv"
-    target_df.to_csv(target_csv, index=False)
+    write_csv_rows(target_csv, target_rows)
     print(f"[INFO] Saved target-level CSV: {target_csv}")
 
     print("[INFO] Generating plots")
 
-    plot_peak_histograms(metrics)
-    plot_peak_cdf(metrics)
-    plot_mean_snr_trace(data, metrics)
-    plot_max_snr_trace(data, metrics)
-    plot_per_register_mean_peak(data, metrics)
-    plot_per_register_max_peak(data, metrics)
-    plot_integrated_snr_distribution(metrics)
-    plot_threshold_counts(summary_df)
-    plot_top_bits(metrics, top_k=TOP_K)
-    plot_comparison_dashboard(data, metrics, summary_df)
-    plot_skew_aware_distributions(data, metrics)
-    plot_log_boxplots(metrics)
-    plot_heatmaps(data, metrics)
-    plot_mean_snr_trace_per_register(data, metrics)
-    save_top_target_tables(data, metrics, top_k=TOP_K)
-    plot_comparison_dashboard_improved(data, metrics, summary_df)
-    plot_snr_pdf_kde(metrics, mode="peak")
-    plot_full_snr_pdf_kde(data, max_values_per_sbox=MAX_VALUES_PER_SBOX)
+    plot_main_peak_snr_heatmap(data, metrics)
+    plot_main_peak_summary_bars(all_rows, list(metrics.keys()))
+    plot_ccdf(
+        {name: m["peak_flat"] for name, m in metrics.items()},
+        "Peak SNR per target bit",
+        "CCDF of Peak SNR Across Target Bits",
+        "figure2_peak_snr_ccdf.png",
+    )
+    plot_max_snr_trace(
+        data,
+        metrics,
+        filename="figure3_max_snr_trace.png",
+        title="Maximum Target SNR Trace Over Time",
+    )
+    plot_integrated_snr_clipped_distribution(metrics)
+
+    if INCLUDE_SECONDARY_PLOTS:
+        plot_peak_cdf(metrics)
+        plot_mean_snr_trace(data, metrics)
+        plot_ccdf(
+            {name: m["integrated_flat"] for name, m in metrics.items()},
+            "Integrated SNR per target bit",
+            "CCDF of Integrated SNR Across Target Bits",
+            "integrated_snr_ccdf.png",
+        )
+
+    if INCLUDE_APPENDIX_PLOTS:
+        plot_peak_histograms(metrics)
+        plot_per_register_mean_peak(data, metrics)
+        plot_per_register_max_peak(data, metrics)
+        plot_integrated_snr_distribution(metrics)
+        plot_threshold_counts(all_rows)
+        plot_top_bits(metrics, top_k=TOP_K)
+        plot_comparison_dashboard(data, metrics, all_rows)
+        plot_skew_aware_distributions(data, metrics)
+        plot_log_boxplots(metrics)
+        plot_heatmaps(data, metrics)
+        plot_mean_snr_trace_per_register(data, metrics)
+        save_top_target_tables(data, metrics, top_k=TOP_K)
+        plot_comparison_dashboard_improved(data, metrics, all_rows)
+        plot_snr_pdf_kde(metrics, mode="peak")
+        plot_full_snr_pdf_kde(data, max_values_per_sbox=MAX_VALUES_PER_SBOX)
 
     print("[INFO] Done")
 
