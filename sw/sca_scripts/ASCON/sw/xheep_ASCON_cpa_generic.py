@@ -379,6 +379,7 @@ def main() -> None:
                 attacked_state_reg,
                 attacked_bit,
                 sbox_type,
+                hypothesis_mode="full",
             )
 
         # ---------------------------------------------------------------

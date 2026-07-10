@@ -640,6 +640,7 @@ def compute_H64_chunk(
         int(attacked_bit),
         sbox_type,
         backend=backend,
+        hypothesis_mode="full",
     )
 
     return H64.astype(np.uint8, copy=False)

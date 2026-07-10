@@ -210,6 +210,7 @@ def _mp_worker_attack_target(task):
             attacked_state_reg,
             int(attacked_bit),
             _MP_SBOX_TYPE,
+            hypothesis_mode="full",
         )
 
     # Group hypotheses by leakage pattern up to complement

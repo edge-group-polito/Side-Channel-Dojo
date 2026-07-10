@@ -251,9 +251,10 @@ sys.path.insert(0, str(SCA_DIR))
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_generic_leakage_model import (
     ascon_generic_leakage_matrix,
-    expand_hypotheses_for_key_dependencies,
-    get_equivalent_key_dependencies,
+    expand_reduced_hypotheses,
+    get_target_key_dependencies,
     propagate_hypothesis_constraints,
+    reduce_full_hypotheses,
 )
 
 from analyzer.attack.ascon.xheep_ascon_cpa.ascon_cpa import (
@@ -510,12 +511,14 @@ def compute_H64_chunk(
     attacked_bit: int,
     sbox_type: str,
     backend: str = "cpu",
-) -> np.ndarray:
+    hypothesis_mode: str = "reduced",
+):
     """
     Compute H matrix for one nonce chunk.
 
     Output:
-        H64 shape = (chunk_len, 64)
+        H shape = (chunk_len, 64) in full mode, or False/(chunk_len, 8)/
+        (chunk_len, 64) in reduced mode.
 
     Nonce convention follows the old attack script:
         nonces[:, 0] = nonce LSB
@@ -532,7 +535,11 @@ def compute_H64_chunk(
         int(attacked_bit),
         sbox_type,
         backend=backend,
+        hypothesis_mode=hypothesis_mode,
     )
+
+    if H64 is False:
+        return False
 
     return H64.astype(np.uint8, copy=False)
 
@@ -545,18 +552,36 @@ def build_hypothesis_groups_streaming(
     attacked_bit: int,
     sbox_type: str,
     chunk_size: int,
+    hypothesis_mode: str = "reduced",
+    target_info=None,
 ):
     """
     Build complement-equivalence hypothesis groups without loading traces.
 
-    This streams the already loaded nonce array and constructs the 64 binary
+    This streams the already loaded nonce array and constructs the binary
     leakage vectors for the selected target. Memory use is roughly:
 
-        64 * n_used bytes
+        n_hypotheses * n_used bytes
 
-    For 1,000,000 traces, this is about 64 MB for signatures.
+    For 1,000,000 traces and 64 hypotheses, this is about 64 MB for signatures.
     """
-    signatures = [bytearray() for _ in range(64)]
+    hypothesis_mode = str(hypothesis_mode).strip().lower()
+    if hypothesis_mode == "full":
+        n_hypotheses = 64
+    else:
+        if target_info is None:
+            target_info = get_target_key_dependencies(
+                iv_int,
+                attacked_state_reg,
+                attacked_bit,
+                sbox_type,
+            )
+        n_hypotheses = int(target_info["n_hypotheses"])
+
+    if n_hypotheses == 0:
+        return np.empty(0, dtype=np.int64), []
+
+    signatures = [bytearray() for _ in range(n_hypotheses)]
 
     for start in range(0, n_used, chunk_size):
         end = min(start + chunk_size, n_used)
@@ -569,9 +594,19 @@ def build_hypothesis_groups_streaming(
             attacked_bit,
             sbox_type,
             backend="cpu",
+            hypothesis_mode=hypothesis_mode,
         )
 
-        for k in range(64):
+        if H64 is False:
+            return np.empty(0, dtype=np.int64), []
+
+        if H64.shape[1] != n_hypotheses:
+            raise ValueError(
+                f"Leakage matrix has {H64.shape[1]} columns, expected "
+                f"{n_hypotheses} for hypothesis_mode={hypothesis_mode!r}"
+            )
+
+        for k in range(n_hypotheses):
             signatures[k].extend(H64[:, k].tobytes())
 
         del H64
@@ -580,7 +615,7 @@ def build_hypothesis_groups_streaming(
     key_hyp_groups = []
     rep_indices = []
 
-    for k in range(64):
+    for k in range(n_hypotheses):
         col_b = bytes(signatures[k])
 
         col_arr = np.frombuffer(col_b, dtype=np.uint8)
@@ -758,6 +793,7 @@ def attack_one_target_chunked(
     sample_stop: int = None,
     compatible_hypotheses=None,
     dependencies=(),
+    target_info=None,
 ):
     """
     Attack one target bit using chunked CPA.
@@ -772,6 +808,40 @@ def attack_one_target_chunked(
     to select the same/complement side before committing exact bits.
     """
     k_idx = target_to_k_idx(attacked_state_reg, attacked_bit)
+    hypothesis_mode = "full" if cpa_recovery_policy == "baseline" else "reduced"
+
+    if target_info is None:
+        target_info = get_target_key_dependencies(
+            iv_int,
+            attacked_state_reg,
+            attacked_bit,
+            sbox_type,
+        )
+
+    dependency_kind = (
+        "mixed" if hypothesis_mode == "full" else target_info["dependency_kind"]
+    )
+    dependencies = tuple(dependencies)
+    if hypothesis_mode != "full" and not dependencies:
+        dependencies = tuple(target_info["key_dependencies"])
+    n_hypotheses = 64 if hypothesis_mode == "full" else int(target_info["n_hypotheses"])
+
+    if n_hypotheses == 0:
+        return {
+            "attacked_state_reg": attacked_state_reg,
+            "attacked_bit": int(attacked_bit),
+            "k_idx": k_idx,
+            "best_key_group": [],
+            "best_key_group_reduced": [],
+            "skipped": True,
+            "skip_reason": "no nonce-varying key dependency",
+            "hypothesis_mode": hypothesis_mode,
+            "dependency_kind": target_info["dependency_kind"],
+            "n_hypotheses": 0,
+            "num_groups": 0,
+            "sample_start": int(sample_start),
+            "sample_stop": int(sample_stop) if sample_stop is not None else int(n_samples),
+        }
 
     if sample_stop is None:
         sample_stop = n_samples
@@ -794,9 +864,28 @@ def attack_one_target_chunked(
         attacked_bit=attacked_bit,
         sbox_type=sbox_type,
         chunk_size=chunk_size,
+        hypothesis_mode=hypothesis_mode,
+        target_info=target_info,
     )
 
     n_groups = len(rep_indices)
+    if n_groups == 0:
+        return {
+            "attacked_state_reg": attacked_state_reg,
+            "attacked_bit": int(attacked_bit),
+            "k_idx": k_idx,
+            "best_key_group": [],
+            "best_key_group_reduced": [],
+            "skipped": True,
+            "skip_reason": "no hypothesis groups",
+            "hypothesis_mode": hypothesis_mode,
+            "dependency_kind": target_info["dependency_kind"],
+            "n_hypotheses": int(n_hypotheses),
+            "num_groups": 0,
+            "sample_start": int(sample_start),
+            "sample_stop": int(sample_stop),
+            "n_cpa_samples": int(n_cpa_samples),
+        }
 
     acc = ascon_cpa_init_accumulators(
         n_samples=n_cpa_samples,
@@ -823,7 +912,13 @@ def attack_one_target_chunked(
                 attacked_bit,
                 sbox_type,
                 backend="cpu",
+                hypothesis_mode=hypothesis_mode,
             )
+
+            if H64 is False:
+                raise RuntimeError(
+                    f"No leakage hypotheses for {attacked_state_reg}[{attacked_bit}]"
+                )
 
             H_group_chunk = H64[:, rep_indices].astype(np.float32, copy=False)
 
@@ -842,12 +937,17 @@ def attack_one_target_chunked(
 
     signed_corr = signed_corr_at_samples_from_accumulators(acc, argmax_samples)
     argmax_samples_abs = argmax_samples + sample_start
-    compatible_set = (
+    compatible_full_set = (
         set(range(64))
         if compatible_hypotheses is None
         else set(map(int, compatible_hypotheses))
     )
-    dependencies = tuple(dependencies)
+    if hypothesis_mode == "full":
+        compatible_set = compatible_full_set
+    else:
+        compatible_set = set(
+            reduce_full_hypotheses(compatible_full_set, dependency_kind)
+        )
     ranked_compatible_groups = []
 
     for group_idx, group in enumerate(oriented_key_hyp_groups):
@@ -902,7 +1002,7 @@ def attack_one_target_chunked(
 
     if retained_groups:
         best_group_idx = retained_groups[0]["group_idx"]
-        best_key_group = sorted(
+        best_key_group_reduced = sorted(
             {
                 hypothesis
                 for retained_group in retained_groups
@@ -911,7 +1011,15 @@ def attack_one_target_chunked(
         )
     else:
         best_group_idx = int(np.argmax(corr_group))
-        best_key_group = []
+        best_key_group_reduced = []
+
+    if hypothesis_mode == "full":
+        best_key_group = best_key_group_reduced
+    else:
+        best_key_group = expand_reduced_hypotheses(
+            best_key_group_reduced,
+            dependency_kind,
+        )
 
     if debug_k_idx in set(map(int, k_idx)):
         print_top_group_diagnostics(
@@ -924,7 +1032,7 @@ def attack_one_target_chunked(
             argmax_samples=argmax_samples_abs,
             signed_corr=signed_corr,
             best_group_idx=best_group_idx,
-            selected_members=best_key_group,
+            selected_members=best_key_group_reduced,
         )
 
     return {
@@ -932,7 +1040,11 @@ def attack_one_target_chunked(
         "attacked_bit": int(attacked_bit),
         "k_idx": k_idx,
         "best_key_group": best_key_group,
+        "best_key_group_reduced": best_key_group_reduced,
         "skipped": False,
+        "hypothesis_mode": hypothesis_mode,
+        "dependency_kind": target_info["dependency_kind"],
+        "n_hypotheses": int(n_hypotheses),
         "num_groups": int(n_groups),
         "best_group_idx": best_group_idx,
         "best_corr": float(corr_group[best_group_idx]),
@@ -1448,10 +1560,16 @@ def main() -> None:
         return
 
     def equation_priority(target):
-        dependencies = get_equivalent_key_dependencies(leakage_model_sbox, target["reg"])
-        if len(dependencies) == 1:
+        target_info = get_target_key_dependencies(
+            iv_int,
+            target["reg"],
+            target["bit"],
+            leakage_model_sbox,
+        )
+        n_hypotheses = int(target_info["n_hypotheses"])
+        if n_hypotheses == 8:
             return 0
-        if len(dependencies) == 2:
+        if n_hypotheses == 64:
             return 1
         return 2
 
@@ -1519,8 +1637,15 @@ def main() -> None:
         attacked_state_reg = t["reg"]
         attacked_bit = t["bit"]
         dependencies = ()
+        target_info = None
         if cpa_recovery_policy == "dependency_aware":
-            dependencies = get_equivalent_key_dependencies(leakage_model_sbox, attacked_state_reg)
+            target_info = get_target_key_dependencies(
+                iv_int,
+                attacked_state_reg,
+                attacked_bit,
+                leakage_model_sbox,
+            )
+            dependencies = tuple(target_info["key_dependencies"])
             if not dependencies:
                 if verbose:
                     print(
@@ -1530,8 +1655,10 @@ def main() -> None:
                 continue
             if verbose:
                 print(
-                    f"\n[INFO] Equivalent equation for {attacked_state_reg} "
-                    f"depends on: {', '.join(dependencies)}"
+                    f"\n[INFO] Equivalent equation for "
+                    f"{attacked_state_reg}[{attacked_bit}] depends on: "
+                    f"{', '.join(dependencies)} "
+                    f"({target_info['n_hypotheses']} hypotheses)"
                 )
 
         sample_start, sample_stop = target_sample_window(
@@ -1601,16 +1728,11 @@ def main() -> None:
                 sample_stop=sample_stop,
                 compatible_hypotheses=compatible_hypotheses,
                 dependencies=dependencies,
+                target_info=target_info,
             )
         except Exception as e:
             print(f"[ERROR] Attack failed for {attacked_state_reg}[{attacked_bit}]: {e}")
             raise
-
-        if cpa_recovery_policy == "dependency_aware":
-            res["best_key_group"] = expand_hypotheses_for_key_dependencies(
-                res["best_key_group"],
-                dependencies,
-            )
 
         commit_attack_result(
             res,
@@ -1654,6 +1776,9 @@ def main() -> None:
             {
                 "target": f"{attacked_state_reg}[{attacked_bit}]",
                 "equivalent_key_dependencies": list(dependencies),
+                "dependency_kind": res.get("dependency_kind"),
+                "n_hypotheses": res.get("n_hypotheses"),
+                "hypothesis_mode": res.get("hypothesis_mode"),
                 "snr": t["snr"],
                 "best_group_idx": res.get("best_group_idx"),
                 "best_corr": res.get("best_corr"),

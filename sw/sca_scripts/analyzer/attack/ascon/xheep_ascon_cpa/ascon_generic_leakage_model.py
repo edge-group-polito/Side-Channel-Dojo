@@ -180,6 +180,197 @@ def _get_target_description(attacked_state_reg, attacked_bit):
     return row_shift_vec, output_bit_pos, shifts
 
 
+def _dependency_kind_from_dependencies(dependencies):
+    dependencies = tuple(dependencies)
+    if dependencies == ("k0",):
+        return "k0"
+    if dependencies == ("k1",):
+        return "k1"
+    if set(dependencies) == {"k0", "k1"}:
+        return "mixed"
+    if not dependencies:
+        return "none"
+    raise ValueError(f"Unsupported key dependency set: {dependencies!r}")
+
+
+def _dependency_count(dependency_kind):
+    dependency_kind = str(dependency_kind)
+    if dependency_kind in {"k0", "k1"}:
+        return 8
+    if dependency_kind == "mixed":
+        return 64
+    if dependency_kind == "none":
+        return 0
+    raise ValueError(f"Unsupported dependency kind: {dependency_kind!r}")
+
+
+def _coefficient_dependencies_for_iv(coefficients, iv_bit):
+    """
+    Return which key words affect the nonce-varying coefficients at fixed IV.
+
+    ``coefficients`` has shape ``(8, 3)`` and contains the ``A``, ``B``, and
+    ``C`` coefficients indexed by ``(iv << 2) | (k0 << 1) | k1``. The constant
+    term ``d`` is intentionally ignored because it is not modulated by nonce.
+    """
+    iv_bit = int(iv_bit) & 0x01
+    dependencies = []
+
+    k0_depends = False
+    for k1 in (0, 1):
+        index0 = (iv_bit << 2) | (0 << 1) | k1
+        index1 = (iv_bit << 2) | (1 << 1) | k1
+        if not np.array_equal(coefficients[index0], coefficients[index1]):
+            k0_depends = True
+            break
+    if k0_depends:
+        dependencies.append("k0")
+
+    k1_depends = False
+    for k0 in (0, 1):
+        index0 = (iv_bit << 2) | (k0 << 1) | 0
+        index1 = (iv_bit << 2) | (k0 << 1) | 1
+        if not np.array_equal(coefficients[index0], coefficients[index1]):
+            k1_depends = True
+            break
+    if k1_depends:
+        dependencies.append("k1")
+
+    return tuple(dependencies)
+
+
+def get_target_key_dependencies(init_vect, attacked_state_reg, attacked_bit, sbox_type):
+    """
+    Describe the key information available from one attacked output bit.
+
+    Returns a dictionary with:
+      - ``key_dependencies``: ``()``, ``("k0",)``, ``("k1",)``, or
+        ``("k0", "k1")``
+      - ``dependency_kind``: ``none``, ``k0``, ``k1``, or ``mixed``
+      - ``n_hypotheses``: 0, 8, or 64
+
+    The decision is made on the three shifted columns feeding the attacked
+    linear-layer bit, using the actual IV bit of each column.
+    """
+    _, output_bit_pos, shifts = _get_target_description(
+        attacked_state_reg,
+        attacked_bit,
+    )
+    output_index = 4 - output_bit_pos
+    coefficients = _get_equivalent_component_tables(sbox_type)[output_index, :, 1:]
+
+    local_dependencies = []
+    dependency_union = set()
+    for local_pos, shift in enumerate(shifts):
+        iv_bit = (int(init_vect) >> int(shift)) & 0x01
+        dependencies = _coefficient_dependencies_for_iv(coefficients, iv_bit)
+        local_dependencies.append(
+            {
+                "local_pos": int(local_pos),
+                "shift": int(shift),
+                "iv_bit": int(iv_bit),
+                "key_dependencies": dependencies,
+            }
+        )
+        dependency_union.update(dependencies)
+
+    key_dependencies = tuple(
+        key_name for key_name in ("k0", "k1") if key_name in dependency_union
+    )
+    dependency_kind = _dependency_kind_from_dependencies(key_dependencies)
+
+    return {
+        "output_register": attacked_state_reg,
+        "output_index": int(output_index),
+        "output_bit_pos": int(output_bit_pos),
+        "shifts": tuple(map(int, shifts)),
+        "key_dependencies": key_dependencies,
+        "dependency_kind": dependency_kind,
+        "n_hypotheses": _dependency_count(dependency_kind),
+        "local_dependencies": local_dependencies,
+    }
+
+
+def selected_hypothesis_indices_for_dependency_kind(dependency_kind):
+    """
+    Return full 64-hypothesis columns needed for the selected dependency kind.
+
+    For k0-only targets, columns 0..7 are enough because k1 is irrelevant.
+    For k1-only targets, columns 0, 8, ..., 56 are enough because k0 is
+    irrelevant and the reduced column index is the local k1 triplet.
+    """
+    dependency_kind = str(dependency_kind)
+    if dependency_kind == "k0":
+        return np.arange(8, dtype=np.int64)
+    if dependency_kind == "k1":
+        return (np.arange(8, dtype=np.int64) << 3)
+    if dependency_kind == "mixed":
+        return np.arange(64, dtype=np.int64)
+    if dependency_kind == "none":
+        return np.empty(0, dtype=np.int64)
+    raise ValueError(f"Unsupported dependency kind: {dependency_kind!r}")
+
+
+def reduce_full_hypotheses(hypotheses, dependency_kind):
+    """
+    Convert full 6-bit hypotheses into the reduced local hypothesis space.
+
+    This is useful when a CPA has only 8 columns but existing known-bit
+    constraints are still expressed as full 64-hypothesis assignments.
+    """
+    hypotheses = list(map(int, hypotheses))
+    dependency_kind = str(dependency_kind)
+
+    if dependency_kind == "k0":
+        return sorted({hypothesis & 0b111 for hypothesis in hypotheses})
+
+    if dependency_kind == "k1":
+        return sorted({(hypothesis >> 3) & 0b111 for hypothesis in hypotheses})
+
+    if dependency_kind == "mixed":
+        return sorted(set(hypotheses))
+
+    if dependency_kind == "none":
+        return []
+
+    raise ValueError(f"Unsupported dependency kind: {dependency_kind!r}")
+
+
+def expand_reduced_hypotheses(hypotheses, dependency_kind):
+    """
+    Expand reduced CPA hypotheses back into full 6-bit hypothesis assignments.
+
+    For k0-only or k1-only leakage, the absent key word is intentionally varied
+    over all 8 values so downstream constraint propagation does not learn false
+    facts from a key word that was not present in the nonce-varying leakage.
+    """
+    hypotheses = list(map(int, hypotheses))
+    dependency_kind = str(dependency_kind)
+
+    if dependency_kind == "k0":
+        k0_candidates = {hypothesis & 0b111 for hypothesis in hypotheses}
+        return sorted(
+            k0_candidate | (k1_candidate << 3)
+            for k0_candidate in k0_candidates
+            for k1_candidate in range(8)
+        )
+
+    if dependency_kind == "k1":
+        k1_candidates = {hypothesis & 0b111 for hypothesis in hypotheses}
+        return sorted(
+            k0_candidate | (k1_candidate << 3)
+            for k0_candidate in range(8)
+            for k1_candidate in k1_candidates
+        )
+
+    if dependency_kind == "mixed":
+        return sorted(set(hypotheses))
+
+    if dependency_kind == "none":
+        return []
+
+    raise ValueError(f"Unsupported dependency kind: {dependency_kind!r}")
+
+
 # ---------------------------------------------------------------------------
 # Core leakage matrix implementation
 # ---------------------------------------------------------------------------
@@ -192,6 +383,7 @@ def _compute_leakage_matrix_impl(
     attacked_bit,
     sbox_type,
     backend="cpu",
+    hypothesis_mode="reduced",
 ):
     """
     Vectorized leakage computation.
@@ -199,11 +391,10 @@ def _compute_leakage_matrix_impl(
     Returns
     -------
     leakage:
-        shape (N, 64), dtype uint8
-
-    where:
-        N  = number of nonces
-        64 = number of 6-bit key hypotheses
+        ``False`` if the target has no nonce-varying key dependency;
+        otherwise shape ``(N, 8)`` for k0-only/k1-only targets or
+        ``(N, 64)`` for mixed k0/k1 targets when ``hypothesis_mode`` is
+        ``"reduced"``. ``hypothesis_mode="full"`` always returns ``(N, 64)``.
     """
     xp = _select_array_backend(backend)
 
@@ -274,7 +465,29 @@ def _compute_leakage_matrix_impl(
     if xp is cp:
         leakage = cp.asnumpy(leakage)
 
-    return leakage
+    leakage = np.asarray(leakage, dtype=np.uint8)
+    hypothesis_mode = str(hypothesis_mode).strip().lower()
+
+    if hypothesis_mode == "full":
+        return leakage
+
+    if hypothesis_mode not in {"reduced", "auto"}:
+        raise ValueError("hypothesis_mode must be one of: reduced, auto, full")
+
+    target_info = get_target_key_dependencies(
+        init_vect,
+        attacked_state_reg,
+        attacked_bit,
+        sbox_type,
+    )
+    columns = selected_hypothesis_indices_for_dependency_kind(
+        target_info["dependency_kind"]
+    )
+
+    if columns.size == 0:
+        return False
+
+    return leakage[:, columns].astype(np.uint8, copy=False)
 
 
 def _compute_equivalent_leakage_matrix_impl(
@@ -360,6 +573,7 @@ def ascon_generic_leakage_matrix(
     attacked_bit,
     sbox_type,
     backend="cpu",
+    hypothesis_mode="reduced",
 ):
     """
     Vectorized generic leakage model for a batch of nonces.
@@ -387,10 +601,15 @@ def ascon_generic_leakage_matrix(
     backend:
         cpu | gpu | auto
 
+    hypothesis_mode:
+        reduced | auto | full. In reduced/auto mode, the returned matrix is
+        target-dependent: ``False`` for no key information, ``(N, 8)`` for
+        k0-only/k1-only leakage, and ``(N, 64)`` for mixed k0/k1 leakage.
+
     Returns
     -------
-    np.ndarray:
-        shape (N, 64), dtype uint8
+    np.ndarray or bool:
+        ``False`` or a uint8 matrix with shape ``(N, 8)`` or ``(N, 64)``.
     """
     return _compute_leakage_matrix_impl(
         init_vect,
@@ -400,6 +619,7 @@ def ascon_generic_leakage_matrix(
         attacked_bit,
         sbox_type,
         backend=backend,
+        hypothesis_mode=hypothesis_mode,
     )
 
 
@@ -410,16 +630,17 @@ def ascon_generic_leakage_model(
     attacked_state_reg,
     attacked_bit,
     sbox_type,
+    hypothesis_mode="reduced",
 ):
     """
     Single-nonce leakage model.
 
     Returns
     -------
-    np.ndarray:
-        shape (64,), dtype uint8
+    np.ndarray or bool:
+        ``False`` or a uint8 vector with length 8 or 64.
     """
-    return _compute_leakage_matrix_impl(
+    matrix = _compute_leakage_matrix_impl(
         init_vect,
         nonce_MSB,
         nonce_LSB,
@@ -427,7 +648,11 @@ def ascon_generic_leakage_model(
         attacked_bit,
         sbox_type,
         backend="cpu",
-    )[0]
+        hypothesis_mode=hypothesis_mode,
+    )
+    if matrix is False:
+        return False
+    return matrix[0]
 
 
 def ascon_equivalent_leakage_matrix(
@@ -477,11 +702,12 @@ def ascon_equivalent_leakage_model(
 
 def get_equivalent_key_dependencies(sbox_type, attacked_state_reg):
     """
-    Return key words present in the selected output's nonce-varying equation.
+    Return key words present in a register's nonce-varying equation.
 
     The result is one of ``()``, ``("k0",)``, ``("k1",)``, or
     ``("k0", "k1")`` and corresponds to the dependency labels in
-    equivalent_ascon_sboxes.txt.
+    equivalent_ascon_sboxes.txt. This is a register-wide summary over both IV
+    values; use :func:`get_target_key_dependencies` for the exact attacked bit.
     """
     _, output_bit_pos, _ = _get_target_description(attacked_state_reg, 0)
     output_index = 4 - output_bit_pos

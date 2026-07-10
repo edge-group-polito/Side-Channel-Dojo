@@ -205,6 +205,7 @@ def validate_leakage_models(anf_luts, init_vect: int, num_nonces: int, seed: int
                     bit,
                     sbox_type,
                     backend="cpu",
+                    hypothesis_mode="full",
                 )
                 h_anf = anf_leakage_matrix(
                     init_vect,
