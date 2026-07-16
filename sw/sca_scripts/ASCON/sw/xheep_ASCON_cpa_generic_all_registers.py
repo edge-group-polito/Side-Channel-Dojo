@@ -135,10 +135,10 @@ leakage_polarity = os.environ.get("ASCON_LEAKAGE_POLARITY", "negative").strip().
 if leakage_polarity not in {"negative", "positive", "both"}:
     raise ValueError("ASCON_LEAKAGE_POLARITY must be one of: negative, positive, both")
 
-# Mixed outputs can strongly correlate with a nearby operation rather than the
-# intended intermediate. Retain several known-key-compatible groups and let
-# overlapping targets decide, instead of committing the largest peak directly.
-mixed_top_groups = int(os.environ.get("ASCON_MIXED_TOP_GROUPS", "3"))
+# Standard CPA selects the best known-key-compatible mixed group. Larger values
+# can be used for conservative exploratory runs, but they also keep extra
+# alternatives and can prevent later k1/k0 derivation from becoming unique.
+mixed_top_groups = int(os.environ.get("ASCON_MIXED_TOP_GROUPS", "1"))
 if mixed_top_groups < 1:
     raise ValueError("ASCON_MIXED_TOP_GROUPS must be >= 1")
 
