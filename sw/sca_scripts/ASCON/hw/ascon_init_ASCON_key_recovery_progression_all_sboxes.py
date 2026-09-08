@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Hardware entry point for ASCON key-recovery progression."""
+"""Hardware entry point for ASCON key-recovery progression.
+
+The shared SW driver applies ascon_plot_style and exports the paper side-by-side
+PNG/PDF layout for both implementations. Use --plot-only to reuse saved results.
+"""
 
 import runpy
 import sys

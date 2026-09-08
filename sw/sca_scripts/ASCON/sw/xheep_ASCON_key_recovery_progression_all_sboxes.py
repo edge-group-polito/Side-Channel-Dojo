@@ -141,8 +141,11 @@ from ascon_plot_style import (  # noqa: E402
 _CPA_HELPERS = importlib.import_module(CPA_HELPER_MODULE)
 bits_to_u64 = _CPA_HELPERS.bits_to_u64
 compute_H64_chunk = _CPA_HELPERS.compute_H64_chunk
+expand_reduced_hypotheses = _CPA_HELPERS.expand_reduced_hypotheses
+filter_hypotheses_by_known_bits = _CPA_HELPERS.filter_hypotheses_by_known_bits
 find_snr_file = _CPA_HELPERS.find_snr_file
 find_snr_trace_file = _CPA_HELPERS.find_snr_trace_file
+get_target_key_dependencies = _CPA_HELPERS.get_target_key_dependencies
 load_snr_peak_samples = _CPA_HELPERS.load_snr_peak_samples
 load_snr_ranked_targets = _CPA_HELPERS.load_snr_ranked_targets
 load_snr_ranked_targets_from_traces = getattr(
@@ -156,6 +159,8 @@ compute_analysis_sample_stop = getattr(
     lambda n_samples, sampling_interval, max_time_us: int(n_samples),
 )
 propagate_group_constraints = _CPA_HELPERS.propagate_group_constraints
+propagate_hypothesis_constraints = _CPA_HELPERS.propagate_hypothesis_constraints
+reduce_full_hypotheses = _CPA_HELPERS.reduce_full_hypotheses
 signed_corr_at_samples_from_accumulators = _CPA_HELPERS.signed_corr_at_samples_from_accumulators
 target_sample_window = _CPA_HELPERS.target_sample_window
 target_to_k_idx = _CPA_HELPERS.target_to_k_idx
@@ -186,6 +191,17 @@ def _env_flag(name: str, default: bool) -> bool:
     if value in (None, ""):
         return default
     return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _normalize_cpa_policy(value: str) -> str:
+    policy = str(value).strip().lower().replace("-", "_")
+    if policy in {"dependency", "dependencyaware", "equation_aware"}:
+        policy = "dependency_aware"
+    elif policy in {"generic", "normal"}:
+        policy = "baseline"
+    if policy not in {"dependency_aware", "baseline"}:
+        raise ValueError("CPA policy must be one of: dependency_aware, baseline")
+    return policy
 
 
 def _env_int(name: str, default: int) -> int:
@@ -325,6 +341,23 @@ def _build_arg_parser():
         choices=["negative", "positive", "both"],
         default=os.environ.get("ASCON_LEAKAGE_POLARITY", "negative"),
         help="Leakage polarity interpretation.",
+    )
+    parser.add_argument(
+        "--cpa-policy",
+        default=os.environ.get("ASCON_CPA_POLICY", "dependency_aware"),
+        help="CPA recovery policy: dependency_aware or baseline.",
+    )
+    parser.add_argument(
+        "--mixed-top-groups",
+        type=int,
+        default=_env_int("ASCON_MIXED_TOP_GROUPS", 1),
+        help="Dependency-aware mixed-target groups retained at each checkpoint.",
+    )
+    parser.add_argument(
+        "--mixed-min-fact-support",
+        type=int,
+        default=_env_int("ASCON_MIXED_MIN_FACT_SUPPORT", 2),
+        help="Mixed-target constraints required before committing a fact.",
     )
     parser.add_argument(
         "--cpa-device",
@@ -709,6 +742,7 @@ def _state_template():
         "targets_used": 0,
         "targets_skipped": 0,
         "full_key_recovered": False,
+        "equation_constraints": [],
     }
 
 
@@ -725,6 +759,21 @@ def _idx_done(idx: int, state) -> bool:
 
 def _target_is_useful_for_state(k_idx, state) -> bool:
     return any(not _idx_done(int(idx), state) for idx in k_idx)
+
+
+def _target_is_useful_for_policy(k_idx, state, cpa_policy: str, dependencies=()) -> bool:
+    if cpa_policy == "baseline":
+        return _target_is_useful_for_state(k_idx, state)
+
+    indices = np.asarray(k_idx, dtype=int)
+    dependencies = tuple(dependencies)
+    if dependencies == ("k0",):
+        return not np.all(state["k0_rec"][indices])
+    if dependencies == ("k1",):
+        return not np.all(state["k1_rec"][indices])
+    if dependencies == ("k0", "k1"):
+        return _target_is_useful_for_state(indices, state)
+    return False
 
 
 def _summarize_state(
@@ -807,7 +856,7 @@ def _build_oriented_groups_from_signatures(signatures):
     """
     Build identical/complement hypothesis groups for the current trace prefix.
 
-    The CPA accumulates all 64 raw hypotheses. At each trace-count checkpoint,
+    The CPA accumulates every raw hypothesis. At each trace-count checkpoint,
     this function groups only over the prefix used at that checkpoint, avoiding
     over-committing bits that are distinguishable only by later traces.
     """
@@ -815,7 +864,7 @@ def _build_oriented_groups_from_signatures(signatures):
     key_hyp_groups = []
     rep_indices = []
 
-    for hyp in range(64):
+    for hyp in range(len(signatures)):
         col_b = bytes(signatures[hyp])
         col_arr = np.frombuffer(col_b, dtype=np.uint8)
         compl_b = (1 - col_arr).astype(np.uint8, copy=False).tobytes()
@@ -873,6 +922,9 @@ def _progressive_attack_one_target_prefix(
     cpa_backend: str,
     sample_window: int,
     polarity: str,
+    cpa_policy: str,
+    compatible_hypotheses_by_count,
+    mixed_top_groups: int,
 ):
     attacked_state_reg = target["reg"]
     attacked_bit = int(target["bit"])
@@ -887,12 +939,29 @@ def _progressive_attack_one_target_prefix(
         )
 
     k_idx = target_to_k_idx(attacked_state_reg, attacked_bit)
+    target_info = get_target_key_dependencies(
+        iv_int,
+        attacked_state_reg,
+        attacked_bit,
+        sbox_type,
+    )
+    hypothesis_mode = "full" if cpa_policy == "baseline" else "reduced"
+    dependency_kind = (
+        "mixed" if hypothesis_mode == "full" else target_info["dependency_kind"]
+    )
+    dependencies = (
+        () if cpa_policy == "baseline" else tuple(target_info["key_dependencies"])
+    )
+    n_hypotheses = 64 if hypothesis_mode == "full" else int(target_info["n_hypotheses"])
+    if n_hypotheses <= 0:
+        return []
+
     acc = ascon_cpa_init_accumulators(
         n_samples=n_cpa_samples,
-        n_hypotheses=64,
+        n_hypotheses=n_hypotheses,
         backend=cpa_backend,
     )
-    signatures = [bytearray() for _ in range(64)]
+    signatures = [bytearray() for _ in range(n_hypotheses)]
 
     results = []
     accumulated = 0
@@ -918,7 +987,13 @@ def _progressive_attack_one_target_prefix(
                 attacked_bit,
                 sbox_type,
                 backend="cpu",
+                hypothesis_mode=hypothesis_mode,
             )
+
+            if h64 is False:
+                raise RuntimeError(
+                    f"No leakage hypotheses for {attacked_state_reg}[{attacked_bit}]"
+                )
 
             ascon_cpa_update_accumulators(
                 acc,
@@ -926,7 +1001,7 @@ def _progressive_attack_one_target_prefix(
                 h64.astype(np.float32, copy=False),
             )
 
-            for hyp in range(64):
+            for hyp in range(n_hypotheses):
                 signatures[hyp].extend(h64[:, hyp].tobytes())
 
             accumulated = end
@@ -946,13 +1021,63 @@ def _progressive_attack_one_target_prefix(
 
             rep_indices, oriented_groups = _build_oriented_groups_from_signatures(signatures)
             corr_group = corr_raw[rep_indices]
-            best_group_idx = int(np.argmax(corr_group))
+            compatible_full = set(
+                map(int, compatible_hypotheses_by_count[checkpoint_idx])
+            )
+            compatible = (
+                compatible_full
+                if hypothesis_mode == "full"
+                else set(reduce_full_hypotheses(compatible_full, dependency_kind))
+            )
+            ranked_groups = []
+            for group_idx, group in enumerate(oriented_groups):
+                rep = int(rep_indices[group_idx])
+                oriented = _select_key_group(
+                    group,
+                    float(signed_corr[rep]),
+                    polarity,
+                )
+                members = [int(hyp) for hyp in oriented if int(hyp) in compatible]
+                polarity_overridden = False
+                if not members:
+                    members = [
+                        int(hyp) for hyp in group["all"] if int(hyp) in compatible
+                    ]
+                    polarity_overridden = bool(members)
+                if members:
+                    ranked_groups.append(
+                        {
+                            "group_idx": int(group_idx),
+                            "members": members,
+                            "corr": float(corr_group[group_idx]),
+                            "polarity_overridden": polarity_overridden,
+                        }
+                    )
+
+            ranked_groups.sort(key=lambda item: item["corr"], reverse=True)
+            retain = mixed_top_groups if len(dependencies) == 2 else 1
+            retained_groups = ranked_groups[:retain]
+            if retained_groups:
+                best_group_idx = int(retained_groups[0]["group_idx"])
+                best_key_group_reduced = sorted(
+                    {
+                        hypothesis
+                        for retained in retained_groups
+                        for hypothesis in retained["members"]
+                    }
+                )
+            else:
+                best_group_idx = int(np.argmax(corr_group))
+                best_key_group_reduced = []
+
             rep_hyp = int(rep_indices[best_group_idx])
-            best_group = oriented_groups[best_group_idx]
-            best_key_group = _select_key_group(
-                best_group,
-                float(signed_corr[rep_hyp]),
-                polarity,
+            best_key_group = (
+                best_key_group_reduced
+                if hypothesis_mode == "full"
+                else expand_reduced_hypotheses(
+                    best_key_group_reduced,
+                    dependency_kind,
+                )
             )
 
             results.append(
@@ -962,12 +1087,23 @@ def _progressive_attack_one_target_prefix(
                     "attacked_bit": attacked_bit,
                     "k_idx": k_idx,
                     "best_key_group": best_key_group,
+                    "best_key_group_reduced": best_key_group_reduced,
+                    "dependencies": list(dependencies),
+                    "dependency_kind": target_info["dependency_kind"],
+                    "hypothesis_mode": hypothesis_mode,
+                    "n_hypotheses": n_hypotheses,
                     "num_groups": int(len(rep_indices)),
                     "best_group_idx": best_group_idx,
                     "best_rep_hypothesis": rep_hyp,
                     "best_corr": float(corr_group[best_group_idx]),
                     "best_signed_corr": float(signed_corr[rep_hyp]),
                     "best_sample": int(argmax_samples[rep_hyp] + sample_start),
+                    "retained_group_indices": [
+                        item["group_idx"] for item in retained_groups
+                    ],
+                    "polarity_overridden": any(
+                        item["polarity_overridden"] for item in retained_groups
+                    ),
                     "sample_start": int(sample_start),
                     "sample_stop": int(sample_stop),
                     "n_cpa_samples": n_cpa_samples,
@@ -997,6 +1133,9 @@ def _run_target_loop_prefix(
     cpa_backend: str,
     sample_window: int,
     polarity: str,
+    cpa_policy: str,
+    mixed_top_groups: int,
+    mixed_min_fact_support: int,
     save_target_log: bool,
 ):
     states = [_state_template() for _ in trace_counts]
@@ -1004,22 +1143,71 @@ def _run_target_loop_prefix(
     targets_processed = 0
     tic = time.perf_counter()
 
+    if cpa_policy == "dependency_aware":
+        def equation_priority(target):
+            target_info = get_target_key_dependencies(
+                iv_int,
+                target["reg"],
+                int(target["bit"]),
+                sbox_type,
+            )
+            n_hypotheses = int(target_info["n_hypotheses"])
+            if n_hypotheses == 8:
+                return 0
+            if n_hypotheses == 64:
+                return 1
+            return 2
+
+        # Stable sort preserves SNR order inside each dependency class.
+        targets = sorted(targets, key=equation_priority)
+
     for target in tqdm(
         targets,
         desc=f"{sbox_type}: prefix CPA targets",
         disable=TQDM_DISABLE,
     ):
         k_idx = target_to_k_idx(target["reg"], int(target["bit"]))
+        dependencies = ()
+        if cpa_policy == "dependency_aware":
+            target_info = get_target_key_dependencies(
+                iv_int,
+                target["reg"],
+                int(target["bit"]),
+                sbox_type,
+            )
+            dependencies = tuple(target_info["key_dependencies"])
+            if not dependencies:
+                for state in states:
+                    if not state["full_key_recovered"]:
+                        state["targets_skipped"] += 1
+                continue
+
         active_state_indices = []
         active_counts = []
+        compatible_hypotheses_by_count = []
 
         for state_idx, state in enumerate(states):
             if state["full_key_recovered"]:
                 continue
 
-            if _target_is_useful_for_state(k_idx, state):
+            if _target_is_useful_for_policy(k_idx, state, cpa_policy, dependencies):
                 active_state_indices.append(state_idx)
                 active_counts.append(int(trace_counts[state_idx]))
+                if cpa_policy == "dependency_aware":
+                    compatible_hypotheses_by_count.append(
+                        filter_hypotheses_by_known_bits(
+                            range(64),
+                            k_idx,
+                            state["k0_rec_bits"],
+                            state["k0_rec"],
+                            state["k1_rec_bits"],
+                            state["k1_rec"],
+                            state["kx_rec_bits"],
+                            state["kx_rec"],
+                        )
+                    )
+                else:
+                    compatible_hypotheses_by_count.append(list(range(64)))
             else:
                 state["targets_skipped"] += 1
 
@@ -1041,6 +1229,9 @@ def _run_target_loop_prefix(
             cpa_backend=cpa_backend,
             sample_window=sample_window,
             polarity=polarity,
+            cpa_policy=cpa_policy,
+            compatible_hypotheses_by_count=compatible_hypotheses_by_count,
+            mixed_top_groups=mixed_top_groups,
         )
         targets_processed += 1
 
@@ -1049,19 +1240,44 @@ def _run_target_loop_prefix(
             if state["full_key_recovered"]:
                 continue
 
-            propagate_group_constraints(
-                result["best_key_group"],
-                result["k_idx"],
-                k0_bits_expected,
-                k1_bits_expected,
-                state["k0_rec_bits"],
-                state["k0_rec"],
-                state["k1_rec_bits"],
-                state["k1_rec"],
-                state["kx_rec_bits"],
-                state["kx_rec"],
-                verbose=False,
-            )
+            if cpa_policy == "baseline" or len(result["dependencies"]) == 1:
+                propagate_group_constraints(
+                    result["best_key_group"],
+                    result["k_idx"],
+                    k0_bits_expected,
+                    k1_bits_expected,
+                    state["k0_rec_bits"],
+                    state["k0_rec"],
+                    state["k1_rec_bits"],
+                    state["k1_rec"],
+                    state["kx_rec_bits"],
+                    state["kx_rec"],
+                    verbose=False,
+                )
+
+            if cpa_policy == "dependency_aware" and result["best_key_group"]:
+                state["equation_constraints"].append(
+                    {
+                        "target": (
+                            result["attacked_state_reg"],
+                            int(result["attacked_bit"]),
+                        ),
+                        "dependencies": tuple(result["dependencies"]),
+                        "key_indices": result["k_idx"].copy(),
+                        "hypotheses": list(map(int, result["best_key_group"])),
+                    }
+                )
+                propagate_hypothesis_constraints(
+                    state["equation_constraints"],
+                    state["k0_rec_bits"],
+                    state["k0_rec"],
+                    state["k1_rec_bits"],
+                    state["k1_rec"],
+                    state["kx_rec_bits"],
+                    state["kx_rec"],
+                    verbose=False,
+                    minimum_fact_support=mixed_min_fact_support,
+                )
 
             state["targets_used"] += 1
             state["full_key_recovered"] = bool(
@@ -1084,6 +1300,15 @@ def _run_target_loop_prefix(
                         "k0_recovered": int(np.sum(state["k0_rec"])),
                         "k1_recovered": int(np.sum(state["k1_rec"])),
                         "kx_recovered": int(np.sum(state["kx_rec"])),
+                        "dependencies": list(result["dependencies"]),
+                        "dependency_kind": result.get("dependency_kind"),
+                        "hypothesis_mode": result.get("hypothesis_mode"),
+                        "n_hypotheses": result.get("n_hypotheses"),
+                        "retained_group_indices": result.get("retained_group_indices"),
+                        "polarity_overridden": result.get("polarity_overridden"),
+                        "equation_constraints": int(
+                            len(state["equation_constraints"])
+                        ),
                     }
                 )
 
@@ -1133,6 +1358,9 @@ def _run_trace_counts_with_prefix_snr(
     cpa_backend: str,
     sample_window: int,
     polarity: str,
+    cpa_policy: str,
+    mixed_top_groups: int,
+    mixed_min_fact_support: int,
     max_targets,
     traceset_size_k: int,
     base_cache_dir: Path,
@@ -1194,6 +1422,9 @@ def _run_trace_counts_with_prefix_snr(
             cpa_backend=cpa_backend,
             sample_window=effective_sample_window,
             polarity=polarity,
+            cpa_policy=cpa_policy,
+            mixed_top_groups=mixed_top_groups,
+            mixed_min_fact_support=mixed_min_fact_support,
             save_target_log=save_target_log,
         )
 
@@ -1682,33 +1913,32 @@ def _plot_combined_results(combined, plot_dir: Path, save_plots: bool, x_scale: 
     )
     plt.close(fig)
 
-    fig, ax = plt.subplots(figsize=(11, 6.5))
+    # Paper layout uses the same shared style for the HW and SW entry points.
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
+    labels = {"hw": "Reference HW", "lut_ascon": "Ascon", "lut_bilgin": "Bilgin",
+              "lut_allouzi": "Allouzi", **{f"lut_lu_{i}": f"Lu {i}" for i in range(4, 8)}}
     for sbox_type, result in combined["results"].items():
-        ax.plot(
-            result["trace_counts"],
-            result["correct_key_bits_count"],
-            marker="o",
-            markersize=3,
-            linewidth=1.8,
-            color=sbox_color(sbox_type),
-            label=sbox_type,
-        )
-    ax.set_xlabel("Number of prefix traces", fontsize=13)
-    ax.set_ylabel("Correct recovered key bits", fontsize=13)
-    ax.set_title(
-        "ASCON generic CPA key-recovery progression - all S-boxes (zoom)",
-        fontsize=14,
-    )
-    zoom_lower = 64 if combined.get("implementation", IMPLEMENTATION) == "hw" else 96
-    ax.set_ylim(zoom_lower, 130)
-    ax.set_yticks(range(zoom_lower, 129, 4 if zoom_lower >= 96 else 8))
-    _format_axes_for_traces(ax, mticker, x_scale)
-    ax.legend(loc="best", ncol=2)
-    zoom_key = f"correct_recovered_key_bits_zoom_{zoom_lower}_128"
-    plot_paths[zoom_key] = _save_figure(
-        fig,
-        plot_dir / f"ASCON_generic_correct_recovered_key_bits_all_sboxes_{tag}_zoom_{zoom_lower}_128",
-    )
+        for ax, field in zip(axes, ("correct_key_bits_count", "known_key_bits_count")):
+            ax.plot(result["trace_counts"], result[field], "o-", markersize=3,
+                    linewidth=1.8, color=sbox_color(sbox_type),
+                    label=labels.get(sbox_type, sbox_type))
+        exact = [r["trace_count"] for r in result["summaries"] if r["full_key_match"]]
+        axes[0].scatter(exact, [128] * len(exact), marker="*", s=65,
+                        color=sbox_color(sbox_type), edgecolors="white", linewidths=0.5, zorder=5)
+    for ax in axes:
+        ax.set(xlabel="Number of traces", ylim=(0, 132))
+        _format_axes_for_traces(ax, mticker, x_scale)
+    axes[0].set_ylabel("Correctly recovered bits (out of 128)")
+    axes[1].set_ylabel("Committed bits, including errors")
+    axes[1].legend(loc="lower right", ncol=2)
+    implementation = combined.get("implementation", IMPLEMENTATION)
+    fig.tight_layout()
+    stem = plot_dir / f"ASCON_generic_key_recovery_side_by_side_{implementation}_{tag}"
+    plot_paths["paper_side_by_side"] = []
+    for extension in ("png", "pdf"):
+        path = stem.with_suffix(f".{extension}")
+        save_figure(fig, path, tight=False)
+        plot_paths["paper_side_by_side"].append(str(path))
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(11.5, 6.8))
@@ -1835,6 +2065,9 @@ def _run_one_sbox(
     chunk_size: int,
     sample_window: int,
     polarity: str,
+    cpa_policy: str,
+    mixed_top_groups: int,
+    mixed_min_fact_support: int,
     cpa_backend: str,
     max_targets,
     base_cache_dir: Path,
@@ -1947,6 +2180,10 @@ def _run_one_sbox(
         print(f"CPA sample window      : {sample_window if sample_window > 0 else 'full trace'}")
         print("Targets loaded         : per trace-count prefix")
     print(f"Leakage polarity       : {polarity}")
+    print(f"CPA policy             : {cpa_policy}")
+    if cpa_policy == "dependency_aware":
+        print(f"Mixed top groups       : {mixed_top_groups}")
+        print(f"Mixed fact support     : {mixed_min_fact_support}")
     print(f"CPA backend            : {cpa_backend}")
     print("==================================================================\n")
 
@@ -1970,6 +2207,9 @@ def _run_one_sbox(
             cpa_backend=cpa_backend,
             sample_window=effective_sample_window,
             polarity=polarity,
+            cpa_policy=cpa_policy,
+            mixed_top_groups=mixed_top_groups,
+            mixed_min_fact_support=mixed_min_fact_support,
             save_target_log=save_target_log,
         )
         snr_runs = [
@@ -2007,6 +2247,9 @@ def _run_one_sbox(
             cpa_backend=cpa_backend,
             sample_window=sample_window,
             polarity=polarity,
+            cpa_policy=cpa_policy,
+            mixed_top_groups=mixed_top_groups,
+            mixed_min_fact_support=mixed_min_fact_support,
             max_targets=max_targets,
             traceset_size_k=traceset_size_k,
             base_cache_dir=base_cache_dir,
@@ -2062,6 +2305,9 @@ def _run_one_sbox(
         "cpa_sample_window_requested": int(sample_window),
         "cpa_sample_window_effective": int(effective_window_summary),
         "leakage_polarity": polarity,
+        "cpa_policy": cpa_policy,
+        "mixed_top_groups": int(mixed_top_groups),
+        "mixed_min_fact_support": int(mixed_min_fact_support),
         "cpa_backend": cpa_backend,
         "cpu_threads": int(max_cpu_workers),
         "targets_loaded": int(targets_loaded),
@@ -2134,6 +2380,9 @@ def main():
     chunk_size = int(args.chunk_size)
     sample_window = int(args.sample_window)
     polarity = args.polarity.strip().lower()
+    cpa_policy = _normalize_cpa_policy(args.cpa_policy)
+    mixed_top_groups = int(args.mixed_top_groups)
+    mixed_min_fact_support = int(args.mixed_min_fact_support)
     cpa_backend = get_cpa_backend_name(args.cpa_device)
     max_targets = args.max_targets
     output_dir_env = args.output_dir
@@ -2179,6 +2428,10 @@ def main():
         raise ValueError("ASCON_CPA_SAMPLE_WINDOW must be >= 0")
     if polarity not in {"negative", "positive", "both"}:
         raise ValueError("ASCON_LEAKAGE_POLARITY must be one of: negative, positive, both")
+    if mixed_top_groups < 1:
+        raise ValueError("--mixed-top-groups must be positive")
+    if mixed_min_fact_support < 1:
+        raise ValueError("--mixed-min-fact-support must be positive")
     if snr_selection_mode not in {"profiled", "prefix"}:
         raise ValueError("ASCON_SNR_SELECTION_MODE must be one of: profiled, prefix")
     if snr_chunk_size <= 0:
@@ -2199,6 +2452,10 @@ def main():
     print(f"CPA sample window      : {sample_window if sample_window > 0 else 'full trace'}")
     print(f"Analysis time limit    : {analysis_max_time_us:g} us" if analysis_max_time_us > 0 else "Analysis time limit    : full trace")
     print(f"Leakage polarity       : {polarity}")
+    print(f"CPA policy             : {cpa_policy}")
+    if cpa_policy == "dependency_aware":
+        print(f"Mixed top groups       : {mixed_top_groups}")
+        print(f"Mixed fact support     : {mixed_min_fact_support}")
     print(f"CPA backend            : {cpa_backend}")
     print(f"CPU threads            : {max_cpu_workers}")
     print(f"Max targets            : {max_targets if max_targets is not None else 'all'}")
@@ -2228,6 +2485,9 @@ def main():
             chunk_size=chunk_size,
             sample_window=sample_window,
             polarity=polarity,
+            cpa_policy=cpa_policy,
+            mixed_top_groups=mixed_top_groups,
+            mixed_min_fact_support=mixed_min_fact_support,
             cpa_backend=cpa_backend,
             max_targets=max_targets,
             base_cache_dir=base_cache_dir,
