@@ -71,14 +71,27 @@ class CW305Wrapper:
 
 
 
-    def __init__(self, scope, bitstream=None, force=True):
+    def __init__(self, scope, bitstream=None, force=True, standalone=False):
         self.scope = scope
+        self.standalone = standalone
         if bitstream is None:
             # Programming the target with default AES128_8bit bitstream
             self.CW305 = cw.target(None, cw.targets.CW305, fpga_id='100t', force = force)
         else:
-            self.CW305 = cw.target(scope, cw.targets.CW305, bsfile=bitstream, force=force)
+            self.CW305 = cw.target(
+                scope,
+                cw.targets.CW305,
+                bsfile=bitstream,
+                force=force,
+                slurp=not standalone,
+            )
             print(self.CW305.fpga.isFPGAProgrammed())
+
+        if standalone:
+            # Standalone crypto cores use 7 low USB address bits as byte index.
+            # Override the site-package setting so it can remain configured for
+            # X-HEEP, which uses bytecount_size=2.
+            self.CW305.bytecount_size = 7
         
         if not self.check_target():
             raise Exception("CW305 not programmed.")
@@ -125,7 +138,8 @@ class CW305Wrapper:
         Note: The key is reversed before being written to the target.
         """
         self.key = key
-        self.CW305.fpga_write(self.REG_CRYPT_KEY, key) # no reverse key[::-1]
+        data = key[::-1] if self.standalone else key
+        self.CW305.fpga_write(self.REG_CRYPT_KEY, data)
 
     def set_nonce(self, nonce):
         """
@@ -137,7 +151,8 @@ class CW305Wrapper:
         Note: The nonce is reversed before being written to the target.
         """
         self.nonce = nonce
-        self.CW305.fpga_write(self.REG_CRYPT_NONCEIN, nonce) # no reverse
+        data = nonce[::-1] if self.standalone else nonce
+        self.CW305.fpga_write(self.REG_CRYPT_NONCEIN, data)
 
     #funzione aggiuntiva nico:
     def set_initial_data(self, ad, msg):
@@ -385,5 +400,4 @@ class CW305Wrapper:
     
     def dis(self):
         self.CW305.dis()
-
 

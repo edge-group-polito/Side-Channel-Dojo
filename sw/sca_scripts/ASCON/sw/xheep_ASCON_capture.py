@@ -12,6 +12,7 @@ ASCON HW trace capture script (CW305 + X-HEEP + PicoScope).
 import sys
 import os
 import time
+import argparse
 from pathlib import Path
 
 import h5py
@@ -106,6 +107,29 @@ def _yn(flag: bool) -> str:
     """Pretty yes/no string used in configuration printout."""
     return "yes" if flag else "no"
 
+class BitstreamFile:
+    """Compatibility wrapper for ChipWhisperer builds that expect both a path and a context manager."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self._fh = None
+
+    def __fspath__(self):
+        return str(self.path)
+
+    def __str__(self):
+        return str(self.path)
+
+    def __enter__(self):
+        self._fh = self.path.open("rb")
+        return self._fh
+
+    def __exit__(self, exc_type, exc, tb):
+        if self._fh is not None:
+            self._fh.close()
+            self._fh = None
+        return False
+
 
 def prepare_board(firmware: str):
     """
@@ -126,14 +150,16 @@ def prepare_board(firmware: str):
     ps = PS5000aWrapper()
     ps.get_unitInfo()
 
-    # Example scope setup: ~9 us window, 900 samples (adjust as needed)
-    ps.scope_setup(obs_time=9e-6, nSamples=900)
+    # Example scope setup: ~23 us window, 11500 requested samples (~2 ns target interval)
+    ps.scope_setup(obs_time=23E-6, nSamples=11500)
+
+    bitstream = BitstreamFile(BITSTREAM_PATH)
 
     # 2) Initialize CW305 with required parameters
     cw305 = cw.target(
         None,
         cw.targets.CW305,
-        bsfile=str(BITSTREAM_PATH),
+        bsfile=bitstream,
         force=True,
         slurp=True,
         defines_files=[str(VERILOG_DEFINES)],
@@ -224,7 +250,8 @@ def run_capture(
         / "sw"
         / "x-heep"
         / "ASCON_firmware"
-        / f"ascon_opt32_{sbox_type}_{n_trc // 1000}k.hex"
+        #/ f"ascon_opt32_{sbox_type}_{n_trc // 1000}k.hex"
+        / f"ascon_opt32_{sbox_type}_5000k.hex"
     )
     traceset_file = TRACESET_DIR / f"ascon_opt32_{sbox_type}_{n_trc // 1000}k.h5"
     plot_dir = BASE_PLOT_DIR / sbox_type
@@ -296,14 +323,68 @@ def run_capture(
     # -------------------------------------------------------------------
     # Trace acquisition
     # -------------------------------------------------------------------
-    traces = None
-    nonces = None
+    preview_traces = None
 
     try:
-        # Initialize storage arrays after we know the number of samples
         n_samples = ps.get_nSamples()
-        traces = np.empty((n_trc, n_samples), dtype=float)
-        nonces = np.empty((n_trc, 2), dtype=np.uint64)
+        preview_count = min(100, n_trc) if traces_overlapped_plot else 0
+        if preview_count:
+            preview_traces = np.empty((preview_count, n_samples), dtype=np.float32)
+
+        trace_dtype = np.float32
+        trace_chunk_rows = 256
+        trace_chunk_shape = (min(trace_chunk_rows, n_trc), n_samples)
+
+        # Create the HDF5 datasets up front so traces can be streamed directly
+        # to disk instead of buffering the full capture in RAM.
+        f_write_traces = None
+        d_traces = None
+        d_nonces = None
+        if save_traces:
+            print("[ONLINE] Creating HDF5 datasets for streamed capture...")
+            print(f"[ONLINE] Writing capture data to file: {traceset_file}")
+            f_write_traces = h5py.File(traceset_file, "w")
+            d_nonces = f_write_traces.create_dataset(
+                "nonces",
+                shape=(n_trc, 2),
+                dtype=np.uint64,
+                chunks=(min(4096, n_trc), 2),
+            )
+            d_traces = f_write_traces.create_dataset(
+                "traces",
+                shape=(n_trc, n_samples),
+                dtype=trace_dtype,
+                chunks=trace_chunk_shape,
+            )
+
+            # ---- Dataset-level metadata ----
+            d_traces.attrs["description"] = (
+                "Power traces: each row is one trace, stored as float32 "
+                "dynamic voltage samples during ASCON execution."
+            )
+            d_traces.attrs["dtype"] = "float32"
+            d_traces.attrs["units"] = "AC Power"
+
+            d_nonces.attrs["description"] = (
+                "ASCON nonces stored as 2×64-bit integers per trace: "
+                "nonces[i,0] = least significant 64 bits (LSB half), "
+                "nonces[i,1] = most significant 64 bits (MSB half). "
+                "Nonce is first reversed by bytes (little-endian) before splitting."
+            )
+            d_nonces.attrs["layout"] = "nonce[i,0]=LSB64, nonce[i,1]=MSB64"
+            d_nonces.attrs["dtype"] = "uint64"
+
+            # ---- File-level metadata ----
+            f_write_traces.attrs["sampling_interval"] = sampling_interval
+            f_write_traces.attrs["n_traces"] = n_trc
+            f_write_traces.attrs["n_samples"] = n_samples
+            f_write_traces.attrs["completed_traces"] = 0
+            f_write_traces.attrs["key_hex"] = key_hex
+            f_write_traces.attrs["iv_hex"] = iv_hex
+            f_write_traces.attrs["description"] = (
+                "ASCON SCA traceset. Datasets: /traces (float32, n_traces×n_samples), "
+                "/nonces (uint64, n_traces×2, little-endian 128-bit nonce split)."
+            )
 
         print("[ONLINE] Starting trace capture...")
         nonce = nonce_int
@@ -319,18 +400,31 @@ def run_capture(
 
             # Retrieve captured power trace
             data = ps.getDataV()
-            trace = np.array(data, dtype=float)
+            trace = np.asarray(data, dtype=trace_dtype)
 
-            # Store trace
-            traces[i] = trace
+            if save_traces:
+                d_traces[i] = trace
 
             # Store nonce halves (little-endian 2×64-bit representation)
-            nonces[i, 0] = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF  # least significant 64 bits
-            nonces[i, 1] = nonce & 0xFFFFFFFFFFFFFFFF          # most significant 64 bits
+            nonce_lsb = (nonce >> 64) & 0xFFFFFFFFFFFFFFFF
+            nonce_msb = nonce & 0xFFFFFFFFFFFFFFFF
+            if save_traces:
+                d_nonces[i, 0] = nonce_lsb
+                d_nonces[i, 1] = nonce_msb
+
+            if preview_count and i < preview_count:
+                preview_traces[i] = trace
 
             # Update nonce for next iteration using 2 state registers
             S = ascon_first_round(key_int, nonce, sbox_type)
             nonce = (S[3] << 64) | S[4]
+
+            if save_traces and ((i + 1) % 1000 == 0 or i + 1 == n_trc):
+                f_write_traces.attrs["completed_traces"] = i + 1
+                f_write_traces.flush()
+                print(
+                    f"[ONLINE] File progress: {i + 1}/{n_trc} traces flushed to {traceset_file}"
+                )
 
             time.sleep(1e-3)  # 1 ms
 
@@ -341,42 +435,8 @@ def run_capture(
         # Save traces to HDF5
         # -------------------------------------------------------------------
         if save_traces:
-            print("[ONLINE] Saving traces to HDF5...")
-            with h5py.File(traceset_file, "w") as f_write_traces:
-                # Datasets
-                d_nonces = f_write_traces.create_dataset("nonces", data=nonces)
-                d_traces = f_write_traces.create_dataset("traces", data=traces)
-
-                # ---- Dataset-level metadata ----
-                # Traces: float64 voltage samples
-                d_traces.attrs["description"] = (
-                    "Power traces: each row is one trace, stored as float64 "
-                    "dynamic voltage samples during ASCON execution."
-                )
-                d_traces.attrs["dtype"] = "float64"
-                d_traces.attrs["units"] = "AC Power"
-
-                # Nonces: 128-bit nonce split into two 64-bit words
-                d_nonces.attrs["description"] = (
-                    "ASCON nonces stored as 2×64-bit integers per trace: "
-                    "nonces[i,0] = least significant 64 bits (LSB half), "
-                    "nonces[i,1] = most significant 64 bits (MSB half). "
-                    "Nonce is first reversed by bytes (little-endian) before splitting."
-                )
-                d_nonces.attrs["layout"] = "nonce[i,0]=LSB64, nonce[i,1]=MSB64"
-                d_nonces.attrs["dtype"] = "uint64"
-
-                # ---- File-level metadata ----
-                f_write_traces.attrs["sampling_interval"] = sampling_interval
-                f_write_traces.attrs["n_traces"]           = n_trc
-                f_write_traces.attrs["n_samples"]          = n_samples
-                f_write_traces.attrs["key_hex"]            = key_hex
-                f_write_traces.attrs["iv_hex"]             = iv_hex
-                f_write_traces.attrs["description"] = (
-                    "ASCON SCA traceset. Datasets: /traces (float64, n_traces×n_samples), "
-                    "/nonces (uint64, n_traces×2, little-endian 128-bit nonce split)."
-                )
-
+            f_write_traces.attrs["completed_traces"] = n_trc
+            f_write_traces.close()
             print(f"[ONLINE] Capture completed. Traces saved to: {traceset_file}")
         else:
             print("[ONLINE] Capture completed. Traces were not saved (save_traces = False).")
@@ -388,18 +448,25 @@ def run_capture(
             plot_path = plot_dir / f"ascon_traces_overlapped_{sbox_type}_{n_trc // 1000}k.png"
             print(f"[ONLINE] Generating overlapped trace plot: {plot_path}")
             plot_overlapped_traces(
-                traces=traces,
+                traces=preview_traces,
                 sampling_interval=sampling_interval,
                 out_path=plot_path,
-                max_traces=200,
+                max_traces=100,
                 save_plot=save_plot,
             )
+            preview_traces = None
             print("[ONLINE] Overlapped trace plot generated.")
 
     except Exception as e:
         print(f"[ERROR] Capture aborted due to error: {e}")
         raise
     finally:
+        try:
+            if 'f_write_traces' in locals() and f_write_traces is not None:
+                if f_write_traces.id.valid:
+                    f_write_traces.close()
+        except Exception:
+            pass
         # Disconnect CW305 and PicoScope (online phase done)
         print("[ONLINE] Shutting down instruments...")
         try:
@@ -432,8 +499,13 @@ def main() -> None:
     ]
 
     # --- User configuration ------------------------------------------------
-    sbox_type = "lut_ascon"     # choose one from AVAILABLE_SBOXES
-    n_trc = 10000               # number of traces to capture
+    parser = argparse.ArgumentParser(description="Capture ASCON power traces.")
+    parser.add_argument("--sbox", choices=AVAILABLE_SBOXES, default="lut_lu_5", help="S-box implementation to use.")
+    parser.add_argument("--traces", type=int, default=1000000, help="Number of traces to capture.")
+    args = parser.parse_args()
+
+    sbox_type = args.sbox
+    n_trc = args.traces
 
     save_traces = True          # store traces into an HDF5 file
     traces_overlapped_plot = True  # generate overlapped trace plot

@@ -1,0 +1,1955 @@
+[INFO] Logging to cache file: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/CPA_run_lut_ascon_10k_20260506_141619.log
+
+================= CONFIGURATION =================
+  Script scope              : Multiprocess CPA attack to ASCON SW with generic S-box
+DOJO_ROOT                    : /home/b.farnaghinejad/Side-Channel-Dojo
+
+Target
+  S-box used                : lut_ascon
+  Number of used traces     : 10,000
+  Requested worker cap      : auto
+
+Hardware
+  CPU logical cores         : 112
+  CPA backend requested     : auto
+  CPA backend selected      : cpu
+  Worker processes used     : 112
+  Trace handling mode       : in-memory
+  Host memory available     : 226.82 GiB
+  Runtime note              : Using the default in-memory CPA path.
+
+Paths
+  Traceset file             : /home/b.farnaghinejad/Side-Channel-Dojo/sw/traceset/ASCON/sw/ascon_opt32_lut_ascon_10k.h5
+  SNR file of attacked bits : /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/snr_ranked_10k.h5
+  Plot dir                  : /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/plot/lut_ascon
+  CPA cache file            : /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/CPA_results_lut_ascon.json
+  Run log file              : /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/CPA_run_lut_ascon_10k_20260506_141619.log
+
+Analysis Configuration
+  Save plots                : yes
+  Save results              : yes
+  Load CPA results (cache)  : no
+  Save CPA results (cache)  : yes
+
+  Key rank plot             : yes
+  Correlation plot          : yes
+=================================================
+
+[INFO] Loaded 10000 traces from /home/b.farnaghinejad/Side-Channel-Dojo/sw/traceset/ASCON/sw/ascon_opt32_lut_ascon_10k.h5
+[INFO] Sampling interval      : 8e-09
+[INFO] Samples per trace      : 1125
+[INFO] Approx. traces size    : 0.08 GiB
+[INFO] Key                    : 0x000102030405060708090A0B0C0D0E0F
+[INFO] IV                     : 0x00001000808C0001
+[INFO] Initial nonce          : 0x000102030405060708090A0B0C0D0E0F
+
+[INFO] Key halves by byte (big-endian)
+               7   6   5   4   3   2   1   0
+k0            00  01  02  03  04  05  06  07
+k1            08  09  0A  0B  0C  0D  0E  0F
+
+[INFO] k0 bits (bit63 = LSB ... bit0 = MSB)
+      Byte separators every 8 bits (|)
+
+idx: 63 62 61 60 59 58 57 56 | 55 54 53 52 51 50 49 48 | 47 46 45 44 43 42 41 40 | 39 38 37 36 35 34 33 32
+val:  0  0  0  0  0  1  1  1 |  0  0  0  0  0  1  1  0 |  0  0  0  0  0  1  0  1 |  0  0  0  0  0  1  0  0
+----------------------------------------------------------------------------------------------------------
+idx: 31 30 29 28 27 26 25 24 | 23 22 21 20 19 18 17 16 | 15 14 13 12 11 10  9  8 |  7  6  5  4  3  2  1  0
+val:  0  0  0  0  0  0  1  1 |  0  0  0  0  0  0  1  0 |  0  0  0  0  0  0  0  1 |  0  0  0  0  0  0  0  0
+
+[INFO] k1 bits (bit63 = LSB ... bit0 = MSB)
+      Byte separators every 8 bits (|)
+
+idx: 63 62 61 60 59 58 57 56 | 55 54 53 52 51 50 49 48 | 47 46 45 44 43 42 41 40 | 39 38 37 36 35 34 33 32
+val:  0  0  0  0  1  1  1  1 |  0  0  0  0  1  1  1  0 |  0  0  0  0  1  1  0  1 |  0  0  0  0  1  1  0  0
+----------------------------------------------------------------------------------------------------------
+idx: 31 30 29 28 27 26 25 24 | 23 22 21 20 19 18 17 16 | 15 14 13 12 11 10  9  8 |  7  6  5  4  3  2  1  0
+val:  0  0  0  0  1  0  1  1 |  0  0  0  0  1  0  1  0 |  0  0  0  0  1  0  0  1 |  0  0  0  0  1  0  0  0
+
+=== Recovering k0 and k1 (generic 6-bit leakage model) ===
+
+[INFO] Missing ranked SNR cache. Generating it first: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/snr_ranked_10k.h5
+
+================= CONFIGURATION =================
+  Script scope           : SNR computation of target bits for ASCON SW with generic S-box
+DOJO_ROOT                : /home/b.farnaghinejad/Side-Channel-Dojo
+
+Target
+  Cipher                 : ASCON
+  S-box implementation   : lut_ascon
+  Scope                  : SNR ranking for all bits (x0 and x1)
+
+Paths
+  Traceset file          : /home/b.farnaghinejad/Side-Channel-Dojo/sw/traceset/ASCON/sw/ascon_opt32_lut_ascon_10k.h5
+  SNR write to           : /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/snr_ranked_10k.h5
+
+SNR configuration
+  Nr. of analyzed traces : 10000
+=================================================
+
+[INFO] Loaded metadata for 10000 traces from /home/b.farnaghinejad/Side-Channel-Dojo/sw/traceset/ASCON/sw/ascon_opt32_lut_ascon_10k.h5
+[INFO] Samples per trace      : 1125
+[INFO] Sampling interval      : 8e-09
+[INFO] Key                    : 0x000102030405060708090A0B0C0D0E0F
+[INFO] IV                     : 0x00001000808C0001
+
+================= SNR RUNTIME =================
+  Traceset file          : /home/b.farnaghinejad/Side-Channel-Dojo/sw/traceset/ASCON/sw/ascon_opt32_lut_ascon_10k.h5
+  Backend                : cpu
+  CPU cores available    : 112
+  Workers used           : 112
+  Trace handling mode    : full-memory
+  Trace chunk rows       : 10000
+  State chunk rows       : 4096
+  Analyzed traces        : 10000
+  Samples per trace      : 1125
+  Traceset size          : 0.08 GiB
+  State cache size       : 0.00 GiB
+  Full accumulator size  : 0.00 GiB
+  Host memory available  : 226.82 GiB
+  Runtime note           : Using the full-memory SNR path.
+================================================
+
+Precomputing ASCON state words:   0%|          | 0/3 [00:00<?, ?it/s]Precomputing ASCON state words:  33%|###3      | 1/3 [00:00<00:00,  2.94it/s]Precomputing ASCON state words:  67%|######6   | 2/3 [00:00<00:00,  2.65it/s]Precomputing ASCON state words: 100%|##########| 3/3 [00:00<00:00,  4.03it/s]
+[INFO] ASCON state precomputation completed in 0.02 minutes.
+Accumulating SNR statistics:   0%|          | 0/1 [00:00<?, ?it/s]Accumulating SNR statistics: 100%|##########| 1/1 [00:00<00:00,  8.52it/s]Accumulating SNR statistics: 100%|##########| 1/1 [00:00<00:00,  8.50it/s]
+[INFO] SNR statistics accumulation completed in 0.00 minutes.
+
+[INFO] Saved ranked SNR results to: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/snr_ranked_10k.h5
+[INFO] SNR stage summary      : workers=112, mode=full-memory, state_time=0.02 min, stats_time=0.00 min
+[INFO] Loaded 128 attacked targets from /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/cache/lut_ascon/snr_ranked_10k.h5
+[INFO] Top-5 targets: [('x1', 32), ('x0', 32), ('x1', 0), ('x0', 13), ('x1', 63)]
+[INFO] SNR generation completed in 0.02 minutes.
+[INFO] Restoring old-style success-rate/key-rank cache using 112 CPU workers: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/xheep_sca_ASCON_success_rate_multiprocessing.py
+[INFO] Success-rate/key-rank generation completed in 5.16 minutes.
+Attack targets (parallel):   0%|          | 0/128 [00:00<?, ?it/s]
+[INFO] Attacking state register x1, bit 32
+[INFO] This attack constrains key bit indices: [32, 29, 7]
+
+[INFO] Finished CPA for x1[32]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=0/64, k1=0/64, k0_xor_k1=3/64
+Attack targets (parallel):   1%|          | 1/128 [00:00<01:48,  1.17it/s]
+[INFO] Attacking state register x0, bit 32
+[INFO] This attack constrains key bit indices: [32, 51, 60]
+
+[INFO] Finished CPA for x0[32]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[32]=0
+[INFO] Recovered k1[32]=0 using k0[32] and k0^k1[32]
+[INFO] Recovered k0[51]=0
+[INFO] Recovered k0[60]=0
+[INFO] Progress: k0=3/64, k1=1/64, k0_xor_k1=3/64
+
+[INFO] Attacking state register x1, bit 0
+[INFO] This attack constrains key bit indices: [0, 61, 39]
+
+[INFO] Finished CPA for x1[0]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=3/64, k1=1/64, k0_xor_k1=6/64
+
+[INFO] Attacking state register x0, bit 13
+[INFO] This attack constrains key bit indices: [13, 32, 41]
+
+[INFO] Finished CPA for x0[13]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[13]=0
+[INFO] Recovered k0[41]=0
+[INFO] Progress: k0=5/64, k1=1/64, k0_xor_k1=6/64
+
+[INFO] Attacking state register x1, bit 63
+[INFO] This attack constrains key bit indices: [63, 60, 38]
+
+[INFO] Finished CPA for x1[63]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[60]=0 using k0[60] and k0^k1[60]
+[INFO] Progress: k0=5/64, k1=2/64, k0_xor_k1=9/64
+
+[INFO] Attacking state register x1, bit 13
+[INFO] This attack constrains key bit indices: [13, 10, 52]
+
+[INFO] Finished CPA for x1[13]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[13]=0 using k0[13] and k0^k1[13]
+[INFO] Progress: k0=5/64, k1=3/64, k0_xor_k1=12/64
+
+[INFO] Attacking state register x1, bit 1
+[INFO] This attack constrains key bit indices: [1, 62, 40]
+
+[INFO] Finished CPA for x1[1]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=5/64, k1=3/64, k0_xor_k1=15/64
+
+[INFO] Attacking state register x1, bit 14
+[INFO] This attack constrains key bit indices: [14, 11, 53]
+
+[INFO] Finished CPA for x1[14]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        11  001  011
+        16  010  000
+        25  011  001
+        38  100  110
+        47  101  111
+        52  110  100
+        61  111  101
+
+[INFO] Progress: k0=5/64, k1=3/64, k0_xor_k1=18/64
+Attack targets (parallel):   6%|6         | 8/128 [00:01<00:12,  9.31it/s]
+[INFO] Attacking state register x1, bit 15
+[INFO] This attack constrains key bit indices: [15, 12, 54]
+
+[INFO] Finished CPA for x1[15]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=5/64, k1=3/64, k0_xor_k1=21/64
+
+[INFO] Attacking state register x0, bit 34
+[INFO] This attack constrains key bit indices: [34, 53, 62]
+
+[INFO] Finished CPA for x0[34]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Recovered k0[34]=1
+[INFO] Recovered k0[53]=0
+[INFO] Recovered k1[53]=0 using k0[53] and k0^k1[53]
+[INFO] Recovered k0[62]=0
+[INFO] Recovered k1[62]=0 using k0[62] and k0^k1[62]
+[INFO] Progress: k0=8/64, k1=5/64, k0_xor_k1=21/64
+
+[INFO] Attacking state register x0, bit 4
+[INFO] This attack constrains key bit indices: [4, 23, 32]
+
+[INFO] Finished CPA for x0[4]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[4]=0
+[INFO] Recovered k0[23]=0
+[INFO] Progress: k0=10/64, k1=5/64, k0_xor_k1=21/64
+
+[INFO] Attacking state register x0, bit 0
+[INFO] This attack constrains key bit indices: [0, 19, 28]
+
+[INFO] Finished CPA for x0[0]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[0]=0
+[INFO] Recovered k1[0]=0 using k0[0] and k0^k1[0]
+[INFO] Recovered k0[19]=0
+[INFO] Recovered k0[28]=0
+[INFO] Progress: k0=13/64, k1=6/64, k0_xor_k1=21/64
+
+[INFO] Attacking state register x1, bit 36
+[INFO] This attack constrains key bit indices: [36, 33, 11]
+
+[INFO] Finished CPA for x1[36]
+
+Total number of groups: 8
+Best group index: 1
+
+group   hyp   k1    k0
+------------------------
+    1    1  000  001
+         8  001  000
+        19  010  011
+        26  011  010
+        37  100  101
+        44  101  100
+        55  110  111
+        62  111  110
+
+[INFO] Progress: k0=13/64, k1=6/64, k0_xor_k1=23/64
+
+[INFO] Attacking state register x0, bit 54
+[INFO] This attack constrains key bit indices: [54, 9, 18]
+
+[INFO] Finished CPA for x0[54]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[54]=0
+[INFO] Recovered k1[54]=0 using k0[54] and k0^k1[54]
+[INFO] Recovered k0[9]=0
+[INFO] Recovered k0[18]=0
+[INFO] Progress: k0=16/64, k1=7/64, k0_xor_k1=23/64
+
+[INFO] Attacking state register x0, bit 6
+[INFO] This attack constrains key bit indices: [6, 25, 34]
+
+[INFO] Finished CPA for x0[6]
+
+Total number of groups: 8
+Best group index: 3
+
+group   hyp   k1    k0
+------------------------
+    3    3  000  011
+        11  001  011
+        19  010  011
+        27  011  011
+        35  100  011
+        43  101  011
+        51  110  011
+        59  111  011
+
+[INFO] Recovered k0[6]=0
+[INFO] Recovered k0[25]=1
+[INFO] Progress: k0=18/64, k1=7/64, k0_xor_k1=23/64
+
+[INFO] Attacking state register x0, bit 36
+[INFO] This attack constrains key bit indices: [36, 55, 0]
+
+[INFO] Finished CPA for x0[36]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[36]=0
+[INFO] Recovered k1[36]=0 using k0[36] and k0^k1[36]
+[INFO] Recovered k0[55]=0
+[INFO] Progress: k0=20/64, k1=8/64, k0_xor_k1=23/64
+
+[INFO] Attacking state register x1, bit 31
+[INFO] This attack constrains key bit indices: [31, 28, 6]
+
+[INFO] Finished CPA for x1[31]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[28]=0 using k0[28] and k0^k1[28]
+[INFO] Recovered k1[6]=0 using k0[6] and k0^k1[6]
+[INFO] Progress: k0=20/64, k1=10/64, k0_xor_k1=26/64
+
+[INFO] Attacking state register x1, bit 8
+[INFO] This attack constrains key bit indices: [8, 5, 47]
+
+[INFO] Finished CPA for x1[8]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=20/64, k1=10/64, k0_xor_k1=29/64
+
+[INFO] Attacking state register x0, bit 33
+[INFO] This attack constrains key bit indices: [33, 52, 61]
+
+[INFO] Finished CPA for x0[33]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[33]=0
+[INFO] Recovered k1[33]=0 using k0[33] and k0^k1[33]
+[INFO] Recovered k0[52]=0
+[INFO] Recovered k1[52]=0 using k0[52] and k0^k1[52]
+[INFO] Recovered k0[61]=0
+[INFO] Recovered k1[61]=0 using k0[61] and k0^k1[61]
+[INFO] Progress: k0=23/64, k1=13/64, k0_xor_k1=29/64
+
+[INFO] Attacking state register x0, bit 19
+[INFO] This attack constrains key bit indices: [19, 38, 47]
+
+[INFO] Finished CPA for x0[19]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[38]=0
+[INFO] Recovered k1[38]=0 using k0[38] and k0^k1[38]
+[INFO] Recovered k0[47]=0
+[INFO] Recovered k1[47]=0 using k0[47] and k0^k1[47]
+[INFO] Progress: k0=25/64, k1=15/64, k0_xor_k1=29/64
+
+[INFO] Attacking state register x0, bit 63
+[INFO] This attack constrains key bit indices: [63, 18, 27]
+
+[INFO] Finished CPA for x0[63]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[63]=0
+[INFO] Recovered k1[63]=0 using k0[63] and k0^k1[63]
+[INFO] Recovered k0[27]=0
+[INFO] Progress: k0=27/64, k1=16/64, k0_xor_k1=29/64
+
+[INFO] Attacking state register x1, bit 18
+[INFO] This attack constrains key bit indices: [18, 15, 57]
+
+[INFO] Finished CPA for x1[18]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[18]=0 using k0[18] and k0^k1[18]
+[INFO] Progress: k0=27/64, k1=17/64, k0_xor_k1=31/64
+
+[INFO] Attacking state register x0, bit 16
+[INFO] This attack constrains key bit indices: [16, 35, 44]
+
+[INFO] Finished CPA for x0[16]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[16]=0
+[INFO] Recovered k0[35]=0
+[INFO] Recovered k0[44]=0
+[INFO] Progress: k0=30/64, k1=17/64, k0_xor_k1=31/64
+
+[INFO] Attacking state register x0, bit 35
+[INFO] This attack constrains key bit indices: [35, 54, 63]
+
+[INFO] Finished CPA for x0[35]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Progress: k0=30/64, k1=17/64, k0_xor_k1=31/64
+
+[INFO] Attacking state register x0, bit 17
+[INFO] This attack constrains key bit indices: [17, 36, 45]
+
+[INFO] Finished CPA for x0[17]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Recovered k0[17]=1
+[INFO] Recovered k0[45]=0
+[INFO] Progress: k0=32/64, k1=17/64, k0_xor_k1=31/64
+
+[INFO] Attacking state register x0, bit 55
+[INFO] This attack constrains key bit indices: [55, 10, 19]
+
+[INFO] Finished CPA for x0[55]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[10]=0
+[INFO] Recovered k1[10]=0 using k0[10] and k0^k1[10]
+[INFO] Progress: k0=33/64, k1=18/64, k0_xor_k1=31/64
+
+[INFO] Attacking state register x1, bit 38
+[INFO] This attack constrains key bit indices: [38, 35, 13]
+
+[INFO] Finished CPA for x1[38]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        11  001  011
+        16  010  000
+        25  011  001
+        38  100  110
+        47  101  111
+        52  110  100
+        61  111  101
+
+[INFO] Recovered k1[35]=1 using k0[35] and k0^k1[35]
+[INFO] Progress: k0=33/64, k1=19/64, k0_xor_k1=32/64
+Attack targets (parallel):  21%|##1       | 27/128 [00:01<00:02, 35.50it/s]
+[INFO] Attacking state register x0, bit 7
+[INFO] This attack constrains key bit indices: [7, 26, 35]
+
+[INFO] Finished CPA for x0[7]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[7]=0
+[INFO] Recovered k1[7]=0 using k0[7] and k0^k1[7]
+[INFO] Recovered k0[26]=0
+[INFO] Progress: k0=35/64, k1=20/64, k0_xor_k1=32/64
+
+[INFO] Attacking state register x1, bit 44
+[INFO] This attack constrains key bit indices: [44, 41, 19]
+
+[INFO] Finished CPA for x1[44]
+
+Total number of groups: 8
+Best group index: 1
+
+group   hyp   k1    k0
+------------------------
+    1    1  000  001
+         8  001  000
+        19  010  011
+        26  011  010
+        37  100  101
+        44  101  100
+        55  110  111
+        62  111  110
+
+[INFO] Recovered k1[44]=0 using k0[44] and k0^k1[44]
+[INFO] Recovered k1[41]=0 using k0[41] and k0^k1[41]
+[INFO] Recovered k1[19]=1 using k0[19] and k0^k1[19]
+[INFO] Progress: k0=35/64, k1=23/64, k0_xor_k1=35/64
+
+[INFO] Attacking state register x1, bit 23
+[INFO] This attack constrains key bit indices: [23, 20, 62]
+
+[INFO] Finished CPA for x1[23]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[23]=0 using k0[23] and k0^k1[23]
+[INFO] Progress: k0=35/64, k1=24/64, k0_xor_k1=37/64
+
+[INFO] Attacking state register x0, bit 40
+[INFO] This attack constrains key bit indices: [40, 59, 4]
+
+[INFO] Finished CPA for x0[40]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Recovered k0[40]=1
+[INFO] Recovered k1[40]=1 using k0[40] and k0^k1[40]
+[INFO] Recovered k0[59]=0
+[INFO] Progress: k0=37/64, k1=25/64, k0_xor_k1=37/64
+
+[INFO] Attacking state register x1, bit 45
+[INFO] This attack constrains key bit indices: [45, 42, 20]
+
+[INFO] Finished CPA for x1[45]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[45]=0 using k0[45] and k0^k1[45]
+[INFO] Progress: k0=37/64, k1=26/64, k0_xor_k1=39/64
+
+[INFO] Attacking state register x0, bit 14
+[INFO] This attack constrains key bit indices: [14, 33, 42]
+
+[INFO] Finished CPA for x0[14]
+
+Total number of groups: 8
+Best group index: 1
+
+group   hyp   k1    k0
+------------------------
+    1    1  000  001
+         9  001  001
+        17  010  001
+        25  011  001
+        33  100  001
+        41  101  001
+        49  110  001
+        57  111  001
+
+[INFO] Recovered k0[14]=0
+[INFO] Recovered k1[14]=0 using k0[14] and k0^k1[14]
+[INFO] Recovered k0[42]=1
+[INFO] Recovered k1[42]=1 using k0[42] and k0^k1[42]
+[INFO] Progress: k0=39/64, k1=28/64, k0_xor_k1=39/64
+
+[INFO] Attacking state register x0, bit 48
+[INFO] This attack constrains key bit indices: [48, 3, 12]
+
+[INFO] Finished CPA for x0[48]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[48]=0
+[INFO] Recovered k0[3]=0
+[INFO] Recovered k0[12]=0
+[INFO] Recovered k1[12]=0 using k0[12] and k0^k1[12]
+[INFO] Progress: k0=42/64, k1=29/64, k0_xor_k1=39/64
+
+[INFO] Attacking state register x1, bit 5
+[INFO] This attack constrains key bit indices: [5, 2, 44]
+
+[INFO] Finished CPA for x1[5]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=42/64, k1=29/64, k0_xor_k1=40/64
+
+[INFO] Attacking state register x1, bit 48
+[INFO] This attack constrains key bit indices: [48, 45, 23]
+
+[INFO] Finished CPA for x1[48]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[48]=0 using k0[48] and k0^k1[48]
+[INFO] Progress: k0=42/64, k1=30/64, k0_xor_k1=41/64
+
+[INFO] Attacking state register x0, bit 1
+[INFO] This attack constrains key bit indices: [1, 20, 29]
+
+[INFO] Finished CPA for x0[1]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[1]=0
+[INFO] Recovered k1[1]=0 using k0[1] and k0^k1[1]
+[INFO] Recovered k0[20]=0
+[INFO] Recovered k1[20]=0 using k0[20] and k0^k1[20]
+[INFO] Recovered k0[29]=0
+[INFO] Recovered k1[29]=0 using k0[29] and k0^k1[29]
+[INFO] Progress: k0=45/64, k1=33/64, k0_xor_k1=41/64
+
+[INFO] Attacking state register x1, bit 10
+[INFO] This attack constrains key bit indices: [10, 7, 49]
+
+[INFO] Finished CPA for x1[10]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=45/64, k1=33/64, k0_xor_k1=42/64
+
+[INFO] Attacking state register x1, bit 51
+[INFO] This attack constrains key bit indices: [51, 48, 26]
+
+[INFO] Finished CPA for x1[51]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        13  001  101
+        22  010  110
+        31  011  111
+        32  100  000
+        41  101  001
+        50  110  010
+        59  111  011
+
+[INFO] Recovered k1[51]=1 using k0[51] and k0^k1[51]
+[INFO] Recovered k1[26]=0 using k0[26] and k0^k1[26]
+[INFO] Progress: k0=45/64, k1=35/64, k0_xor_k1=44/64
+
+[INFO] Attacking state register x1, bit 43
+[INFO] This attack constrains key bit indices: [43, 40, 18]
+
+[INFO] Finished CPA for x1[43]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        13  001  101
+        22  010  110
+        31  011  111
+        32  100  000
+        41  101  001
+        50  110  010
+        59  111  011
+
+[INFO] Progress: k0=45/64, k1=35/64, k0_xor_k1=45/64
+
+[INFO] Attacking state register x1, bit 19
+[INFO] This attack constrains key bit indices: [19, 16, 58]
+
+[INFO] Finished CPA for x1[19]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        13  001  101
+        22  010  110
+        31  011  111
+        32  100  000
+        41  101  001
+        50  110  010
+        59  111  011
+
+[INFO] Recovered k1[16]=0 using k0[16] and k0^k1[16]
+[INFO] Progress: k0=45/64, k1=36/64, k0_xor_k1=47/64
+
+[INFO] Attacking state register x1, bit 3
+[INFO] This attack constrains key bit indices: [3, 0, 42]
+
+[INFO] Finished CPA for x1[3]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        13  001  101
+        22  010  110
+        31  011  111
+        32  100  000
+        41  101  001
+        50  110  010
+        59  111  011
+
+[INFO] Recovered k1[3]=1 using k0[3] and k0^k1[3]
+[INFO] Progress: k0=45/64, k1=37/64, k0_xor_k1=48/64
+
+[INFO] Skipping x0[52] (no new key bits expected)
+
+[INFO] Skipping x1[35] (no new key bits expected)
+
+[INFO] Attacking state register x0, bit 58
+[INFO] This attack constrains key bit indices: [58, 13, 22]
+
+[INFO] Finished CPA for x0[58]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Recovered k0[58]=1
+[INFO] Recovered k1[58]=1 using k0[58] and k0^k1[58]
+[INFO] Recovered k0[22]=0
+[INFO] Progress: k0=47/64, k1=38/64, k0_xor_k1=48/64
+
+[INFO] Attacking state register x1, bit 42
+[INFO] This attack constrains key bit indices: [42, 39, 17]
+
+[INFO] Finished CPA for x1[42]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[17]=1 using k0[17] and k0^k1[17]
+[INFO] Progress: k0=47/64, k1=39/64, k0_xor_k1=49/64
+
+[INFO] Attacking state register x0, bit 38
+[INFO] This attack constrains key bit indices: [38, 57, 2]
+
+[INFO] Finished CPA for x0[38]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        10  001  010
+        18  010  010
+        26  011  010
+        34  100  010
+        42  101  010
+        50  110  010
+        58  111  010
+
+[INFO] Recovered k0[57]=1
+[INFO] Recovered k1[57]=1 using k0[57] and k0^k1[57]
+[INFO] Recovered k0[2]=0
+[INFO] Recovered k1[2]=0 using k0[2] and k0^k1[2]
+[INFO] Progress: k0=49/64, k1=41/64, k0_xor_k1=49/64
+
+[INFO] Attacking state register x0, bit 39
+[INFO] This attack constrains key bit indices: [39, 58, 3]
+
+[INFO] Finished CPA for x0[39]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        10  001  010
+        18  010  010
+        26  011  010
+        34  100  010
+        42  101  010
+        50  110  010
+        58  111  010
+
+[INFO] Recovered k0[39]=0
+[INFO] Recovered k1[39]=0 using k0[39] and k0^k1[39]
+[INFO] Progress: k0=50/64, k1=42/64, k0_xor_k1=49/64
+
+[INFO] Attacking state register x1, bit 58
+[INFO] This attack constrains key bit indices: [58, 55, 33]
+
+[INFO] Finished CPA for x1[58]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[55]=0 using k0[55] and k0^k1[55]
+[INFO] Progress: k0=50/64, k1=43/64, k0_xor_k1=50/64
+
+[INFO] Attacking state register x1, bit 25
+[INFO] This attack constrains key bit indices: [25, 22, 0]
+
+[INFO] Finished CPA for x1[25]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[25]=1 using k0[25] and k0^k1[25]
+[INFO] Recovered k1[22]=0 using k0[22] and k0^k1[22]
+[INFO] Progress: k0=50/64, k1=45/64, k0_xor_k1=52/64
+
+[INFO] Attacking state register x1, bit 40
+[INFO] This attack constrains key bit indices: [40, 37, 15]
+
+[INFO] Finished CPA for x1[40]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=50/64, k1=45/64, k0_xor_k1=53/64
+
+[INFO] Skipping x1[26] (no new key bits expected)
+
+[INFO] Attacking state register x1, bit 9
+[INFO] This attack constrains key bit indices: [9, 6, 48]
+
+[INFO] Finished CPA for x1[9]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[9]=0 using k0[9] and k0^k1[9]
+[INFO] Progress: k0=50/64, k1=46/64, k0_xor_k1=54/64
+
+[INFO] Attacking state register x0, bit 41
+[INFO] This attack constrains key bit indices: [41, 60, 5]
+
+[INFO] Finished CPA for x0[41]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[5]=0
+[INFO] Recovered k1[5]=0 using k0[5] and k0^k1[5]
+[INFO] Progress: k0=51/64, k1=47/64, k0_xor_k1=54/64
+
+[INFO] Skipping x1[2] (no new key bits expected)
+
+[INFO] Attacking state register x1, bit 24
+[INFO] This attack constrains key bit indices: [24, 21, 63]
+
+[INFO] Finished CPA for x1[24]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=51/64, k1=47/64, k0_xor_k1=56/64
+
+[INFO] Attacking state register x1, bit 30
+[INFO] This attack constrains key bit indices: [30, 27, 5]
+
+[INFO] Finished CPA for x1[30]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        11  001  011
+        16  010  000
+        25  011  001
+        38  100  110
+        47  101  111
+        52  110  100
+        61  111  101
+
+[INFO] Recovered k1[27]=1 using k0[27] and k0^k1[27]
+[INFO] Progress: k0=51/64, k1=48/64, k0_xor_k1=58/64
+Attack targets (parallel):  45%|####4     | 57/128 [00:01<00:00, 80.83it/s]
+[INFO] Attacking state register x1, bit 49
+[INFO] This attack constrains key bit indices: [49, 46, 24]
+
+[INFO] Finished CPA for x1[49]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=51/64, k1=48/64, k0_xor_k1=59/64
+
+[INFO] Attacking state register x0, bit 15
+[INFO] This attack constrains key bit indices: [15, 34, 43]
+
+[INFO] Finished CPA for x0[15]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        10  001  010
+        18  010  010
+        26  011  010
+        34  100  010
+        42  101  010
+        50  110  010
+        58  111  010
+
+[INFO] Recovered k0[15]=0
+[INFO] Recovered k1[15]=0 using k0[15] and k0^k1[15]
+[INFO] Recovered k0[43]=0
+[INFO] Recovered k1[43]=1 using k0[43] and k0^k1[43]
+[INFO] Progress: k0=53/64, k1=50/64, k0_xor_k1=59/64
+
+[INFO] Skipping x1[12] (no new key bits expected)
+
+[INFO] Skipping x0[43] (no new key bits expected)
+
+[INFO] Attacking state register x0, bit 37
+[INFO] This attack constrains key bit indices: [37, 56, 1]
+
+[INFO] Finished CPA for x0[37]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        10  001  010
+        18  010  010
+        26  011  010
+        34  100  010
+        42  101  010
+        50  110  010
+        58  111  010
+
+[INFO] Recovered k0[37]=0
+[INFO] Recovered k1[37]=0 using k0[37] and k0^k1[37]
+[INFO] Recovered k0[56]=1
+[INFO] Progress: k0=55/64, k1=51/64, k0_xor_k1=59/64
+
+[INFO] Attacking state register x0, bit 47
+[INFO] This attack constrains key bit indices: [47, 2, 11]
+
+[INFO] Finished CPA for x0[47]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[11]=0
+[INFO] Recovered k1[11]=1 using k0[11] and k0^k1[11]
+[INFO] Progress: k0=56/64, k1=52/64, k0_xor_k1=59/64
+
+[INFO] Skipping x1[47] (no new key bits expected)
+
+[INFO] Skipping x1[6] (no new key bits expected)
+
+[INFO] Attacking state register x1, bit 37
+[INFO] This attack constrains key bit indices: [37, 34, 12]
+
+[INFO] Finished CPA for x1[37]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[34]=1 using k0[34] and k0^k1[34]
+[INFO] Progress: k0=56/64, k1=53/64, k0_xor_k1=60/64
+
+[INFO] Attacking state register x1, bit 46
+[INFO] This attack constrains key bit indices: [46, 43, 21]
+
+[INFO] Finished CPA for x1[46]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        11  001  011
+        16  010  000
+        25  011  001
+        38  100  110
+        47  101  111
+        52  110  100
+        61  111  101
+
+[INFO] Progress: k0=56/64, k1=53/64, k0_xor_k1=60/64
+
+[INFO] Attacking state register x1, bit 21
+[INFO] This attack constrains key bit indices: [21, 18, 60]
+
+[INFO] Finished CPA for x1[21]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=56/64, k1=53/64, k0_xor_k1=60/64
+
+[INFO] Attacking state register x0, bit 3
+[INFO] This attack constrains key bit indices: [3, 22, 31]
+
+[INFO] Finished CPA for x0[3]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[31]=0
+[INFO] Recovered k1[31]=0 using k0[31] and k0^k1[31]
+[INFO] Progress: k0=57/64, k1=54/64, k0_xor_k1=60/64
+
+[INFO] Attacking state register x0, bit 24
+[INFO] This attack constrains key bit indices: [24, 43, 52]
+
+[INFO] Finished CPA for x0[24]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Recovered k0[24]=1
+[INFO] Recovered k1[24]=1 using k0[24] and k0^k1[24]
+[INFO] Progress: k0=58/64, k1=55/64, k0_xor_k1=60/64
+
+[INFO] Attacking state register x0, bit 56
+[INFO] This attack constrains key bit indices: [56, 11, 20]
+
+[INFO] Finished CPA for x0[56]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Progress: k0=58/64, k1=55/64, k0_xor_k1=60/64
+
+[INFO] Skipping x1[16] (no new key bits expected)
+
+[INFO] Attacking state register x0, bit 53
+[INFO] This attack constrains key bit indices: [53, 8, 17]
+
+[INFO] Finished CPA for x0[53]
+
+Total number of groups: 8
+Best group index: 3
+
+group   hyp   k1    k0
+------------------------
+    3    3  000  011
+        11  001  011
+        19  010  011
+        27  011  011
+        35  100  011
+        43  101  011
+        51  110  011
+        59  111  011
+
+[INFO] Recovered k0[8]=1
+[INFO] Recovered k1[8]=1 using k0[8] and k0^k1[8]
+[INFO] Progress: k0=59/64, k1=56/64, k0_xor_k1=60/64
+
+[INFO] Attacking state register x0, bit 57
+[INFO] This attack constrains key bit indices: [57, 12, 21]
+
+[INFO] Finished CPA for x0[57]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Recovered k0[21]=0
+[INFO] Recovered k1[21]=0 using k0[21] and k0^k1[21]
+[INFO] Progress: k0=60/64, k1=57/64, k0_xor_k1=60/64
+
+[INFO] Attacking state register x1, bit 59
+[INFO] This attack constrains key bit indices: [59, 56, 34]
+
+[INFO] Finished CPA for x1[59]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        13  001  101
+        22  010  110
+        31  011  111
+        32  100  000
+        41  101  001
+        50  110  010
+        59  111  011
+
+[INFO] Recovered k1[59]=1 using k0[59] and k0^k1[59]
+[INFO] Recovered k1[56]=1 using k0[56] and k0^k1[56]
+[INFO] Progress: k0=60/64, k1=59/64, k0_xor_k1=62/64
+
+[INFO] Attacking state register x0, bit 31
+[INFO] This attack constrains key bit indices: [31, 50, 59]
+
+[INFO] Finished CPA for x0[31]
+
+Total number of groups: 8
+Best group index: 2
+
+group   hyp   k1    k0
+------------------------
+    2    2  000  010
+        10  001  010
+        18  010  010
+        26  011  010
+        34  100  010
+        42  101  010
+        50  110  010
+        58  111  010
+
+[INFO] Recovered k0[50]=1
+[INFO] Progress: k0=61/64, k1=59/64, k0_xor_k1=62/64
+
+[INFO] Attacking state register x1, bit 29
+[INFO] This attack constrains key bit indices: [29, 26, 4]
+
+[INFO] Finished CPA for x1[29]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[4]=0 using k0[4] and k0^k1[4]
+[INFO] Progress: k0=61/64, k1=60/64, k0_xor_k1=63/64
+
+[INFO] Attacking state register x1, bit 50
+[INFO] This attack constrains key bit indices: [50, 47, 25]
+
+[INFO] Finished CPA for x1[50]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Recovered k1[50]=1 using k0[50] and k0^k1[50]
+[INFO] Progress: k0=61/64, k1=61/64, k0_xor_k1=64/64
+
+[INFO] Attacking state register x0, bit 18
+[INFO] This attack constrains key bit indices: [18, 37, 46]
+
+[INFO] Finished CPA for x0[18]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         8  001  000
+        16  010  000
+        24  011  000
+        32  100  000
+        40  101  000
+        48  110  000
+        56  111  000
+
+[INFO] Recovered k0[46]=0
+[INFO] Recovered k1[46]=0 using k0[46] and k0^k1[46]
+[INFO] Progress: k0=62/64, k1=62/64, k0_xor_k1=64/64
+
+[INFO] Skipping x0[46] (no new key bits expected)
+
+[INFO] Skipping x1[62] (no new key bits expected)
+
+[INFO] Skipping x0[8] (no new key bits expected)
+
+[INFO] Skipping x0[12] (no new key bits expected)
+
+[INFO] Skipping x1[28] (no new key bits expected)
+
+[INFO] Skipping x1[20] (no new key bits expected)
+
+[INFO] Skipping x0[5] (no new key bits expected)
+
+[INFO] Skipping x1[11] (no new key bits expected)
+
+[INFO] Skipping x0[22] (no new key bits expected)
+
+[INFO] Skipping x1[39] (no new key bits expected)
+
+[INFO] Skipping x0[25] (no new key bits expected)
+
+[INFO] Skipping x0[59] (no new key bits expected)
+
+[INFO] Skipping x0[62] (no new key bits expected)
+
+[INFO] Skipping x1[41] (no new key bits expected)
+
+[INFO] Skipping x0[44] (no new key bits expected)
+
+[INFO] Skipping x1[22] (no new key bits expected)
+
+[INFO] Attacking state register x1, bit 52
+[INFO] This attack constrains key bit indices: [52, 49, 27]
+
+[INFO] Finished CPA for x1[52]
+
+Total number of groups: 8
+Best group index: 1
+
+group   hyp   k1    k0
+------------------------
+    1    1  000  001
+         8  001  000
+        19  010  011
+        26  011  010
+        37  100  101
+        44  101  100
+        55  110  111
+        62  111  110
+
+[INFO] Progress: k0=62/64, k1=62/64, k0_xor_k1=64/64
+
+[INFO] Skipping x1[7] (no new key bits expected)
+
+[INFO] Skipping x1[4] (no new key bits expected)
+
+[INFO] Skipping x1[17] (no new key bits expected)
+
+[INFO] Skipping x0[61] (no new key bits expected)
+
+[INFO] Attacking state register x1, bit 55
+[INFO] This attack constrains key bit indices: [55, 52, 30]
+
+[INFO] Finished CPA for x1[55]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=62/64, k1=62/64, k0_xor_k1=64/64
+
+[INFO] Skipping x0[42] (no new key bits expected)
+
+[INFO] Attacking state register x0, bit 49
+[INFO] This attack constrains key bit indices: [49, 4, 13]
+
+[INFO] Finished CPA for x0[49]
+
+Total number of groups: 8
+Best group index: 4
+
+group   hyp   k1    k0
+------------------------
+    4    4  000  100
+        12  001  100
+        20  010  100
+        28  011  100
+        36  100  100
+        44  101  100
+        52  110  100
+        60  111  100
+
+[INFO] Recovered k0[49]=1
+[INFO] Recovered k1[49]=1 using k0[49] and k0^k1[49]
+[INFO] Progress: k0=63/64, k1=63/64, k0_xor_k1=64/64
+
+[INFO] Attacking state register x1, bit 33
+[INFO] This attack constrains key bit indices: [33, 30, 8]
+
+[INFO] Finished CPA for x1[33]
+
+Total number of groups: 8
+Best group index: 0
+
+group   hyp   k1    k0
+------------------------
+    0    0  000  000
+         9  001  001
+        18  010  010
+        27  011  011
+        36  100  100
+        45  101  101
+        54  110  110
+        63  111  111
+
+[INFO] Progress: k0=63/64, k1=63/64, k0_xor_k1=64/64
+
+[INFO] Skipping x0[20] (no new key bits expected)
+
+[INFO] Skipping x0[27] (no new key bits expected)
+
+[INFO] Skipping x1[27] (no new key bits expected)
+
+[INFO] Skipping x0[28] (no new key bits expected)
+
+[INFO] Skipping x1[57] (no new key bits expected)
+
+[INFO] Skipping x1[53] (no new key bits expected)
+
+[INFO] Skipping x0[29] (no new key bits expected)
+
+[INFO] Skipping x1[56] (no new key bits expected)
+
+[INFO] Skipping x0[26] (no new key bits expected)
+Attack targets (parallel):  88%|########8 | 113/128 [00:01<00:00, 112.18it/s]
+[INFO] Skipping x1[60] (no new key bits expected)
+
+[INFO] Skipping x0[45] (no new key bits expected)
+
+[INFO] Skipping x0[51] (no new key bits expected)
+
+[INFO] Skipping x1[54] (no new key bits expected)
+
+[INFO] Skipping x0[21] (no new key bits expected)
+
+[INFO] Skipping x0[10] (no new key bits expected)
+
+[INFO] Skipping x0[50] (no new key bits expected)
+
+[INFO] Skipping x0[23] (no new key bits expected)
+
+[INFO] Skipping x0[60] (no new key bits expected)
+
+[INFO] Attacking state register x0, bit 11
+[INFO] This attack constrains key bit indices: [11, 30, 39]
+
+[INFO] Finished CPA for x0[11]
+
+Total number of groups: 8
+Best group index: 5
+
+group   hyp   k1    k0
+------------------------
+    5    5  000  101
+        13  001  101
+        21  010  101
+        29  011  101
+        37  100  101
+        45  101  101
+        53  110  101
+        61  111  101
+
+[WARN] Conflicting recovery for k0[11]: existing=0, new=1 (ignored)
+[INFO] Recovered k0[30]=0
+[INFO] Recovered k1[30]=0 using k0[30] and k0^k1[30]
+[WARN] Conflicting recovery for k0[39]: existing=0, new=1 (ignored)
+[INFO] Progress: k0=64/64, k1=64/64, k0_xor_k1=64/64
+Attack targets (parallel):  95%|#########5| 122/128 [00:01<00:00, 66.80it/s] 
+
+[INFO] Key recovery attack completed in 0.03 minutes.
+
+================= KEY CHECK =================
+[INFO] Expected k0 : 0x0706050403020100
+[INFO] Recovered k0: 0x0706050403020100  (64/64 bits recovered)
+[INFO] Expected k1 : 0x0F0E0D0C0B0A0908
+[INFO] Recovered k1: 0x0F0E0D0C0B0A0908  (64/64 bits recovered)
+[INFO] Correct recovered bits:
+       k0: 64/64 correct (among recovered)
+       k1: 64/64 correct (among recovered)
+[INFO] Full key match: YES
+=============================================
+
+[INFO] Saved success-rate plot to: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/plot/lut_ascon/ASCON_success_rate_vs_traces_S0_sbox_lut_ascon.png
+[INFO] Saved key-rank plot to: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/plot/lut_ascon/ASCON_key_rank_vs_traces_S0_sbox_lut_ascon_bit_0.png
+[INFO] Saved success-rate plot to: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/plot/lut_ascon/ASCON_success_rate_vs_traces_S1_sbox_lut_ascon.png
+[INFO] Saved key-rank plot to: /home/b.farnaghinejad/Side-Channel-Dojo/sw/sca_scripts/ASCON/sw/plot/lut_ascon/ASCON_key_rank_vs_traces_S1_sbox_lut_ascon_bit_0.png
+[INFO] Plot generation completed in 0.01 minutes.
+
+================= TIMING SUMMARY =================
+[INFO] SNR stage                 : 0.02 minutes
+[INFO] Success-rate/key-rank    : 5.16 minutes (generation)
+[INFO] CPA attack stage          : 0.03 minutes
+[INFO] Plot stage                : 0.01 minutes
+[INFO] Total runtime             : 5.23 minutes
+==================================================
+
+--- DEBUG LOGS BELOW (if any) ---

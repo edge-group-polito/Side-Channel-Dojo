@@ -1,0 +1,7 @@
+{
+  "source": "generic_cpa",
+  "sbox_type": "lut_bilgin",
+  "n_trc": 150000,
+  "resolution": 1500,
+  "n_steps": 100
+}
