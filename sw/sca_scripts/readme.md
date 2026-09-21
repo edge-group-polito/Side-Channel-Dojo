@@ -14,6 +14,8 @@ offline analysis of stored traces.
   [`ASCON/README.md`](ASCON/README.md) for SNR and key-recovery commands.
 - `analyzer/attack/`: leakage models and attack implementations.
 - `analyzer/utils/`: plotting and shared analysis utilities.
+- `findColLeakage.py`: utility for finding points of interest with
+   correlation-based leakage analysis.
 - `utils/`: trace readers and data-processing helpers.
 
 The cipher reference models used to validate expected outputs are kept in
@@ -33,3 +35,12 @@ Scripts can have different input formats and output locations. Run
 `python <script> --help` where supported and read the relevant subdirectory
 guide before launching a long experiment. Keep large trace files and generated
 plots out of source-controlled code directories.
+
+## Relationship with the notebooks
+
+Most notebook workflows have a corresponding Python script in this
+directory, but the relationship is not one-to-one. Some notebooks are
+exploratory and have not been converted into scripts; some scripts provide
+batch, multiprocessing, or hardware-specific workflows without an equivalent
+notebook. Use notebooks for interactive investigation and scripts for
+automation and long-running campaigns.

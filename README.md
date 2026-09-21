@@ -142,7 +142,7 @@ While for HW standalone case is
 
 Main entry point for **interactive side-channel experiments**.
 
-The key subfolders under `sw/notebook/examples` are:
+The key subfolders under [`sw/notebook/examples`](sw/notebook/examples) are:
 
 * 📈 `aes/`
   Notebooks for **AES on CW305**: CPA, SNR, success-rate evaluation, and debugging.
@@ -154,11 +154,13 @@ The key subfolders under `sw/notebook/examples` are:
 * 🧪 `x-heep/`
   Notebooks for **X-HEEP on CW305** (RISC-V): AES and ASCON SCA campaigns, including TVLA-style leakage tests.
 
-At the root of `sw/notebook` you will also find general-purpose notebooks, such as:
+* 🧪 `leakage_evaluation/`
+  Notebooks for collecting AES and ASCON traces and evaluating leakage with
+  univariate and multivariate TVLA methods. This folder is focused on leakage
+  detection and validation rather than key recovery.
 
-* `measure_cpa_success_rate.ipynb` – generic CPA success-rate measurement
-* `measure_cryptographic_properties_sbox.ipynb` – S-Box property evaluation
-* `measure_TVLA.ipynb` – TVLA-style leakage testing
+Additional notebooks are grouped under `sw/notebook/Sboxes_metrics/` for
+cryptographic S-Box metrics.
 
 ---
 
@@ -167,7 +169,8 @@ At the root of `sw/notebook` you will also find general-purpose notebooks, such 
 [`sw/sca_scripts`](sw/sca_scripts) contains the non-notebook tools for trace
 capture, leakage analysis, correlation power analysis, SNR evaluation, and
 key-recovery experiments. These scripts are intended for longer-running
-experiments, they often use multi-threadin and are best run from `tmux` or another persistent session.
+experiments, often use multiprocessing, and are best run from `tmux` or
+another persistent session.
 
 Start with the [SCA scripts guide](sw/sca_scripts/readme.md). The ASCON SNR and
 key-recovery workflows have a separate, more detailed guide in
@@ -179,6 +182,7 @@ key-recovery workflows have a separate, more detailed guide in
 | `ASCON/` | ASCON analyses, including SNR comparison and key-recovery progression. |
 | `analyzer/attack/` | Custom defined AES and ASCON leakage models, attack logic, and statistics. |
 | `analyzer/utils/` | Plotting, metrics, and shared analysis helpers. |
+| `findColLeakage.py` | Utility for locating points of interest with correlation-based leakage analysis. |
 | `CW305_api.py`, `CW305_ascon_api.py` | CW305 register, trigger, and target-control APIs. |
 | `pico_api.py` | PicoScope acquisition API. |
 | `utils/` | Trace readers and data-processing utilities. |
@@ -188,13 +192,23 @@ before changing parameters. Generated traces, caches, and plots should remain
 in their documented output directories rather than being committed to source
 folders.
 
+### Relationship with the notebooks
+
+Most notebook workflows have a corresponding Python script in
+`sw/sca_scripts`, which is useful for repeatable or large-scale experiments.
+The relationship is not one-to-one: some notebooks are exploratory and have
+not been converted into scripts, while some scripts provide batch,
+multiprocessing, or hardware-specific workflows without an equivalent
+notebook. Choose notebooks for interactive investigation and scripts for
+automation and long-running campaigns.
+
 ## 🧮 Cipher reference models (`sw/ciphers`)
 
 [`sw/ciphers`](sw/ciphers) contains the Python reference implementations and
 supporting test vectors for the analyzed ciphers. It currently includes AES,
 ASCON, and the ASCON initialization-round model. These models provide expected
 intermediate values and outputs for validating RTL, capture scripts, and
-side-channel leakage models,
+side-channel leakage models.
 
 ---
 
